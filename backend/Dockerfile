@@ -20,7 +20,8 @@ RUN uv sync --locked --no-dev
 
 # Run as an unprivileged user. Hugging Face Spaces requires uid 1000; it also suits any host.
 RUN useradd --create-home --uid 1000 autevra && mkdir -p /data && chown autevra:autevra /data
-ENV AUTEVRA_DATA_DIR=/data PATH="/app/.venv/bin:$PATH"
+# MALLOC_ARENA_MAX: fewer glibc arenas keep the threaded server's memory flatter on 512 MB hosts.
+ENV AUTEVRA_DATA_DIR=/data PATH="/app/.venv/bin:$PATH" MALLOC_ARENA_MAX=2
 USER autevra
 VOLUME /data
 EXPOSE 8000

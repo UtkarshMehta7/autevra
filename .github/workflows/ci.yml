@@ -90,6 +90,19 @@ jobs:
           done
           docker logs api
           exit 1
+      - name: Backend works within Render's free instance (512 MB, 0.1 CPU)
+        timeout-minutes: 25
+        run: |
+          docker run -d --name small --memory 512m --memory-swap 512m --cpus 0.1 \
+            -p 8100:8000 -e AUTEVRA_LLM_PROVIDER=off autevra-api
+          start=$(date +%s)
+          for i in $(seq 1 120); do curl -fsS http://localhost:8100/api/health >/dev/null && break; sleep 2; done
+          echo "ready after $(( $(date +%s) - start )) s"
+          start=$(date +%s)
+          deploy/smoke.sh http://localhost:8100
+          echo "smoke test took $(( $(date +%s) - start )) s"
+          echo "peak memory: $(docker exec small cat /sys/fs/cgroup/memory.peak) bytes"
+          test "$(docker inspect -f '{{.State.OOMKilled}}' small)" = false
       - name: Hugging Face Space bundle builds and works as uid 1000
         run: |
           deploy/huggingface/build-space.sh "$RUNNER_TEMP/space"
