@@ -189,3 +189,64 @@ def test_comfort_request_states_what_is_not_checked(client: TestClient, project:
     )
     assert reply["kind"] == "optimization" and "body roll" in reply["message"]
     assert "not checked" in reply["message"] and len(reply["studies"]) == 2
+
+
+def test_requirements_trace_preview_and_reqif(client: TestClient, project: str) -> None:
+    added = _say(client, project, "require the ground clearance to be at least 150 mm")
+    assert (
+        added["kind"] == "requirement"
+        and added["requirements"][0]["verification"]["status"] == "verified"
+    )
+    perf = _say(
+        client,
+        project,
+        "require the rear peak body acceleration to stay below 6 m/s² over the hump",
+    )
+    assert perf["requirements"][0]["verification"]["status"] == "not_verified"
+
+    preview = _say(client, project, "what if I lower the car by 20 mm?")
+    assert preview["kind"] == "preview" and "REQ-001" in preview["message"]
+    assert client.get(f"/api/projects/{project}").json()["values"]["ground_clearance"] == 160
+
+    verified = _say(client, project, "verify the requirements")
+    assert verified["kind"] == "verification"
+    statuses = {
+        r["requirement"]["key"]: r["verification"]["status"] for r in verified["requirements"]
+    }
+    assert statuses["REQ-001"] == "verified" and statuses["REQ-002"] in ("verified", "failed")
+
+    # Changing the design makes the performance evidence stale.
+    _say(client, project, "increase the rear spring rate by 2 N/mm")
+    rows = client.get(f"/api/projects/{project}/requirements").json()
+    assert (
+        next(r for r in rows if r["requirement"]["key"] == "REQ-002")["verification"]["status"]
+        == "stale"
+    )
+
+    # Edit through PATCH: unapproved requirements take no part in verdicts.
+    rid = rows[0]["requirement"]["id"]
+    patched = client.patch(f"/api/projects/{project}/requirements/{rid}", json={"approved": False})
+    assert patched.json()["verification"]["status"] == "not_approved"
+    assert (
+        client.patch(f"/api/projects/{project}/requirements/{rid}", json={"colour": 1}).status_code
+        == 422
+    )
+
+    xml = client.get(f"/api/projects/{project}/requirements.reqif").content
+    other = client.post("/api/projects", json={"name": "copy"}).json()["id"]
+    imported = client.post(f"/api/projects/{other}/requirements.reqif", content=xml).json()
+    assert [r["requirement"]["key"] for r in imported] == ["REQ-001", "REQ-002"]
+    again = client.post(f"/api/projects/{other}/requirements.reqif", content=xml).json()
+    assert (
+        len(client.get(f"/api/projects/{other}/requirements").json()) == 2
+    )  # updated, not duplicated
+    assert len(again) == 2
+
+
+def test_preview_endpoint_applies_nothing(client: TestClient, project: str) -> None:
+    body = {
+        "command": {"changes": [{"parameter": "rim_diameter", "operation": "set", "value": 20}]}
+    }
+    p = client.post(f"/api/projects/{project}/preview", json=body).json()
+    assert p["valid"] and "damper_fl" in p["rebuild"] and p["retest"]
+    assert client.get(f"/api/projects/{project}").json()["values"]["rim_diameter"] == 17

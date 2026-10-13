@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
+from pydantic import ValidationError
+
 from autevra.ai import interpreter
 from autevra.ai.llm.clients import DisabledClient, LLMClient
 from autevra.ai.rule_parser import Kind, TestRequest
@@ -22,13 +24,15 @@ from autevra.domain.commands import CommandError, SetParameters, Source
 from autevra.domain.design import ApplyResult, CommandRejectedError, DesignState
 from autevra.domain.rules import validate
 from autevra.engineering import diagnosis as dgn
-from autevra.engineering import integration
+from autevra.engineering import integration, reqif
 from autevra.engineering import loop as eloop
 from autevra.engineering import optimize as opt
+from autevra.engineering import requirements as rqm
 from autevra.engineering import testing as tst
+from autevra.engineering import trace as tracing
 from autevra.storage.database import Database
 from autevra.storage.repository import ProjectInfo, ProjectRepository
-from autevra.storage.runs import RunRepository, StudyRepository
+from autevra.storage.runs import RunNotFoundError, RunRepository, StudyRepository
 
 
 def _derived(values: dict[str, float]) -> list[schemas.DerivedValue]:
@@ -261,6 +265,65 @@ class Workspace:
             case Kind.TEST:
                 assert interpretation.tests is not None
                 return self._instruct_tests(project_id, interpretation.tests)
+            case Kind.PREVIEW:
+                assert interpretation.command is not None
+                try:
+                    impact = self.preview(project_id, interpretation.command)
+                except CommandError as exc:
+                    return schemas.InstructionResult(kind="clarification", message=str(exc))
+                lines = [impact.summary]
+                lines += [f"{c.label}: {c.before:g} → {c.after:g} {c.unit}" for c in impact.changes]
+                lines += [f"{r.key} {r.before} → {r.after.replace('_', ' ')}"
+                          for r in impact.requirements]  # fmt: skip
+                lines += [f"New warning: {w}" for w in impact.warnings_added]
+                lines += [f"Cleared: {w}" for w in impact.warnings_cleared]
+                lines.append("Nothing was applied.")
+                return schemas.InstructionResult(
+                    kind="preview",
+                    message=" ".join(lines),
+                    command=interpretation.command,
+                    impact_preview=impact,
+                    assumptions=interpretation.assumptions,
+                )
+            case Kind.REQUIREMENT:
+                assert interpretation.requirement is not None
+                try:
+                    out = self.add_requirement(
+                        project_id, schemas.RequirementIn(**interpretation.requirement)
+                    )
+                except (CommandError, ValidationError) as exc:
+                    return schemas.InstructionResult(
+                        kind="clarification", message=f"I could not add that requirement: {exc}"
+                    )
+                req = out.requirement
+                return schemas.InstructionResult(
+                    kind="requirement",
+                    message=f"Added {req.key}: {req.text} Status: {out.verification.summary}.",
+                    requirements=[out],
+                )
+            case Kind.VERIFY:
+                rows = self.verify_requirements(project_id)
+                if not rows:
+                    return schemas.InstructionResult(
+                        kind="clarification",
+                        message="There are no requirements yet. Add one, for example 'require the "
+                        "ground clearance to be at least 150 mm'.",
+                        suggestions=["require the ground clearance to be at least 150 mm"],
+                    )
+                counts: dict[str, int] = {}
+                for r in rows:
+                    counts[r.verification.status] = counts.get(r.verification.status, 0) + 1
+                failed = [r.requirement.key for r in rows if r.verification.status == "failed"]
+                message = (
+                    "Requirements: "
+                    + ", ".join(f"{n} {k.replace('_', ' ')}" for k, n in sorted(counts.items()))
+                    + "."
+                )
+                if failed:
+                    message += f" Failed: {', '.join(failed)}."
+                return schemas.InstructionResult(
+                    kind="verification", message=message, requirements=rows
+                )
             case Kind.OPTIMIZE:
                 assert interpretation.tests is not None
                 return self._instruct_optimize(project_id, interpretation.tests)
@@ -275,7 +338,7 @@ class Workspace:
                             target=t,
                             scenarios=[request.scenario_id] if request.scenario_id else None,
                         ),
-                    )  # fmt: skip
+                    )
                     for t in targets
                 ]
                 return schemas.InstructionResult(
@@ -329,9 +392,18 @@ class Workspace:
         comparisons: list[tst.Comparison] = []
         if interpretation.tests is not None:
             request = interpretation.tests
-            targets = [request.target] if request.target else sorted({
-                target for t, target in tst.tests_affected(result.changed) if t == request.test_id
-            }) or list(tst.DEFINITIONS[request.test_id].targets)  # fmt: skip
+            targets = (
+                [request.target]
+                if request.target
+                else sorted(
+                    {
+                        target
+                        for t, target in tst.tests_affected(result.changed)
+                        if t == request.test_id
+                    }
+                )
+                or list(tst.DEFINITIONS[request.test_id].targets)
+            )
             out = self.run_tests(project_id, request.test_id, targets, request.scenario_id)
             runs = [schemas.RunSummary.of(r, True) for r in out.runs]
             comparisons = out.comparisons
@@ -360,10 +432,12 @@ class Workspace:
         studies = []
         for target in targets:
             study = opt.Study(
-                test_id=request.test_id, target=target, scenarios=scenarios,
+                test_id=request.test_id,
+                target=target,
+                scenarios=scenarios,
                 objectives=[opt.Objective(metric=request.objective, sense=request.sense)],
                 variables=opt.default_variables(request.test_id, target, values),
-            )  # fmt: skip
+            )
             result = self.optimize(project_id, study)
             if request.unmodelled:
                 result.notes.append(
@@ -419,9 +493,14 @@ class Workspace:
             for target in targets:
                 for sc in scenarios:
                     run = tst.run_test(
-                        test_id, target, sc, state.values, history_cursor=state.cursor,
-                        entry_id=_entry_id(state, state.cursor), requirements=reqs,
-                    )  # fmt: skip
+                        test_id,
+                        target,
+                        sc,
+                        state.values,
+                        history_cursor=state.cursor,
+                        entry_id=_entry_id(state, state.cursor),
+                        requirements=reqs,
+                    )
                     runs_repo.add(project_id, run)
                     runs.append(run)
                     if previous is None:
@@ -442,10 +521,16 @@ class Workspace:
 
     @staticmethod
     def _baseline(
-        repo: RunRepository, project_id: str, state: DesignState, previous: dict[str, float],
-        run: tst.RunRecord, test_id: str, target: str, scenario_id: str,
+        repo: RunRepository,
+        project_id: str,
+        state: DesignState,
+        previous: dict[str, float],
+        run: tst.RunRecord,
+        test_id: str,
+        target: str,
+        scenario_id: str,
         reqs: list[tst.Requirement],
-    ) -> tst.RunRecord | None:  # fmt: skip
+    ) -> tst.RunRecord | None:
         """Same test on the previous revision: reuse a stored run with identical inputs
         (results are deterministic), otherwise run and store it."""
         definition = tst.DEFINITIONS[test_id]
@@ -457,9 +542,14 @@ class Workspace:
         if base is None:
             cursor = state.cursor - 1
             base = tst.run_test(
-                test_id, target, scenario_id, previous, history_cursor=cursor,
-                entry_id=_entry_id(state, cursor), requirements=reqs,
-            )  # fmt: skip
+                test_id,
+                target,
+                scenario_id,
+                previous,
+                history_cursor=cursor,
+                entry_id=_entry_id(state, cursor),
+                requirements=reqs,
+            )
             repo.add(project_id, base)
         return base
 
@@ -603,11 +693,17 @@ class Workspace:
             return tst.compare(repo.get(project_id, baseline), repo.get(project_id, candidate))
 
     def component_status(self, project_id: str) -> list[schemas.ComponentTestStatus]:
-        order = [st.value for st in (
-            tst.ComponentStatus.FAILED, tst.ComponentStatus.INVALID, tst.ComponentStatus.STALE,
-            tst.ComponentStatus.NOT_TESTED, tst.ComponentStatus.PASSED_WITHIN_MODEL,
-            tst.ComponentStatus.NO_CRITERIA,
-        )]  # fmt: skip
+        order = [
+            st.value
+            for st in (
+                tst.ComponentStatus.FAILED,
+                tst.ComponentStatus.INVALID,
+                tst.ComponentStatus.STALE,
+                tst.ComponentStatus.NOT_TESTED,
+                tst.ComponentStatus.PASSED_WITHIN_MODEL,
+                tst.ComponentStatus.NO_CRITERIA,
+            )
+        ]
         with self.db.session() as s:
             state = ProjectRepository(s).load(project_id)
             repo = RunRepository(s)
@@ -625,11 +721,17 @@ class Workspace:
                             status = "stale" if older else "not_tested"
                             run_id = older[0].id if older else None
                         for cid in definition.components[target]:
-                            per_component.setdefault(cid, []).append({
-                                "test_id": definition.id, "test_name": definition.name,
-                                "target": target, "scenario_id": sc.id,
-                                "scenario_label": sc.label, "status": status, "run_id": run_id,
-                            })  # fmt: skip
+                            per_component.setdefault(cid, []).append(
+                                {
+                                    "test_id": definition.id,
+                                    "test_name": definition.name,
+                                    "target": target,
+                                    "scenario_id": sc.id,
+                                    "scenario_label": sc.label,
+                                    "status": status,
+                                    "run_id": run_id,
+                                }
+                            )
             out = []
             for cid, tests in per_component.items():
                 statuses = {t["status"] for t in tests}
@@ -638,29 +740,151 @@ class Workspace:
                 out.append(schemas.ComponentTestStatus(component=cid, status=status, tests=tests))
             return out
 
-    def requirements(self, project_id: str) -> list[schemas.RequirementOut]:
+    # --- requirements and traceability ---
+    def _run_lookup(
+        self,
+        repo: RunRepository,
+        project_id: str,
+        values: dict[str, float],
+        reqs: list[tst.Requirement],
+    ) -> rqm.RunLookup:
+        def lookup(
+            test_id: str, target: str, scenario_id: str
+        ) -> tuple[tst.RunRecord | None, bool]:
+            definition = tst.DEFINITIONS[test_id]
+            key = tst.inputs_hash(
+                definition, target, definition.scenario(scenario_id), values, reqs
+            )
+            run = repo.latest_by_inputs(project_id, key)
+            if run is not None:
+                return run, True
+            older = repo.find(project_id, test_id, target, scenario_id, limit=1)
+            return (older[0] if older else None), False
+
+        return lookup
+
+    def trace(self, project_id: str) -> list[schemas.RequirementOut]:
         with self.db.session() as s:
-            ProjectRepository(s).info(project_id)
+            state = ProjectRepository(s).load(project_id)
+            repo = RunRepository(s)
+            records = repo.requirement_records(project_id)
+            lookup = self._run_lookup(repo, project_id, state.values, repo.requirements(project_id))
             return [
-                schemas.RequirementOut(**vars(r)) for r in RunRepository(s).requirements(project_id)
+                schemas.RequirementOut(
+                    requirement=row.requirement,
+                    verification=row.verification,
+                    parameters=row.parameters,
+                    components=row.components,
+                    cases=row.cases,
+                )
+                for row in tracing.matrix(records, state.values, lookup, state.cursor)
             ]
+
+    def requirements(self, project_id: str) -> list[schemas.RequirementOut]:
+        return self.trace(project_id)
+
+    def _record(self, body: schemas.RequirementIn | dict, source: str = "user") -> rqm.Requirement:
+        data = body.model_dump() if isinstance(body, schemas.RequirementIn) else dict(body)
+        try:
+            return rqm.Requirement.model_validate(data | {"source": source})
+        except ValidationError as exc:
+            raise CommandError(exc.errors()[0]["msg"].removeprefix("Value error, ")) from None
 
     def add_requirement(
         self, project_id: str, body: schemas.RequirementIn
     ) -> schemas.RequirementOut:
-        definition = tst.DEFINITIONS.get(body.test_id)
-        if definition is None or body.metric not in definition.metrics:
-            raise CommandError(f"unknown test or metric: {body.test_id} / {body.metric}")
+        record = self._record(body)
         with self.db.session() as s:
             ProjectRepository(s).info(project_id)
-            req = RunRepository(s).add_requirement(
-                project_id, tst.Requirement(id="", approved=True, **body.model_dump())
+            try:
+                record = RunRepository(s).add_requirement(project_id, record)
+            except ValueError as exc:
+                raise CommandError(str(exc)) from None
+        return next(r for r in self.trace(project_id) if r.requirement.id == record.id)
+
+    def update_requirement(
+        self, project_id: str, requirement_id: str, updates: dict
+    ) -> schemas.RequirementOut:
+        with self.db.session() as s:
+            repo = RunRepository(s)
+            current = next(
+                (r for r in repo.requirement_records(project_id) if r.id == requirement_id), None
             )
-            return schemas.RequirementOut(**vars(req))
+            if current is None:
+                raise RunNotFoundError(requirement_id)
+            data = current.model_dump() | updates
+            if {"limit", "comparator", "metric", "quantity", "unit"} & set(updates) and (
+                "text" not in updates
+            ):
+                data["text"] = ""  # regenerate the statement from the new limit
+                data["title"] = "" if "title" not in updates else data["title"]
+            record = self._record(
+                data | {"id": current.id, "created_at": current.created_at}, source=current.source
+            )
+            repo.update_requirement(project_id, record)
+        return next(r for r in self.trace(project_id) if r.requirement.id == requirement_id)
 
     def delete_requirement(self, project_id: str, requirement_id: str) -> None:
         with self.db.session() as s:
             RunRepository(s).delete_requirement(project_id, requirement_id)
+
+    def preview(self, project_id: str, command: SetParameters) -> tracing.ImpactPreview:
+        with self.db.session() as s:
+            state = ProjectRepository(s).load(project_id)
+            repo = RunRepository(s)
+            records = repo.requirement_records(project_id)
+            lookup = self._run_lookup(repo, project_id, state.values, repo.requirements(project_id))
+            return tracing.preview(command, state.values, records, lookup, state.cursor)
+
+    def export_reqif(self, project_id: str) -> str:
+        with self.db.session() as s:
+            info = ProjectRepository(s).info(project_id)
+            return reqif.export(RunRepository(s).requirement_records(project_id), info.name)
+
+    def import_reqif(self, project_id: str, xml: bytes) -> list[schemas.RequirementOut]:
+        """Records whose key already exists are updated in place; the rest are added."""
+        try:
+            imported = reqif.parse(xml)
+        except reqif.ReqIFError as exc:
+            raise CommandError(str(exc)) from None
+        with self.db.session() as s:
+            ProjectRepository(s).info(project_id)
+            repo = RunRepository(s)
+            existing = {r.key: r for r in repo.requirement_records(project_id)}
+            ids: dict[str, str] = {}
+            for record in imported:
+                if record.key in existing:
+                    keep = existing[record.key]
+                    ids[record.id] = keep.id
+                    repo.update_requirement(
+                        project_id,
+                        record.model_copy(update={"id": keep.id, "created_at": keep.created_at}),
+                    )
+                else:
+                    ids[record.id] = record.id
+                    repo.add_requirement(project_id, record)
+            for record in repo.requirement_records(project_id):  # remap parents
+                if record.parent in ids and ids[record.parent] != record.parent:
+                    repo.update_requirement(
+                        project_id, record.model_copy(update={"parent": ids[record.parent]})
+                    )
+        wanted = set(ids.values())
+        return [r for r in self.trace(project_id) if r.requirement.id in wanted]
+
+    def verify_requirements(self, project_id: str) -> list[schemas.RequirementOut]:
+        """Run every test case that approved performance requirements need and that has no
+        current run, then report each requirement's verification."""
+        rows = self.trace(project_id)
+        todo: dict[tuple[str, str], set[str]] = {}
+        for row in rows:
+            for e in row.verification.evidence:
+                if e.kind == "run" and e.status in ("missing", "stale"):
+                    assert e.test_id and e.target and e.scenario_id
+                    todo.setdefault((e.test_id, e.target), set()).add(e.scenario_id)
+        for (test_id, target), scenarios in todo.items():
+            for scenario in sorted(scenarios):
+                self.run_tests(project_id, test_id, [target], scenario)
+        return self.trace(project_id)
 
     def integration(self, project_id: str) -> schemas.IntegrationOut:
         values = self.project(project_id).values
@@ -686,7 +910,7 @@ class Workspace:
                     measured=c.measured,
                     limit=c.limit,
                     unit=c.unit,
-                )  # fmt: skip
+                )
                 for c in checks
             ],
             counts=counts,

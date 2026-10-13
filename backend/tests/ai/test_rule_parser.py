@@ -200,3 +200,53 @@ def test_change_then_test() -> None:
     assert {c.parameter for c in r.command.changes} == {"rear_damping_bump", "rear_damping_rebound"}
     assert all(c.unit == "%" and c.value == 10 for c in r.command.changes)
     assert parse("increase the wheelbase by 100 mm").tests is None
+
+
+@pytest.mark.parametrize(
+    ("text", "values"),
+    [
+        ("set the rear spring rate to 30 kN/m", {"rear_spring_rate": 30}),
+        ("set the front bump damping to 1.8 kN·s/m", {"front_damping_bump": 1800}),
+        ("set the rear spring rate to 150 lbf/in", {"rear_spring_rate": 26.269025}),
+        ("make the car 100 kg heavier", {"vehicle_mass": 1700}),
+        ("set the vehicle mass to 3500 lb", {"vehicle_mass": 1587.573295}),
+    ],
+)
+def test_engineering_units_convert(text: str, values: dict) -> None:
+    from autevra.domain.commands import resolve
+    from autevra.domain.parameters import default_values
+
+    r = parse(text)
+    assert r.command is not None
+    assert resolve(r.command, default_values()) == pytest.approx(values)
+
+
+def test_what_if_is_a_preview_not_a_command() -> None:
+    r = parse("what if I increase the wheelbase by 100 mm?")
+    assert r.kind is Kind.PREVIEW and r.command is not None
+    assert parse("what is the wheelbase?").kind is Kind.QUERY
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("require the ground clearance to be at least 15 cm",
+         {"kind": "design", "quantity": "ground_clearance", "comparator": ">=", "limit": 15,
+          "unit": "cm"}),
+        ("require the rear peak body acceleration to stay below 6 m/s² over the hump",
+         {"kind": "performance", "metric": "peak_body_acceleration", "target": "rear",
+          "scenario_id": "hump_75", "comparator": "<=", "limit": 6}),
+        ("add a requirement: bump travel below 35 mm in every test",
+         {"metric": "max_bump_travel", "scenario_id": "*", "comparator": "<="}),
+    ],
+)  # fmt: skip
+def test_requirement_statements(text: str, expected: dict) -> None:
+    r = parse(text)
+    assert r.kind is Kind.REQUIREMENT and r.requirement is not None
+    assert {k: r.requirement[k] for k in expected} == expected
+
+
+def test_ambiguous_requirements_ask() -> None:
+    assert parse("require the body acceleration to be below 5").kind is Kind.CLARIFICATION
+    assert parse("require the spring rate to be at least 20 N/mm").kind is Kind.CLARIFICATION
+    assert parse("verify the requirements").kind is Kind.VERIFY

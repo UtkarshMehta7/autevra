@@ -3,7 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from autevra.api import schemas
 from autevra.api.service import ProposalNotFoundError, Workspace, _derived
@@ -14,6 +14,7 @@ from autevra.engineering import loop as eloop
 from autevra.engineering import optimize as opt
 from autevra.engineering import testing as tst
 from autevra.engineering.diagnosis import Diagnosis
+from autevra.engineering.trace import ImpactPreview
 from autevra.storage.repository import ProjectNotFoundError
 from autevra.storage.runs import RunNotFoundError
 
@@ -169,7 +170,7 @@ def test_catalogue() -> list[schemas.TestDefinitionOut]:
                 for k, m in t.metrics.items()
             },
             assumptions=list(t.assumptions),
-        )  # fmt: skip
+        )
         for t in tst.DEFINITIONS.values()
     ]
 
@@ -224,6 +225,7 @@ def component_status(project_id: str, ws: WorkspaceDep) -> list[schemas.Componen
 
 @router.get("/projects/{project_id}/requirements", response_model=list[schemas.RequirementOut])
 def list_requirements(project_id: str, ws: WorkspaceDep) -> list[schemas.RequirementOut]:
+    """Requirements with their verification, linked parameters, components and test cases."""
     return ws.requirements(project_id)
 
 
@@ -239,9 +241,66 @@ def add_requirement(
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
+@router.patch(
+    "/projects/{project_id}/requirements/{requirement_id}", response_model=schemas.RequirementOut
+)
+def update_requirement(
+    project_id: str, requirement_id: str, body: dict, ws: WorkspaceDep
+) -> schemas.RequirementOut:
+    allowed = set(schemas.RequirementIn.model_fields)
+    if set(body) - allowed:
+        raise HTTPException(
+            status_code=422, detail=f"unknown fields: {sorted(set(body) - allowed)}"
+        )
+    try:
+        return ws.update_requirement(project_id, requirement_id, body)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 @router.delete("/projects/{project_id}/requirements/{requirement_id}", status_code=204)
 def delete_requirement(project_id: str, requirement_id: str, ws: WorkspaceDep) -> None:
     ws.delete_requirement(project_id, requirement_id)
+
+
+@router.post(
+    "/projects/{project_id}/requirements/verify", response_model=list[schemas.RequirementOut]
+)
+def verify_requirements(project_id: str, ws: WorkspaceDep) -> list[schemas.RequirementOut]:
+    return ws.verify_requirements(project_id)
+
+
+@router.get("/projects/{project_id}/requirements.reqif")
+def export_reqif(project_id: str, ws: WorkspaceDep) -> Response:
+    xml = ws.export_reqif(project_id)
+    return Response(
+        xml,
+        media_type="application/xml",
+        headers={"Content-Disposition": 'attachment; filename="requirements.reqif"'},
+    )
+
+
+@router.post(
+    "/projects/{project_id}/requirements.reqif", response_model=list[schemas.RequirementOut]
+)
+async def import_reqif(
+    project_id: str, request: Request, ws: WorkspaceDep
+) -> list[schemas.RequirementOut]:
+    body = await request.body()
+    try:
+        return ws.import_reqif(project_id, body)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.post("/projects/{project_id}/preview", response_model=ImpactPreview)
+def preview_command(
+    project_id: str, body: schemas.CommandRequest, ws: WorkspaceDep
+) -> ImpactPreview:
+    try:
+        return ws.preview(project_id, body.command)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 @router.get("/projects/{project_id}/integration", response_model=schemas.IntegrationOut)

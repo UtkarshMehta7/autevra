@@ -137,6 +137,11 @@ effect written as `useEffect(() => el.scrollTo(...))` therefore returns that
 Promise as its "cleanup", which crashes React on unmount. Effects use block
 bodies.
 
+Gotcha: switching git branches while `make dev` runs can touch
+`frontend/vite.config.ts`; Vite then restarts itself and has been seen to come
+back without its `/api` proxy, so the page reports "Unexpected token '<'"
+(index.html instead of JSON). Stop and restart `make dev`.
+
 ### Local model choice (Phase 2)
 
 Measured on the 23 `llm`-tier items of `eval/instructions.jsonl` (text the

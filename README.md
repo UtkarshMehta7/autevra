@@ -16,7 +16,7 @@ becomes a validated engineering operation on parametric geometry.
 
 ## Status
 
-**Phases 1–3 are implemented.**
+**Phases 1–4 are implemented.**
 
 - **Parametric vehicle.** Body with wheel wells and cabin, hollow ladder frame, beam axles, wheels and four coil-over dampers, in real CadQuery/Open CASCADE geometry. It is edited through typed, validated commands from the property editor, the API or plain English, with undo/redo, persistence and STEP export.
 - **Local language model (optional).** A local model proposes changes the deterministic parser cannot resolve, and every proposal needs confirmation.
@@ -29,6 +29,11 @@ becomes a validated engineering operation on parametric geometry.
   - optimise within bounds, or let the engineering loop fix and retest.
   
   Nothing changes until you accept, and every result says whether it is an analytical estimate or a numerical simulation. Nothing is presented as validated without test data.
+
+- **Traceability.**
+  - Requirements, stated in plain English or imported from ReqIF, are linked to the parameters, components and test runs that prove them.
+  - Each requirement shows whether it is verified, failed or stale.
+  - "What if I …" previews a change's impact on geometry, tests and requirements before anything is applied.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for progress, known limitations and what is next.
 
@@ -91,8 +96,9 @@ Open http://localhost:5173 and try "increase the wheelbase by 100 mm",
 "how long is the car?" or "undo". For the engineering workflow, try
 "increase the rear shock absorber damping by 10% and test its response",
 "explain why the suspension travel limit was exceeded", "fix the rear
-suspension", or use the Test bench, Integration and Optimise & loop tabs under
-the viewport. The first start after installing can take a
+suspension", "require the ground clearance to be at least 150 mm", "what if I
+lower the car by 20 mm?", "verify the requirements", or use the Test bench,
+Integration, Optimise & loop and Requirements tabs under the viewport. The first start after installing can take a
 minute or two while macOS scans the new native libraries; later starts take seconds.
 
 | Command | What it does |

@@ -163,3 +163,12 @@ table.vars td { padding: 1px 4px; }
 tr.better td:last-child { color: var(--good); }
 .reply.optimization, .reply.loop { border-left-color: var(--good); }
 .bench.wide { grid-template-columns: 400px minmax(0, 1fr); }
+
+textarea.statement { width: 100%; min-height: 60px; font: inherit; color: var(--text);
+  background: #262b33; border: 1px solid var(--line); border-radius: 6px; padding: 5px; }
+.req-row { cursor: pointer; }
+.req-row:hover { background: #222831; }
+tr.trace td { background: #191d23; padding: 6px 10px; }
+label.button { cursor: pointer; }
+.reply.preview { border-left-color: #a77be0; }
+.reply.requirement, .reply.verification { border-left-color: var(--accent); }
