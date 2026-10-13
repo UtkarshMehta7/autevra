@@ -127,7 +127,7 @@ Goal: change a **real** CAD parameter of a simple vehicle through natural langua
 - Docker images: Docker is not installed on the Mac. CI builds them successfully on x86_64; running the stack (`make docker-up`) is untested until Docker Desktop is installed.
 
 **Remaining / follow-ups**
-- Switch the test client from `httpx` to `httpx2` (Starlette 1.8 deprecation), pending approval.
+- ~~Switch the test client from `httpx` to `httpx2`~~ done: `httpx2` is now the backend's HTTP client (tests and, from Phase 2, the LLM clients); deprecation warnings are no longer filtered.
 - Phase 2: local LLM fallback for text the parser cannot resolve, with confirmation of LLM proposals and an evaluation set.
 - Phase 4 items already prepared for: `max_steer_angle` is in the registry but unused until the steering sweep clearance check.
 
@@ -149,7 +149,6 @@ Goal: change a **real** CAD parameter of a simple vehicle through natural langua
 
 **Notes**
 - Two rules (`rail_wall_fits_section`, `arches_do_not_overlap`) cannot fire within today's registry bounds; they guard against wider bounds later and are tested directly.
-- Starlette 1.8 deprecates `httpx` for its test client in favour of `httpx2`; the warning is filtered for now and the switch is pending approval.
 
 ### 2026-10-13: Phase 0 complete
 

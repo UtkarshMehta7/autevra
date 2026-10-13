@@ -118,7 +118,7 @@ import), and a filleted box builds in milliseconds.
 | Backend venv size | 1.3 GB (`backend/.venv`) |
 | First test run | ~2.5 min: macOS scans the newly installed native libraries on first load; later runs take ~4 s |
 | FastAPI 0.143, Pydantic 2.14, SQLAlchemy 2.1, Alembic 1.20, Uvicorn 0.54, pytest 9.1, ruff 0.17 | ✅ pure Python or arm64 wheels |
-| `httpx 0.28` (test client) | ✅; Starlette 1.8 prefers `httpx2` (pure-Python wheel) and warns about `httpx` |
+| `httpx2 2.13.1` (+ `httpcore2`, `truststore`) | ✅ pure-Python wheels; replaces `httpx`, which Starlette 1.8 deprecates for its test client; also the HTTP client for local LLM runtimes |
 
 | `numpy 2.5` | ✅ arm64 wheel (already a CadQuery dependency; now explicit) |
 | Frontend: `react 19.3.0`, `three 0.186.1`, `vite 8.3.4`, `@vitejs/plugin-react 6.1.2`, `typescript 7.0.2`, `vitest 5.0.4` | ✅ installed with npm on arm64 (52 packages, 111 MB `node_modules`); typecheck, tests, build and dev server verified; production bundle 787 kB (211 kB gzip) |
