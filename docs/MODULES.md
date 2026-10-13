@@ -169,6 +169,58 @@ and migrations are dialect-neutral (`render_as_batch` for SQLite ALTERs).
 | `GET /projects/{id}/model?known=k1,k2` | meshes and transforms, skipping geometry keys the client already has |
 | `GET /projects/{id}/export.step` | STEP AP214 assembly file |
 
+| `GET /tests` | component test catalogue: scenarios, criteria, inputs, metrics, assumptions |
+| `POST /projects/{id}/tests/run` | run a test (`target` front, rear or all; one scenario or all); stored and compared with the previous revision |
+| `GET /projects/{id}/runs`, `/runs/{run}`, `/runs/compare?baseline=&candidate=` | run summaries (with `current`), full records, comparisons |
+| `GET /projects/{id}/runs/{run}/diagnosis` | evidence-based diagnosis of a run |
+| `GET /projects/{id}/components/status` | per component: passed, failed, stale, not tested, … |
+| `GET/POST/DELETE /projects/{id}/requirements` | user criteria that join test verdicts |
+| `GET /projects/{id}/integration` | assembly checks |
+| `POST /projects/{id}/optimize`, `POST /projects/{id}/loop` | optimisation study, engineering loop |
+| `GET /projects/{id}/studies`, `/loops`; `POST /studies/{s}/accept`, `/reject`, `/choose/{i}` | decisions on proposals (accept applies one undoable command) |
+
+## `autevra.sim` — solvers (imports nothing from Autevra)
+
+`quarter_car`: one corner as two masses. Linear spring, two-rate damper (bump
+in compression, rebound in extension), point-contact tyre that can lift off
+but not pull. States are displacements from static equilibrium; fixed-step
+RK4, then a rerun at half the step measures convergence (`numerics`). Road
+inputs: half-cosine step, cosine bump and pothole at constant speed. Metrics:
+peak and RMS body acceleration, bump and rebound travel, tyre load ratio and
+time off the road, settling time, step overshoot. `ASSUMPTIONS` travel with
+every result. Verified in `tests/sim` against the exact linear solution
+(matrix exponential), the characteristic equation and static equilibrium.
+
+## `autevra.engineering` — tests, integration, diagnosis, optimisation, loop
+
+- `integration`: structural checks (mate interfaces and kinds, connectivity,
+  coincidences such as damper upper eye on the shock tower, load paths
+  wheel → axle → damper → body), travel checks (which limit governs: bump
+  stop, wheel arch or damper length), and exact clearances between placed
+  solids (`kernel.min_distance`, cached). Not checked, and said so: parts
+  inside the body envelope.
+- `testing`: `TestDefinition` (solver, inputs read, scenarios, criteria with
+  fixed limits or limits taken from derived values, credibility), `run_test`
+  → `RunRecord` (revision with a hash of only the inputs this test reads, so
+  results go stale exactly when they should), `evaluate`, `compare`,
+  `tests_affected`, `quick_evaluate` for perturbation studies. Statuses:
+  passed within the model, failed, no criteria, invalid; components can also
+  be stale or not tested. Nothing is marked experimentally validated
+  automatically.
+- `diagnosis`: for each failed criterion, the limit source, ±10 % re-simulation
+  of every input, ranked effects with side effects, smallest rule-checked fix
+  up to ±30 %. A saturated tyre-contact margin is probed through time off the
+  road. Effects are labelled as measured in the model, not root causes.
+- `optimize`: `Study` (variables with bounds, one or two objectives, scenarios,
+  budget, seed) → seeded Latin hypercube + compass search; rule screening
+  before simulation; feasibility = all criteria pass in all scenarios;
+  worst-case objectives; Pareto set for two objectives; full re-verification
+  of the proposal.
+- `loop`: `Goal` → iterations of full test runs, diagnosis and the smallest
+  admissible fix, until all pass, no admissible fix exists, or the limit;
+  optional final optimisation. Candidate designs stay in the record until
+  accepted.
+
 ## Frontend (`frontend/src`)
 
 - `api/` — typed client mirroring the backend schemas.
@@ -180,6 +232,12 @@ and migrations are dialect-neutral (`render_as_batch` for SQLite ALTERs).
 - `panels/` — component tree, property editor (one `set` command per edit,
   source `ui`), instruction panel (shows assumptions, impact, clickable
   suggestions), history (undone entries struck through).
+- `panels/TestBench.tsx`, `LineChart.tsx`, `DiagnosisView.tsx` — test runs,
+  criteria with margins, solver traces (SVG, real samples only) with limits
+  and the previous revision, comparisons, diagnosis with Apply.
+- `panels/IntegrationPanel.tsx`, `panels/StudiesPanel.tsx` — assembly checks;
+  optimisation and loop set-up, candidate scatter, Pareto choice, accept or
+  reject.
 - `App.tsx` — runs all actions through one sequential queue, so instructions
   typed during a rebuild are applied in order; then refetches project,
   history and model.
@@ -187,12 +245,13 @@ and migrations are dialect-neutral (`render_as_batch` for SQLite ALTERs).
 ## Phase 2: local LLM fallback
 
 ### `autevra.ai.concepts`
-Automotive concepts that are recognised but not modelled yet (suspension,
-brakes, engine, transmission, steering system, appearance, mass). A request
+Automotive concepts behind vague requests. Suspension is modelled (Phase 3)
+but "make the suspension softer" is ambiguous, so it gets a question with
+runnable suggestions; brakes, engine, transmission, steering system and
+appearance are not modelled yet. A request
 about one of them gets a specific, deterministic answer instead of a guess:
-"make the suspension softer" asks whether that means spring rate,
-compression damping or rebound damping, and says which phase makes them
-editable. `is_automotive(text)` is a conservative scope check: text with no
+"make the suspension softer" asks whether that means spring rate, bump
+damping or rebound damping. `is_automotive(text)` is a conservative scope check: text with no
 automotive vocabulary, design verbs or numbers is declined without calling
 any model.
 
