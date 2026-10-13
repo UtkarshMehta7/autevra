@@ -23,6 +23,7 @@ class ProjectRow(Base):
     updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
     values_json: Mapped[str] = mapped_column(Text)
     cursor: Mapped[int] = mapped_column(Integer, default=0)
+    domain: Mapped[str] = mapped_column(String(32), default="automotive")
 
     history: Mapped[list["HistoryRow"]] = relationship(
         back_populates="project", cascade="all, delete-orphan", order_by="HistoryRow.seq"
@@ -99,3 +100,16 @@ class SpecificationRow(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
     spec_json: Mapped[str] = mapped_column(Text)
+
+
+class ContactMessageRow(Base):
+    """Contact and early-access messages, stored locally (no e-mail is sent)."""
+
+    __tablename__ = "contact_messages"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    name: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str] = mapped_column(String(320))
+    topic: Mapped[str] = mapped_column(String(64))
+    message: Mapped[str] = mapped_column(Text)

@@ -21,6 +21,7 @@ from autevra.engineering.trace import ImpactPreview
 
 class ProjectCreate(BaseModel):
     name: str = Field(default="Untitled vehicle", min_length=1, max_length=200)
+    domain: str = "automotive"
 
 
 class ProjectRename(BaseModel):
@@ -32,6 +33,7 @@ class ProjectSummary(BaseModel):
     name: str
     created_at: datetime
     updated_at: datetime
+    domain: str = "automotive"
 
 
 class DerivedValue(BaseModel):
@@ -305,3 +307,53 @@ class SpecApplied(BaseModel):
 
 
 InstructionResult.model_rebuild()
+
+
+class ContactIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    email: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    topic: Literal["early_access", "question", "partnership", "other"] = "question"
+    message: str = Field(min_length=1, max_length=5000)
+
+
+class ContactOut(BaseModel):
+    id: str
+    stored: bool
+    delivered: bool  # always False: no e-mail integration exists
+    note: str
+
+
+class SystemNode(BaseModel):
+    id: str
+    name: str
+    category: str
+    builder: str | None
+    parent: str | None
+    interfaces: list[dict]  # name, kind, used_by
+    parameters: list[str]  # parameters its geometry depends on
+    tests: list[str]  # test cases that cover it
+
+
+class SystemEdge(BaseModel):
+    kind: str  # mounted_to | coincident | load_path
+    source: str
+    target: str
+    detail: str
+
+
+class SystemGraph(BaseModel):
+    nodes: list[SystemNode]
+    edges: list[SystemEdge]
+
+
+class RuleStatus(BaseModel):
+    id: str
+    description: str
+    parameters: list[str]
+    passed: bool
+    message: str | None
+
+
+class RunIndexItem(RunSummary):
+    project_id: str
+    project_name: str
