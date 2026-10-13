@@ -8,7 +8,7 @@ describes a hosted demo of the same code.
 | Part | What it is | Host |
 |---|---|---|
 | Website, workspace, studio | Static files from `npm run build` (`frontend/dist`) | Netlify (`netlify.toml`) |
-| Backend API | FastAPI + CadQuery/OCCT in the `backend/Dockerfile` image (linux/amd64) | Hugging Face Spaces (free), or any container host with **≥ 1 GB RAM** and x86_64 |
+| Backend API | FastAPI + CadQuery/OCCT in the `backend/Dockerfile` image (linux/amd64) | Render (free plan), or any x86_64 container host |
 | Database | Postgres | Neon |
 | Local LLM | Not deployed. Set `AUTEVRA_LLM_PROVIDER=off`; the deterministic parser and every engineering feature still work, and the UI says the model is off | — |
 
@@ -19,21 +19,19 @@ an optimisation study or engineering loop can run for longer than a CDN rewrite 
 ### Backend constraints (measured)
 
 - **Memory:** on the Mac, peak RSS is about 470 MB after import (CadQuery, OCP, VTK) and
-  545 MB after one model build. In the linux/amd64 container (CI, `docker stats`) it is
-  303 MiB after a model build and a STEP export. Optimisation studies and loops hold more,
-  and that has not been measured, so 512 MB plans (Render Free and Starter, Koyeb Free) are
-  too tight to rely on; the free Space has far more.
+  545 MB after one model build. In the linux/amd64 container it is much lower: 295 MiB at
+  peak through a full session including an optimisation study (cgroup `memory.peak`, CI).
+  CI runs that session under a 512 MB cap on every pull request.
 - **Architecture:** `cadquery-ocp` 7.9.x has no Linux arm64 wheel, so the image is
   linux/amd64. ARM-only hosts (for example Oracle's free Ampere VMs) cannot run it yet.
 - **Disk:** only regenerable STEP exports are written to `AUTEVRA_DATA_DIR`, so an
   ephemeral disk is fine once the database is in Neon.
 - **Cold start:** about 5 s to import the CAD kernel, plus one model build on first use.
 
-## Free setup: Neon + Hugging Face Spaces + Netlify
+## Free setup: Neon + Render + Netlify
 
-All three have free tiers that need no payment card. The backend runs as a Docker Space on
-the free CPU tier (enough memory, x86_64). GitHub Actions deploys it after every green CI
-run on `main` (`.github/workflows/deploy-space.yml`).
+All three have free tiers that need no payment card. The backend runs on Render's free web
+service (512 MB, 0.1 CPU, x86_64) from `render.yaml` and redeploys on every push to `main`.
 
 ### 1. Database: Neon
 
@@ -44,45 +42,41 @@ run on `main` (`.github/workflows/deploy-space.yml`).
 3. Nothing else to do: the backend rewrites the URL for the psycopg 3 driver and runs the
    migrations at startup.
 
-### 2. Backend: Hugging Face Space
+### 2. Backend: Render
 
-1. Sign up at huggingface.co, then **New Space**: name `autevra-api`, SDK **Docker**,
-   template **Blank**, hardware **CPU basic (free)**, visibility **Public** (a private
-   Space cannot be called from the website).
-2. In the Space, **Settings → Variables and secrets**:
-   - secret `AUTEVRA_DATABASE_URL` = the Neon connection string;
-   - variable `AUTEVRA_CORS_ORIGINS` = `["https://<your-site>.netlify.app"]` (fill in once
-     the Netlify site exists, step 3).
-3. In your Hugging Face account, **Settings → Access Tokens → Create new token**, type
-   **Write**. Copy it.
-4. In the GitHub repository, **Settings → Secrets and variables → Actions**:
-   - **Secrets** tab: `HF_TOKEN` = the token;
-   - **Variables** tab: `HF_SPACE` = `<your-hf-username>/autevra-api`.
-5. Start the first deploy: **Actions → Deploy backend to Hugging Face Spaces → Run
-   workflow** (or `gh workflow run deploy-space.yml`). Later deploys run by themselves.
-6. The Space builds the image (about 5 minutes the first time) and serves the API at
-   `https://<your-hf-username>-autevra-api.hf.space`; check `…/api/health`.
+1. Sign up at render.com with GitHub and allow it to read the `autevra` repository.
+2. **New → Blueprint**, pick the repository. Render reads `render.yaml`: one Docker web
+   service `autevra-api`, plan **Free**, root directory `backend`, health check `/api/health`.
+3. It asks for the two values marked `sync: false`:
+   - `AUTEVRA_DATABASE_URL` = the Neon connection string;
+   - `AUTEVRA_CORS_ORIGINS` = `["https://<your-site>.netlify.app"]` (if the Netlify site does
+     not exist yet, enter `[]` and change it after step 3).
+4. **Apply.** The first image build takes several minutes. The API is then at
+   `https://autevra-api.onrender.com` (Render adds a suffix if the name is taken; the
+   dashboard shows the real address). Check `…/api/health`.
 
-What the workflow pushes is built by `deploy/huggingface/build-space.sh`: the backend
-sources, `uv.lock`, the Dockerfile with `AUTEVRA_LLM_PROVIDER=off`, and the Space card
-(`deploy/huggingface/README.md`, `app_port: 8000`). The container runs as uid 1000, as
-Spaces require. CI builds the same bundle, runs it as uid 1000, creates a project, builds
-the model and exports a STEP file.
+What to expect from the free instance (measured in CI with the same limits; see below):
 
-The free Space sleeps when unused. While it starts, the website retries read requests for
-up to three minutes and shows "Starting the engineering backend"; writes are never
-retried, so nothing is applied twice. Without `AUTEVRA_DATABASE_URL` the Space falls back
-to SQLite on its own disk, which is wiped on every restart.
+- It sleeps after 15 minutes without traffic, and the next visitor waits while it starts.
+  The website retries reads during that time and shows "Starting the engineering backend";
+  writes are never retried, so nothing is applied twice.
+- Measured in a container with the free instance's limits (512 MB, 0.1 CPU, CI on
+  2026-10-14): ready 26 s after start; peak memory 295 MiB, never killed; a full visitor
+  session (model, integration checks, both simulations, a 40-evaluation optimisation
+  study, STEP export) took 13.7 minutes, most of it the optimisation study. It works, but
+  slowly: the paid `starter` plan has more CPU when that matters.
+- Disk is wiped on every deploy and restart. Only regenerable STEP exports live there; the
+  projects are in Neon.
 
 ### 3. Frontend: Netlify
 
 1. Sign up at netlify.com, **Add new site → Import an existing project → GitHub**, pick
    this repository. `netlify.toml` sets the base directory (`frontend`), the build
    command, the publish directory and the client-side route fallback.
-2. **Site configuration → Environment variables**: `VITE_API_URL` =
-   `https://<your-hf-username>-autevra-api.hf.space`, then **Deploys → Trigger deploy**.
-3. Put the Netlify address into the Space's `AUTEVRA_CORS_ORIGINS` (step 2.2); the Space
-   restarts with it.
+2. **Site configuration → Environment variables**: `VITE_API_URL` = the Render address
+   (for example `https://autevra-api.onrender.com`), then **Deploys → Trigger deploy**.
+3. Put the Netlify address into Render's `AUTEVRA_CORS_ORIGINS`
+   (**autevra-api → Environment**); Render restarts the service with it.
 
 ## Other backend hosts (paid or card required)
 
@@ -104,8 +98,13 @@ gcloud run deploy autevra-api --source backend --region europe-west1 \
   --set-secrets AUTEVRA_DATABASE_URL=autevra-database-url:latest
 ```
 
-**Render.** Connect the repository as a Blueprint (`render.yaml`, `standard` plan with
-2 GB; the 512 MB plans are too small) and enter the two `sync: false` variables.
+**Render, paid plans.** Change `plan:` in `render.yaml` to `starter` or `standard` for
+more CPU and memory and no sleeping.
+
+**Hugging Face Spaces (Docker).** Docker Spaces need a PRO subscription. If you have one,
+`deploy/huggingface/build-space.sh` assembles the Space (Space card, LLM off, uid 1000)
+and `.github/workflows/deploy-space.yml` pushes it after green CI on `main` once the
+repository has the `HF_TOKEN` secret and the `HF_SPACE` variable (`<user>/autevra-api`).
 
 ## Check the deployment
 

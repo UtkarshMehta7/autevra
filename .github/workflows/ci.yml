@@ -90,6 +90,22 @@ jobs:
           done
           docker logs api
           exit 1
+      # Render's free instance is 512 MB and 0.1 CPU. Memory is what can break it, so the
+      # full visitor session runs under the memory cap at normal CPU (at 0.1 CPU it takes
+      # ~14 minutes; measured once, see docs/DEPLOYMENT.md).
+      - name: Backend works within 512 MB (Render free instance)
+        timeout-minutes: 10
+        run: |
+          docker run -d --name small --memory 512m --memory-swap 512m \
+            -p 8100:8000 -e AUTEVRA_LLM_PROVIDER=off autevra-api
+          start=$(date +%s)
+          for i in $(seq 1 120); do curl -fsS http://localhost:8100/api/health >/dev/null && break; sleep 2; done
+          echo "ready after $(( $(date +%s) - start )) s"
+          start=$(date +%s)
+          deploy/smoke.sh http://localhost:8100
+          echo "smoke test took $(( $(date +%s) - start )) s"
+          echo "peak memory: $(docker exec small cat /sys/fs/cgroup/memory.peak) bytes"
+          test "$(docker inspect -f '{{.State.OOMKilled}}' small)" = false
       - name: Hugging Face Space bundle builds and works as uid 1000
         run: |
           deploy/huggingface/build-space.sh "$RUNNER_TEMP/space"

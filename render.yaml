@@ -1,13 +1,14 @@
-# Render Blueprint for the backend API (optional; see docs/DEPLOYMENT.md).
-# The backend uses ~300 MiB in the container after a model build (more during studies,
-# not yet measured), so the 512 MB plans are too tight to rely on; "standard" is 2 GB.
+# Render Blueprint for the backend API (see docs/DEPLOYMENT.md).
+# "free": 512 MB, 0.1 CPU, sleeps after 15 minutes without traffic; no payment card.
+# CI runs the backend inside those limits (docker job). For more speed, "starter" or
+# "standard" give more CPU.
 services:
   - type: web
     name: autevra-api
     runtime: docker
     rootDir: backend
     dockerfilePath: ./Dockerfile
-    plan: standard
+    plan: free
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
