@@ -8,16 +8,16 @@ Local frames:
 - body, frame: vehicle frame (ISO 8855, origin on the ground below the front axle).
 - axle: origin at the axle centre, axis along Y.
 - wheel: origin at the wheel centre, spin axis along Y, outboard face towards +Y.
+- damper: origin at the lower eye centre, axis along +Z, upper eye at z = length.
 """
 
 import math
 from collections.abc import Mapping
 
 from autevra.cad import kernel as k
+from autevra.domain.derived import AXLE_RADIUS, SPRING_ACTIVE_COILS, SPRING_SEAT_OFFSET
 
 Inputs = Mapping[str, float]
-
-AXLE_RADIUS = 35.0
 HUB_INSET = 60.0  # axle ends this far inboard of the wheel centre plane
 RIM_BARREL = 12.0  # radial thickness of the rim barrel
 SPOKES = 5
@@ -113,3 +113,39 @@ def build_wheel(p: Inputs) -> k.Shape:
     hub_bore = k.cylinder_y(AXLE_RADIUS + 5, (disc_y - 1, disc_y + disc_t + 1))
     disc = k.cut(disc, *holes, hub_bore)
     return k.fuse(tyre, barrel, disc)
+
+
+EYE_OUTER, EYE_INNER, EYE_WIDTH = 18.0, 8.0, 30.0
+ROD_RADIUS = 11.0
+SEAT_THICKNESS = 6.0
+BODY_OVERHEAD = 35.0  # damper body length beyond the stroke (piston and seal head)
+
+
+def build_damper(p: Inputs) -> k.Shape:
+    """Coil-over damper: eyes, body tube, rod, spring seats and a swept helical spring.
+
+    The spring wire diameter is an input derived from the spring rate, so a rate change
+    shows as a thicker or thinner coil. Damping coefficients do not change geometry.
+    """
+    length, stroke = p["length"], p["stroke"]
+    body_r = p["body_diameter"] / 2.0
+    half_eye = EYE_WIDTH / 2.0
+    lower_eye = k.ring_x(EYE_OUTER, EYE_INNER, (-half_eye, half_eye))
+    upper_eye = k.ring_x(EYE_OUTER, EYE_INNER, (-half_eye, half_eye), z=length)
+    body_top = EYE_OUTER + stroke + BODY_OVERHEAD
+    body = k.cylinder_z(body_r, (EYE_OUTER - 4.0, body_top))
+    rod = k.cylinder_z(ROD_RADIUS, (body_top, length - EYE_OUTER + 4.0))
+
+    coil_r, wire = p["coil_diameter"] / 2.0, p["wire_diameter"]
+    seat_r = coil_r + wire / 2.0 + 8.0
+    low = SPRING_SEAT_OFFSET
+    high = length - SPRING_SEAT_OFFSET
+    seats = [
+        k.ring_z(seat_r, body_r - 1.0, (low - SEAT_THICKNESS, low)),
+        k.ring_z(seat_r, ROD_RADIUS - 1.0, (high, high + SEAT_THICKNESS)),
+    ]
+    # The end coils sink 1 mm into the seats so the spring fuses with them into one solid.
+    coil = k.helical_coil(
+        coil_r, high - low - wire + 2.0, SPRING_ACTIVE_COILS + 2.0, wire, low + wire / 2.0 - 1.0
+    )
+    return k.fuse(lower_eye, body, rod, upper_eye, *seats, coil)

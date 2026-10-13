@@ -18,6 +18,7 @@ BUILDERS: Mapping[str, Callable[[Mapping[str, float]], kernel.Shape]] = {
     "frame": components.build_frame,
     "axle": components.build_axle,
     "wheel": components.build_wheel,
+    "damper": components.build_damper,
 }
 
 

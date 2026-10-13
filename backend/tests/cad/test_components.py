@@ -90,3 +90,31 @@ def test_step_export_contains_named_parts(tmp_path) -> None:
     assert "front_axle" in text
     reimported = k.import_step(path)
     assert k.bounds(reimported)[0][2] == pytest.approx(265)
+
+
+def _damper_inputs(**changes: float) -> dict[str, float]:
+    from autevra.assembly.vehicle import BY_ID
+
+    return BY_ID["damper_fl"].resolve_inputs(default_values() | changes)
+
+
+def test_damper_is_a_valid_solid_between_its_eyes() -> None:
+    inputs = _damper_inputs()
+    damper = c.build_damper(inputs)
+    assert k.is_valid(damper) and k.solid_count(damper) == 1
+    (_, _, z0), (_, _, z1) = k.bounds(damper)
+    assert z0 == pytest.approx(-c.EYE_OUTER, abs=0.01)
+    assert z1 == pytest.approx(inputs["length"] + c.EYE_OUTER, abs=0.01)
+
+
+def test_spring_rate_changes_the_coil_but_damping_does_not() -> None:
+    base = _damper_inputs()
+    assert _damper_inputs(front_damping_bump=4000) == base  # dynamics only
+    stiffer = _damper_inputs(front_spring_rate=40)
+    assert stiffer["wire_diameter"] > base["wire_diameter"]
+    assert k.volume(c.build_damper(stiffer)) > k.volume(c.build_damper(base))
+
+
+def test_overlapping_coils_are_rejected() -> None:
+    with pytest.raises(k.KernelError):
+        k.helical_coil(50, 60, 8, 10, 0)

@@ -53,13 +53,14 @@ def test_acceptance_increase_wheelbase_by_100_mm(
     assert reply["kind"] == "command"
     assert reply["result"]["values"]["wheelbase"] == 2800
     assert set(reply["result"]["impact"]["rebuild"]) == {"body", "frame"}
-    assert set(reply["result"]["impact"]["move"]) == {"rear_axle", "wheel_rl", "wheel_rr"}
+    rear_group = {"rear_axle", "wheel_rl", "wheel_rr", "damper_rl", "damper_rr"}
+    assert set(reply["result"]["impact"]["move"]) == rear_group
 
     after = _model(client, project)
-    # Rear axle and rear wheels move back by 100 mm; the front ones stay.
-    for part in ("rear_axle", "wheel_rl", "wheel_rr"):
+    # Rear axle, rear wheels and rear dampers move back by 100 mm; the front ones stay.
+    for part in rear_group:
         assert _translation(after, part)[0] == pytest.approx(_translation(before, part)[0] - 100)
-    for part in ("front_axle", "wheel_fl", "wheel_fr"):
+    for part in ("front_axle", "wheel_fl", "wheel_fr", "damper_fl", "damper_fr"):
         assert _translation(after, part) == pytest.approx(_translation(before, part))
     # The body lengthens by 100 mm at the rear.
     (b0, b1), (a0, a1) = _body_x_extent(before), _body_x_extent(after)
@@ -81,12 +82,12 @@ def test_acceptance_increase_wheelbase_by_100_mm(
 
 def test_model_deduplicates_and_skips_known_geometry(client: TestClient, project: str) -> None:
     model = _model(client, project)
-    assert len(model["parts"]) == 8
-    assert len(model["geometries"]) == 4
+    assert len(model["parts"]) == 12
+    assert len(model["geometries"]) == 6  # body, frame, axle, wheel, front and rear damper
     keys = ",".join(model["geometries"])
     partial = client.get(f"/api/projects/{project}/model", params={"known": keys}).json()
     assert partial["geometries"] == {}
-    assert len(partial["parts"]) == 8
+    assert len(partial["parts"]) == 12
 
 
 def test_typed_command_endpoint_and_rejection(client: TestClient, project: str) -> None:
@@ -159,7 +160,7 @@ def test_project_crud_and_404(client: TestClient) -> None:
 def test_catalogue(client: TestClient) -> None:
     body = client.get("/api/parameters").json()
     ids = [p["id"] for p in body["parameters"]]
-    assert "wheelbase" in ids and len(ids) == 21
+    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 42
 
 
 def test_state_survives_app_restart(tmp_path: Path) -> None:
