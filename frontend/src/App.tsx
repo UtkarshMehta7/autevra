@@ -3,7 +3,7 @@ import { api, ApiError } from "./api/client";
 import type {
   Command, CommandResult, Comparison, Diagnosis, ComponentTestStatus, HistoryEntry, IntegrationReport, LLMStatus,
   LoopResult, ModelPayload, ParameterDef, ProjectState, ProjectSummary, Requirement, RequirementRow,
-  RunSummary, StudyResult,
+  RunSummary, SpecDesign, SpecState, StudyResult,
   TestDefinition, Variable,
 } from "./api/types";
 import { AiPanel, type ChatTurn } from "./panels/AiPanel";
@@ -12,6 +12,7 @@ import { HistoryPanel } from "./panels/HistoryPanel";
 import { IntegrationPanel } from "./panels/IntegrationPanel";
 import { PropertyEditor } from "./panels/PropertyEditor";
 import { RequirementsPanel } from "./panels/RequirementsPanel";
+import { SpecPanel } from "./panels/SpecPanel";
 import { StudiesPanel } from "./panels/StudiesPanel";
 import { TestBench } from "./panels/TestBench";
 import { geometryCache, Viewport } from "./viewport/Viewport";
@@ -61,7 +62,9 @@ export function App() {
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<ComponentTestStatus[]>([]);
   const [dock, setDock] = useState<
-    "bench" | "integration" | "optimize" | "requirements" | null>("bench");
+    "spec" | "bench" | "integration" | "optimize" | "requirements" | null>("bench");
+  const [specState, setSpecState] = useState<SpecState | null>(null);
+  const [specDesign, setSpecDesign] = useState<SpecDesign | null>(null);
   const [requirements, setRequirements] = useState<RequirementRow[]>([]);
   const [studies, setStudies] = useState<StudyResult[]>([]);
   const [loops, setLoops] = useState<LoopResult[]>([]);
@@ -79,6 +82,7 @@ export function App() {
       api.componentStatus(id), api.studies(id), api.loops(id),
     ]);
     api.requirements(id).then(setRequirements).catch(() => setRequirements([]));
+    api.spec(id).then(setSpecState).catch(() => setSpecState(null));
     setStudies(studyList);
     setLoops(loopList);
     setProject(state);
@@ -169,6 +173,7 @@ export function App() {
         setTurns((t) => [...t, { text, reply }]);
         if (reply.studies?.length || reply.loops?.length) setDock("optimize");
         if (reply.kind === "requirement" || reply.kind === "verification") setDock("requirements");
+        if (reply.kind === "spec") { setSpecDesign(null); setDock("spec"); }
         if (reply.runs?.length) {
           setComparisons(reply.comparisons ?? []);
           setSelectedRun(reply.runs[0].id);
@@ -233,6 +238,17 @@ export function App() {
       if (!accept) { await api.rejectStudy(project!.id, studyId); return null; }
       return api.acceptStudy(project!.id, studyId);
     });
+  const specAction = (action: () => Promise<SpecState>) =>
+    run(async () => { setSpecState(await action()); setSpecDesign(null); return null; });
+  const generateDesign = () =>
+    run(async () => { setSpecDesign(await api.specDesign(project!.id)); return null; });
+  const applyDesign = () =>
+    run(async () => {
+      const out = await api.specApply(project!.id);
+      setSpecDesign(null);
+      return out.result;
+    });
+
   const requirementAction = (action: () => Promise<unknown>) =>
     run(async () => { await action(); return null; });
 
@@ -303,6 +319,9 @@ export function App() {
       </main>
       <section className={`dock${dock ? "" : " closed"}`}>
         <nav className="tabs">
+          <button className={dock === "spec" ? "active" : ""} onClick={() => setDock("spec")}>
+            Specification
+          </button>
           <button className={dock === "bench" ? "active" : ""} onClick={() => setDock("bench")}>
             Test bench
           </button>
@@ -326,6 +345,14 @@ export function App() {
             values={project.values} studies={studies} loops={loops} busy={busy}
             onOptimize={optimize} onLoop={engineeringLoop} onDecide={decideStudy}
             onChoose={chooseCandidate} />
+        )}
+        {project && dock === "spec" && (
+          <SpecPanel state={specState} design={specDesign} parameters={parameters}
+            values={project.values} busy={busy}
+            onAnswer={(q, v) => specAction(() => api.specAnswer(project.id, q, v))}
+            onText={(t) => specAction(() => api.specText(project.id, t))}
+            onReset={() => specAction(() => api.specReset(project.id))}
+            onDesign={generateDesign} onApply={applyDesign} />
         )}
         {project && dock === "requirements" && (
           <RequirementsPanel rows={requirements} parameters={parameters} derived={project.derived}

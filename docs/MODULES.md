@@ -244,6 +244,21 @@ every result. Verified in `tests/sim` against the exact linear solution
 | `GET/POST /projects/{id}/requirements.reqif` | ReqIF export / import (raw XML body) |
 | `POST /projects/{id}/preview` | impact preview of a command; nothing is applied |
 
+## Specification (`autevra.engineering.spec`)
+
+`VehicleSpec` (answers with a source), `QUESTIONS` with `applicable()`
+conditions and `next_question()`, `answer()` validation, `extract()` slot
+filling from text, `checks()` (conflict / warning / info, each with its
+basis), `acceleration_lower_bound()`, `TEMPLATES` per class, and `generate()`
+→ values, the reason for each value, rule violations, checks and provisional
+requirements. Stored per project in `specifications`.
+
+| Method and path | Purpose |
+|---|---|
+| `GET/DELETE /projects/{id}/spec` | state (answers, applicable questions, next question, checks) / reset |
+| `POST /projects/{id}/spec/answers`, `/spec/text` | answer one question / fill from free text |
+| `POST /projects/{id}/spec/design`, `/spec/apply` | generated design with impact preview / apply it (409 while conflicts remain) |
+
 ## Frontend (`frontend/src`)
 
 - `api/` — typed client mirroring the backend schemas.
@@ -259,6 +274,7 @@ every result. Verified in `tests/sim` against the exact linear solution
   criteria with margins, solver traces (SVG, real samples only) with limits
   and the previous revision, comparisons, diagnosis with Apply.
 - `panels/RequirementsPanel.tsx` — requirements, evidence, trace, ReqIF.
+- `panels/SpecPanel.tsx` — specification interview, checks, generated design.
 - `panels/IntegrationPanel.tsx`, `panels/StudiesPanel.tsx` — assembly checks;
   optimisation and loop set-up, candidate scatter, Pareto choice, accept or
   reject.

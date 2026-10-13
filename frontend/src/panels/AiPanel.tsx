@@ -18,6 +18,7 @@ interface Props {
 }
 
 const EXAMPLES = [
+  "I want an electric SUV with 220 kW, 7 seats and AWD",
   "increase the wheelbase by 100 mm",
   "increase the rear shock absorber damping by 10% and test its response",
   "test the front suspension over a pothole",

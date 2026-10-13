@@ -12,6 +12,8 @@ import type {
   StudyResult,
   Variable,
   RunRecord,
+  SpecDesign,
+  SpecState,
   RunSummary,
   TestDefinition,
   TestRunResponse,
@@ -104,5 +106,12 @@ export const api = {
       method: "POST", body: xml, headers: { "content-type": "application/xml" } }),
   reqifUrl: (id: string) => `/api/projects/${id}/requirements.reqif`,
   preview: (id: string, command: Command) => post<ImpactPreview>(`/projects/${id}/preview`, { command }),
+  spec: (id: string) => request<SpecState>(`/projects/${id}/spec`),
+  specAnswer: (id: string, question: string, value: string | number | null) =>
+    post<SpecState>(`/projects/${id}/spec/answers`, { question, value }),
+  specText: (id: string, text: string) => post<SpecState>(`/projects/${id}/spec/text`, { text }),
+  specReset: (id: string) => request<SpecState>(`/projects/${id}/spec`, { method: "DELETE" }),
+  specDesign: (id: string) => post<SpecDesign>(`/projects/${id}/spec/design`),
+  specApply: (id: string) => post<{ result: CommandResult; requirements: string[] }>(`/projects/${id}/spec/apply`),
   integration: (id: string) => request<IntegrationReport>(`/projects/${id}/integration`),
 };

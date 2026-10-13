@@ -16,7 +16,7 @@ becomes a validated engineering operation on parametric geometry.
 
 ## Status
 
-**Phases 1–4 are implemented.**
+**Phases 1–5 are implemented.**
 
 - **Parametric vehicle.** Body with wheel wells and cabin, hollow ladder frame, beam axles, wheels and four coil-over dampers, in real CadQuery/Open CASCADE geometry. It is edited through typed, validated commands from the property editor, the API or plain English, with undo/redo, persistence and STEP export.
 - **Local language model (optional).** A local model proposes changes the deterministic parser cannot resolve, and every proposal needs confirmation.
@@ -30,6 +30,10 @@ becomes a validated engineering operation on parametric geometry.
   
   Nothing changes until you accept, and every result says whether it is an analytical estimate or a numerical simulation. Nothing is presented as validated without test data.
 
+- **Specification interview.** Describe the vehicle ("an electric SUV, 220 kW, 7 seats, AWD"). Autevra:
+  - asks only the questions that apply;
+  - flags physically impossible targets and implausible values, with the basis for each;
+  - generates a rule-checked starting design that you preview and apply.
 - **Traceability.**
   - Requirements, stated in plain English or imported from ReqIF, are linked to the parameters, components and test runs that prove them.
   - Each requirement shows whether it is verified, failed or stale.
@@ -97,7 +101,8 @@ Open http://localhost:5173 and try "increase the wheelbase by 100 mm",
 "increase the rear shock absorber damping by 10% and test its response",
 "explain why the suspension travel limit was exceeded", "fix the rear
 suspension", "require the ground clearance to be at least 150 mm", "what if I
-lower the car by 20 mm?", "verify the requirements", or use the Test bench,
+lower the car by 20 mm?", "verify the requirements", "I want an electric SUV
+with 220 kW, 7 seats and AWD", or use the Specification, Test bench,
 Integration, Optimise & loop and Requirements tabs under the viewport. The first start after installing can take a
 minute or two while macOS scans the new native libraries; later starts take seconds.
 

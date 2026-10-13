@@ -87,7 +87,7 @@ export interface Violation {
 export interface InstructionResult {
   kind: "command" | "undo" | "redo" | "query" | "clarification" | "rejected" | "proposal"
     | "out_of_scope" | "test" | "diagnosis" | "optimization" | "loop" | "preview" | "requirement"
-    | "verification";
+    | "verification" | "spec";
   message: string;
   interpreted_by: "rules" | "llm";
   command: Command | null;
@@ -105,6 +105,7 @@ export interface InstructionResult {
   loops?: LoopResult[];
   impact_preview?: ImpactPreview | null;
   requirements?: RequirementRow[];
+  spec?: SpecState | null;
 }
 
 export interface GeometryData {
@@ -445,4 +446,47 @@ export interface ImpactPreview {
   warnings_added: string[];
   warnings_cleared: string[];
   summary: string;
+}
+
+export interface SpecQuestion {
+  id: string;
+  prompt: string;
+  kind: "choice" | "number";
+  options: string[];
+  option_labels: string[];
+  unit: string;
+  minimum: number | null;
+  maximum: number | null;
+  optional: boolean;
+  help: string;
+}
+
+export interface SpecCheck {
+  id: string;
+  severity: "conflict" | "warning" | "info";
+  message: string;
+  basis: string;
+  answers: string[];
+  parameters: string[];
+  estimate: Record<string, number>;
+}
+
+export interface SpecState {
+  spec: { answers: Record<string, { value: string | number; source: "user" | "default"; note: string }> };
+  questions: SpecQuestion[];
+  applicable: string[];
+  next: SpecQuestion | null;
+  checks: SpecCheck[];
+  missing: string[];
+}
+
+export interface SpecDesign {
+  values: Record<string, number>;
+  sources: Record<string, string>;
+  violations: Violation[];
+  checks: SpecCheck[];
+  requirements: Record<string, unknown>[];
+  missing: string[];
+  command: Command | null;
+  preview: ImpactPreview | null;
 }
