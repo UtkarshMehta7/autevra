@@ -1,12 +1,12 @@
 """Test runs and requirements. Runs are append-only: a design change never edits them."""
 
-import dataclasses
 import json
-from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from autevra.engineering.requirements import Requirement as RequirementRecord
+from autevra.engineering.requirements import next_key
 from autevra.engineering.testing import Requirement, RunRecord
 from autevra.storage.models import RequirementRow, StudyRow, TestRunRow
 
@@ -20,12 +20,20 @@ class RunRepository:
         self.session = session
 
     def add(self, project_id: str, record: RunRecord) -> RunRecord:
-        self.session.add(TestRunRow(
-            id=record.id, project_id=project_id, test_id=record.test_id, target=record.target,
-            scenario_id=record.scenario["id"], status=record.status.value,
-            values_hash=record.revision.values_hash, inputs_hash=record.revision.inputs_hash,
-            created_at=record.created_at, record_json=record.model_dump_json(),
-        ))  # fmt: skip
+        self.session.add(
+            TestRunRow(
+                id=record.id,
+                project_id=project_id,
+                test_id=record.test_id,
+                target=record.target,
+                scenario_id=record.scenario["id"],
+                status=record.status.value,
+                values_hash=record.revision.values_hash,
+                inputs_hash=record.revision.inputs_hash,
+                created_at=record.created_at,
+                record_json=record.model_dump_json(),
+            )
+        )
         self.session.flush()
         return record
 
@@ -63,23 +71,61 @@ class RunRepository:
         return None if row is None else RunRecord.model_validate_json(row.record_json)
 
     # --- requirements ---
-    def requirements(self, project_id: str) -> list[Requirement]:
+    def requirement_records(self, project_id: str) -> list[RequirementRecord]:
         rows = self.session.scalars(
             select(RequirementRow)
             .where(RequirementRow.project_id == project_id)
             .order_by(RequirementRow.created_at)
         )
-        return [Requirement(**json.loads(r.requirement_json)) for r in rows]
+        out = []
+        for row in rows:
+            data = json.loads(row.requirement_json)
+            if "kind" not in data:  # stored before Phase 4: a test criterion
+                data = {
+                    "kind": "performance",
+                    "verification": "test",
+                    **data,
+                    "note": data.get("note", ""),
+                }
+            out.append(RequirementRecord.model_validate(data | {"id": row.id}))
+        for i, record in enumerate(out):  # give pre-Phase-4 records a stable key
+            if not record.key:
+                out[i] = record.model_copy(update={"key": f"REQ-{i + 1:03d}"})
+        return out
 
-    def add_requirement(self, project_id: str, requirement: Requirement) -> Requirement:
-        if not requirement.id:
-            requirement = dataclasses.replace(requirement, id=uuid4().hex[:12])
-        self.session.add(RequirementRow(
-            id=requirement.id, project_id=project_id,
-            requirement_json=json.dumps(dataclasses.asdict(requirement)),
-        ))  # fmt: skip
+    def requirements(self, project_id: str) -> list[Requirement]:
+        """Approved performance requirements, in the criterion form used by test verdicts."""
+        out = []
+        for record in self.requirement_records(project_id):
+            criterion = record.as_test_requirement()
+            if criterion is not None:
+                out.append(criterion)
+        return out
+
+    def add_requirement(self, project_id: str, record: RequirementRecord) -> RequirementRecord:
+        existing = self.requirement_records(project_id)
+        if not record.key:
+            record = record.model_copy(update={"key": next_key(existing)})
+        if any(r.key == record.key for r in existing):
+            raise ValueError(f"requirement key {record.key} already exists")
+        self.session.add(
+            RequirementRow(
+                id=record.id,
+                project_id=project_id,
+                created_at=record.created_at,
+                requirement_json=record.model_dump_json(),
+            )
+        )
         self.session.flush()
-        return requirement
+        return record
+
+    def update_requirement(self, project_id: str, record: RequirementRecord) -> RequirementRecord:
+        row = self.session.get(RequirementRow, record.id)
+        if row is None or row.project_id != project_id:
+            raise RunNotFoundError(record.id)
+        row.requirement_json = record.model_dump_json()
+        self.session.flush()
+        return record
 
     def delete_requirement(self, project_id: str, requirement_id: str) -> None:
         row = self.session.get(RequirementRow, requirement_id)
@@ -94,12 +140,20 @@ class StudyRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def save(self, project_id: str, kind: str, study_id: str, status: str, record_json: str
-             ) -> None:  # fmt: skip
+    def save(
+        self, project_id: str, kind: str, study_id: str, status: str, record_json: str
+    ) -> None:
         row = self.session.get(StudyRow, study_id)
         if row is None:
-            self.session.add(StudyRow(id=study_id, project_id=project_id, kind=kind,
-                                      status=status, record_json=record_json))  # fmt: skip
+            self.session.add(
+                StudyRow(
+                    id=study_id,
+                    project_id=project_id,
+                    kind=kind,
+                    status=status,
+                    record_json=record_json,
+                )
+            )
         else:
             row.status, row.record_json = status, record_json
         self.session.flush()
