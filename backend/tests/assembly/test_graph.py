@@ -71,6 +71,8 @@ def test_frame_spacing_rebuilds_the_frame_and_moves_the_dampers() -> None:
 # later steering sweep.
 NO_GEOMETRY = {
     "max_steer_angle", "vehicle_mass", "front_mass_distribution", "tyre_vertical_stiffness",
+    "peak_power", "front_drive_share", "drivetrain_efficiency", "drag_coefficient",
+    "rolling_resistance", "cg_height",
     *(f"{a}_{n}" for a in ("front", "rear")
       for n in ("damping_bump", "damping_rebound", "unsprung_mass", "bump_travel",
                 "rebound_travel")),

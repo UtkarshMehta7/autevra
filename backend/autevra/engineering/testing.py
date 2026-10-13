@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 
 from autevra.domain import derived as d
 from autevra.domain.parameters import REGISTRY
+from autevra.sim import longitudinal as lg
 from autevra.sim import quarter_car as qc
 
 Values = Mapping[str, float]
@@ -70,6 +71,7 @@ class Scenario:
     speed_kmh: float
     duration_s: float = 3.0
     note: str = ""
+    friction: float = 1.0  # tyre-road friction for vehicle-level manoeuvres
 
     def road_si(self) -> qc.Road:
         return qc.Road(self.road, self.height_mm / 1000, self.length_m, self.speed_kmh / 3.6)
@@ -365,7 +367,123 @@ RIDE_MODES = TestDefinition(
     run=_run_ride_modes,
 )
 
-DEFINITIONS: Mapping[str, TestDefinition] = {t.id: t for t in (QUARTER_CAR, RIDE_MODES)}
+# --- Longitudinal performance -----------------------------------------------------------
+
+DRIVER_KG = 75.0  # test mass = vehicle mass + driver
+
+
+def longitudinal_inputs(target: str) -> tuple[str, ...]:
+    return (
+        "vehicle_mass", "front_mass_distribution", "peak_power", "drivetrain_efficiency",
+        "front_drive_share", "cg_height", "wheelbase", "drag_coefficient", "body_width",
+        "overall_height", "ground_clearance", "rolling_resistance",
+    )  # fmt: skip
+
+
+def longitudinal_params(values: Values) -> lg.Params:
+    return lg.Params(
+        mass=values["vehicle_mass"] + DRIVER_KG,
+        power=values["peak_power"] * 1000.0,
+        efficiency=values["drivetrain_efficiency"] / 100.0,
+        front_drive_share=values["front_drive_share"] / 100.0,
+        front_static_share=values["front_mass_distribution"] / 100.0,
+        cg_height=values["cg_height"] / 1000.0,
+        wheelbase=values["wheelbase"] / 1000.0,
+        drag_area=values["drag_coefficient"] * d.frontal_area(values),
+        rolling_resistance=values["rolling_resistance"],
+    )
+
+
+def _manoeuvre(scenario: Scenario) -> lg.Manoeuvre:
+    kind = "accelerate" if scenario.road == "accelerate" else "brake"
+    return lg.Manoeuvre(kind=kind, friction=scenario.friction, v_end=scenario.speed_kmh / 3.6)
+
+
+def _run_longitudinal(values: Values, target: str, scenario: Scenario, quick: bool = False):  # type: ignore[no-untyped-def]
+    params = longitudinal_params(values)
+    config = lg.Config(check_convergence=not quick, trace_points=2 if quick else 400)
+    result = lg.simulate(params, _manoeuvre(scenario), config)
+    solver_inputs = {k: getattr(params, k) for k in params.__dataclass_fields__}
+    config_out = {"dt": config.dt, "solver_inputs": solver_inputs}
+    return (
+        result.metrics,
+        result.numerics,
+        result.solver,
+        result.warnings,
+        {
+            "trace": result.trace,
+            "config": config_out,
+        },
+    )
+
+
+LONGITUDINAL = TestDefinition(
+    id="longitudinal",
+    name="Longitudinal performance",
+    description="Straight-line 0–100 km/h acceleration and 100–0 km/h braking with traction "
+    "limits, load transfer, drag and rolling resistance. No default criteria: add "
+    "requirements such as a 0–100 km/h time or a stopping distance.",
+    solver=lg.SOLVER_ID,
+    credibility=Credibility.NUMERICAL_SIMULATION,
+    targets=("vehicle",),
+    components={
+        "vehicle": ("wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr", "front_axle", "rear_axle")
+    },  # fmt: skip
+    inputs=longitudinal_inputs,
+    scenarios=(
+        Scenario(
+            "accel_0_100",
+            "0–100 km/h, dry",
+            "accelerate",
+            0,
+            0,
+            100,
+            60,
+            note="Full power from rest on dry asphalt (friction 1.0).",
+            friction=1.0,
+        ),
+        Scenario(
+            "brake_100_0_dry",
+            "100–0 km/h, dry",
+            "brake",
+            0,
+            0,
+            100,
+            60,
+            note="Full braking from 100 km/h, dry asphalt (friction 1.0), 0.15 s build-up.",
+            friction=1.0,
+        ),
+        Scenario(
+            "brake_100_0_wet",
+            "100–0 km/h, wet",
+            "brake",
+            0,
+            0,
+            100,
+            60,
+            note="Full braking from 100 km/h, wet asphalt (friction 0.6), 0.15 s build-up.",
+            friction=0.6,
+        ),
+    ),  # fmt: skip
+    criteria=(),
+    metrics=lg.METRICS,
+    assumptions=(
+        *lg.ASSUMPTIONS,
+        f"Test mass is the vehicle mass plus a {DRIVER_KG:g} kg driver.",
+        f"Frontal area estimated as {d.FRONTAL_FILL} x width x height above ground.",
+    ),  # fmt: skip
+    run=_run_longitudinal,
+)
+
+DEFINITIONS: dict[str, TestDefinition] = {t.id: t for t in (QUARTER_CAR, RIDE_MODES, LONGITUDINAL)}
+
+
+def register_test(definition: TestDefinition) -> TestDefinition:
+    """Add a test definition (extension point; see docs/EXTENDING.md)."""
+    if definition.id in DEFINITIONS:
+        raise ValueError(f"test '{definition.id}' is already registered")
+    DEFINITIONS[definition.id] = definition
+    return definition
 
 
 # --- Running ------------------------------------------------------------------------
@@ -490,7 +608,9 @@ def quick_evaluate(
     """
     definition = DEFINITIONS[test_id]
     scenario = definition.scenario(scenario_id)
-    if test_id == "quarter_car":
+    if test_id == "longitudinal":
+        metrics = _run_longitudinal(values, target, scenario, quick=True)[0]
+    elif test_id == "quarter_car":
         config = qc.Config(duration=scenario.duration_s, check_convergence=False, trace_points=2)
         metrics = qc.simulate(
             quarter_car_params(values, target), scenario.road_si(), config

@@ -94,6 +94,7 @@ _TEST_TAIL = re.compile(
 )
 _TEST_WORDS = re.compile(
     r"\b(test|tests|simulate|simulation|quarter[- ]car|pothole|hump|speed bump|ride modes?|"
+    r"acceleration|braking|stopping|0-100|"
     r"natural frequenc(?:y|ies)|modal)\b"
 )
 
@@ -148,23 +149,38 @@ _AT_LEAST = (
 _AT_MOST = (
     r"(?:at most|no more than|not more than|a maximum of|maximum|below|under|less than|within|<=|<)"
 )
+_LONGITUDINAL_METRICS = {  # requirement phrase -> longitudinal metric
+    "0-100 time": "accel_time",
+    "0 to 100 time": "accel_time",
+    "0-100": "accel_time",
+    "acceleration time": "accel_time",
+    "stopping distance": "stopping_distance",
+    "braking distance": "stopping_distance",
+}
 _METRICS = {  # requirement phrase -> quarter-car metric
     "peak body acceleration": "peak_body_acceleration",
     "rms body acceleration": "rms_body_acceleration",
-    "body settling time": "settling_time", "settling time": "settling_time",
-    "bump travel": "max_bump_travel", "compression travel": "max_bump_travel",
-    "rebound travel": "max_rebound_travel", "body displacement": "peak_body_displacement",
-    "overshoot": "step_overshoot", "time off the road": "lift_off_time",
-    "lift-off time": "lift_off_time", "lift off time": "lift_off_time",
-    "minimum tyre load": "min_tyre_load_ratio", "tyre load": "min_tyre_load_ratio",
-}  # fmt: skip
+    "body settling time": "settling_time",
+    "settling time": "settling_time",
+    "bump travel": "max_bump_travel",
+    "compression travel": "max_bump_travel",
+    "rebound travel": "max_rebound_travel",
+    "body displacement": "peak_body_displacement",
+    "overshoot": "step_overshoot",
+    "time off the road": "lift_off_time",
+    "lift-off time": "lift_off_time",
+    "lift off time": "lift_off_time",
+    "minimum tyre load": "min_tyre_load_ratio",
+    "tyre load": "min_tyre_load_ratio",
+}
 _TEST_CONTEXT = re.compile(
     r"\b(test|tests|scenario|hump|pothole|step|bump test|quarter[- ]car|over the)\b"
 )
 
 
 def _parse_requirement(text: str) -> Interpretation:
-    number = QUANTITY.search(text)
+    numbers = list(QUANTITY.finditer(text))
+    number = numbers[-1] if numbers else None  # the limit is the last amount
     before = text[: number.start()] if number else text
     least = [m.end() for m in re.finditer(_AT_LEAST, before)]
     most = [m.end() for m in re.finditer(_AT_MOST, before)]
@@ -174,33 +190,68 @@ def _parse_requirement(text: str) -> Interpretation:
         comparator = "<="
     else:
         return Interpretation(
-            Kind.CLARIFICATION, reason=Reason.INVALID,
+            Kind.CLARIFICATION,
+            reason=Reason.INVALID,
             question="Should that be at least or at most a value? For example: require the "
             "ground clearance to be at least 150 mm.",
             suggestions=["require the ground clearance to be at least 150 mm"],
-        )  # fmt: skip
+        )
     quantity = _quantity(text)
     if quantity is None:
-        return Interpretation(Kind.CLARIFICATION, reason=Reason.MISSING_AMOUNT,
-                              question="What limit should the requirement have?")  # fmt: skip
+        return Interpretation(
+            Kind.CLARIFICATION,
+            reason=Reason.MISSING_AMOUNT,
+            question="What limit should the requirement have?",
+        )
     value, unit = quantity
+    long_phrase = next(
+        (ph for ph in sorted(_LONGITUDINAL_METRICS, key=len, reverse=True) if ph in text), None
+    )
+    if long_phrase is not None:
+        metric = _LONGITUDINAL_METRICS[long_phrase]
+        stand_in = " stopping " if metric == "stopping_distance" else " 0-100 "
+        request = _test_request(text.replace(long_phrase, stand_in))
+        return Interpretation(
+            Kind.REQUIREMENT,
+            requirement={
+                "kind": "performance",
+                "test_id": "longitudinal",
+                "metric": metric,
+                "target": "vehicle",
+                "scenario_id": request.scenario_id or "*",
+                "comparator": comparator,
+                "limit": value,
+                "unit": "",
+            },
+        )
     phrase = next((ph for ph in sorted(_METRICS, key=len, reverse=True) if ph in text), None)
     metric = _METRICS[phrase] if phrase else None
     # The metric's own words ("bump travel") must not pick a scenario ("bump" -> hump).
-    request = _test_request(text.replace(phrase, " ") if phrase else text)  # fmt: skip
+    request = _test_request(text.replace(phrase, " ") if phrase else text)
     if metric is not None and (_TEST_CONTEXT.search(text) or _find_target(text) is None):
-        return Interpretation(Kind.REQUIREMENT, requirement={
-            "kind": "performance", "test_id": "quarter_car", "metric": metric,
-            "target": request.target or "*", "scenario_id": request.scenario_id or "*",
-            "comparator": comparator, "limit": value, "unit": "",
-        })  # fmt: skip
+        return Interpretation(
+            Kind.REQUIREMENT,
+            requirement={
+                "kind": "performance",
+                "test_id": "quarter_car",
+                "metric": metric,
+                "target": request.target or "*",
+                "scenario_id": request.scenario_id or "*",
+                "comparator": comparator,
+                "limit": value,
+                "unit": "",
+            },
+        )
     if re.search(r"\bbody acceleration\b", text):
         return Interpretation(
-            Kind.CLARIFICATION, reason=Reason.INVALID,
+            Kind.CLARIFICATION,
+            reason=Reason.INVALID,
             question="Peak or RMS body acceleration?",
-            suggestions=[f"require the peak body acceleration to be at most {value:g} m/s²",
-                         f"require the rms body acceleration to be at most {value:g} m/s²"],
-        )  # fmt: skip
+            suggestions=[
+                f"require the peak body acceleration to be at most {value:g} m/s²",
+                f"require the rms body acceleration to be at most {value:g} m/s²",
+            ],
+        )
     target = _find_target(text)
     if target is None:
         question = f"Which quantity is the requirement about in '{text}'?"
@@ -211,14 +262,21 @@ def _parse_requirement(text: str) -> Interpretation:
             ids = tuple(i for i in ids if i.startswith(request.target)) or ids
         if len(ids) > 1:
             return Interpretation(
-                Kind.CLARIFICATION, reason=Reason.INVALID,
+                Kind.CLARIFICATION,
+                reason=Reason.INVALID,
                 question=f"'{target.alias}' covers several parameters; say front or rear.",
-            )  # fmt: skip
+            )
         target = Target(target.kind, ids, target.alias)
-    return Interpretation(Kind.REQUIREMENT, requirement={
-        "kind": "design", "quantity": target.ids[0], "comparator": comparator,
-        "limit": value, "unit": str(unit) if unit else "",
-    })  # fmt: skip
+    return Interpretation(
+        Kind.REQUIREMENT,
+        requirement={
+            "kind": "design",
+            "quantity": target.ids[0],
+            "comparator": comparator,
+            "limit": value,
+            "unit": str(unit) if unit else "",
+        },
+    )
 
 
 def _objective(text: str) -> tuple[str, str] | None:
@@ -228,7 +286,18 @@ def _objective(text: str) -> tuple[str, str] | None:
     return None
 
 
+_ACCEL = re.compile(r"\baccelerat|\b0\s*(?:-|to)\s*100\b|\bsprint\b")
+_BRAKE = re.compile(r"\bbrak(?:e|es|ing)\b|\bstopping\b|\bstop from\b")
+
+
 def _test_request(text: str) -> TestRequest:
+    if _ACCEL.search(text):
+        return TestRequest("longitudinal", "vehicle", "accel_0_100")
+    if _BRAKE.search(text):
+        wet = re.search(r"\bwet|rain", text) is not None
+        dry = re.search(r"\bdry\b", text) is not None
+        scenario = "brake_100_0_wet" if wet else "brake_100_0_dry" if dry else None
+        return TestRequest("longitudinal", "vehicle", scenario)
     words = set(_words(text))
     test_id = "ride_modes" if re.search(r"ride modes?|natural frequenc|modal", text) else None
     scenario = None
@@ -353,14 +422,70 @@ def _derived_clarification(derived_id: str) -> _UnresolvedError:
 
 
 # Words that carry no meaning of their own in an instruction.
-_FILLER = frozenset({
-    "the", "a", "an", "it", "its", "to", "by", "of", "at", "is", "be", "on", "for", "please",
-    "me", "from", "with", "set", "make", "so", "that", "now", "value", "size",
-    "mm", "cm", "m", "in", "inch", "inches", "deg", "degree", "degrees", "percent", "pct",
-    "millimetre", "millimetres", "millimeter", "millimeters", "metre", "metres", "meter",
-    "meters", "centimetre", "centimetres", "centimeter", "centimeters", "factor", "times",
-    "n", "kn", "kg", "kgs", "lb", "lbs", "lbf", "kilogram", "kilograms", "pound", "pounds",
-})  # fmt: skip
+_FILLER = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "it",
+        "its",
+        "to",
+        "by",
+        "of",
+        "at",
+        "is",
+        "be",
+        "on",
+        "for",
+        "please",
+        "me",
+        "from",
+        "with",
+        "set",
+        "make",
+        "so",
+        "that",
+        "now",
+        "value",
+        "size",
+        "mm",
+        "cm",
+        "m",
+        "in",
+        "inch",
+        "inches",
+        "deg",
+        "degree",
+        "degrees",
+        "percent",
+        "pct",
+        "millimetre",
+        "millimetres",
+        "millimeter",
+        "millimeters",
+        "metre",
+        "metres",
+        "meter",
+        "meters",
+        "centimetre",
+        "centimetres",
+        "centimeter",
+        "centimeters",
+        "factor",
+        "times",
+        "n",
+        "kn",
+        "kg",
+        "kgs",
+        "lb",
+        "lbs",
+        "lbf",
+        "kilogram",
+        "kilograms",
+        "pound",
+        "pounds",
+    }
+)
 _KNOWN = (
     _FILLER
     | lx.INCREASE_VERBS
@@ -509,8 +634,9 @@ def parse(text: str) -> Interpretation:
     if (what_if := _PREVIEW.match(t)) is not None:
         inner = parse(what_if.group("rest"))
         if inner.kind is Kind.COMMAND and inner.command is not None:
-            return Interpretation(Kind.PREVIEW, command=inner.command,
-                                  assumptions=inner.assumptions)  # fmt: skip
+            return Interpretation(
+                Kind.PREVIEW, command=inner.command, assumptions=inner.assumptions
+            )
         return inner
     if _DIAGNOSE.search(t):
         return Interpretation(Kind.DIAGNOSE, tests=_test_request(t))
@@ -518,9 +644,12 @@ def parse(text: str) -> Interpretation:
         request = _test_request(t)
         words = set(_words(t))
         unmodelled = tuple(v for k, v in _UNMODELLED_LIMITS.items() if k in words)
-        return Interpretation(Kind.OPTIMIZE, tests=TestRequest(
-            request.test_id, request.target, request.scenario_id, None, *objective, unmodelled
-        ))  # fmt: skip
+        return Interpretation(
+            Kind.OPTIMIZE,
+            tests=TestRequest(
+                request.test_id, request.target, request.scenario_id, None, *objective, unmodelled
+            ),
+        )
     if _LOOP.search(t) and not _find_target(t.replace("suspension", "")):
         return Interpretation(Kind.LOOP, tests=_test_request(t))
     if t.endswith("?") or _QUESTION_START.match(t):

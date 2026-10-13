@@ -2,8 +2,9 @@
 
 Every quantity belongs to a dimension. Values convert through the dimension's
 base unit: mm for length, deg for angle, % for ratio, kg for mass, N/mm for
-stiffness and N·s/m for damping. Converting between dimensions is an error, so
-millimetres can never be silently mixed with newtons or kilograms.
+stiffness, N·s/m for damping and kW for power; coefficients are dimensionless.
+Converting between dimensions is an error, so millimetres can never be silently
+mixed with newtons or kilograms.
 """
 
 from enum import StrEnum
@@ -16,6 +17,8 @@ class Dimension(StrEnum):
     MASS = "mass"
     STIFFNESS = "stiffness"  # force per length
     DAMPING = "damping"  # force per velocity
+    POWER = "power"
+    NONE = "none"  # dimensionless coefficients (drag, rolling resistance)
 
 
 class Unit(StrEnum):
@@ -34,6 +37,10 @@ class Unit(StrEnum):
     NS_PER_M = "N·s/m"
     NS_PER_MM = "N·s/mm"
     KNS_PER_M = "kN·s/m"
+    KW = "kW"
+    HP = "hp"
+    PS = "PS"
+    NONE = ""
 
 
 # unit -> (dimension, factor to the dimension's base unit)
@@ -53,6 +60,10 @@ _UNITS: dict[Unit, tuple[Dimension, float]] = {
     Unit.NS_PER_M: (Dimension.DAMPING, 1.0),
     Unit.NS_PER_MM: (Dimension.DAMPING, 1000.0),
     Unit.KNS_PER_M: (Dimension.DAMPING, 1000.0),
+    Unit.KW: (Dimension.POWER, 1.0),
+    Unit.HP: (Dimension.POWER, 0.745699872),  # mechanical horsepower
+    Unit.PS: (Dimension.POWER, 0.73549875),  # metric horsepower
+    Unit.NONE: (Dimension.NONE, 1.0),
 }
 
 # Spellings accepted from people and the parser, mapped to canonical units.
@@ -106,6 +117,13 @@ UNIT_ALIASES: dict[str, Unit] = {
     "kn·s/m": Unit.KNS_PER_M,
     "kns/m": Unit.KNS_PER_M,
     "kn.s/m": Unit.KNS_PER_M,
+    "kw": Unit.KW,
+    "kilowatt": Unit.KW,
+    "kilowatts": Unit.KW,
+    "hp": Unit.HP,
+    "bhp": Unit.HP,
+    "horsepower": Unit.HP,
+    "ps": Unit.PS,
 }
 
 

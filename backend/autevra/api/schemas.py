@@ -186,6 +186,7 @@ class ScenarioOut(BaseModel):
     speed_kmh: float
     duration_s: float
     note: str
+    friction: float = 1.0
 
 
 class CriterionOut(BaseModel):
@@ -233,7 +234,7 @@ class RequirementIn(BaseModel):
     parent: str | None = None
     approved: bool = True
     test_id: str | None = "quarter_car"
-    target: Literal["front", "rear", "*"] = "*"
+    target: str = "*"  # a target of the test (front, rear, vehicle) or * for all
     scenario_id: str = "*"
     metric: str | None = None
     quantity: str | None = None

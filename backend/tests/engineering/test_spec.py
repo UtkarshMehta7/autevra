@@ -115,6 +115,7 @@ def test_generation_proposes_unapproved_requirements_and_names_sources() -> None
         "front_ride_frequency",
         "ground_clearance",
     }
-    assert any(r["kind"] == "text" for r in g.requirements)
+    accel = [r for r in g.requirements if r.get("metric") == "accel_time"]
+    assert accel and accel[0]["test_id"] == "longitudinal" and accel[0]["limit"] == 8
     assert g.sources["vehicle_mass"].endswith("(default)")
     assert g.values["ground_clearance"] >= 200

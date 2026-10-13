@@ -535,8 +535,8 @@ def checks(spec: VehicleSpec, generated: Mapping[str, float] | None = None) -> l
                         id="accel_target",
                         severity="info",
                         message=f"0–100 km/h in {target:g} s is not ruled out: the lower bound is "
-                        f"{est['time']:.1f} s. Verifying it needs a longitudinal simulation "
-                        "(planned), so it is not claimed as met.",
+                        f"{est['time']:.1f} s. It is not claimed as met until the longitudinal "
+                        "performance test verifies it (proposed as a requirement).",
                         basis=basis,
                         answers=["accel_0_100", "peak_power"],
                         estimate={k: round(v, 3) for k, v in est.items()},
@@ -679,6 +679,13 @@ def generate(spec: VehicleSpec) -> Generated:
     elif drive == "rwd":
         values["front_mass_distribution"] = min(values["front_mass_distribution"], 52)
         sources["front_mass_distribution"] = "rear-wheel drive layout (default)"
+    if isinstance(power := _value(spec, "peak_power"), float | int):
+        values["peak_power"] = float(power)
+        sources["peak_power"] = "specification"
+    values["front_drive_share"] = {"fwd": 100.0, "rwd": 0.0, "awd": 40.0}[drive]
+    sources["front_drive_share"] = f"{drive.upper()}" + (
+        " (40/60 split suits rearward load transfer)" if drive == "awd" else ""
+    )
     ride = str(_value(spec, "ride") or ("sporty" if spec.get("use") == "track" else "balanced"))
     for k, (v, why) in _spring_and_damping(values, ride).items():
         values[k] = v
@@ -708,10 +715,14 @@ def generate(spec: VehicleSpec) -> Generated:
     if isinstance(target := _value(spec, "accel_0_100"), float | int):
         requirements.append(
             {
-                "kind": "text",
+                "kind": "performance",
+                "test_id": "longitudinal",
+                "target": "vehicle",
+                "scenario_id": "accel_0_100",
+                "metric": "accel_time",
+                "comparator": "<=",
+                "limit": float(target),
                 "approved": False,
-                "text": f"The vehicle shall accelerate from 0 to 100 km/h in at most "
-                f"{target:g} s (verification needs a longitudinal simulation).",
                 "rationale": "from the specification",
             }
         )

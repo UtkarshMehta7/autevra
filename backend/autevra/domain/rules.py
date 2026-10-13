@@ -332,6 +332,23 @@ for _axle in d.AXLES:
     _suspension_rules(_axle)
 
 
+@_rule(
+    "cg_within_body",
+    "The centre of gravity must lie between the ground clearance and half the overall height.",
+    "cg_height",
+    "ground_clearance",
+    "overall_height",
+)
+def _cg_within_body(p: Values) -> str | None:
+    lo, hi = p["ground_clearance"], p["overall_height"] / 2.0
+    if not lo < p["cg_height"] < hi:
+        return (
+            f"centre of gravity height {_mm(p['cg_height'])} is outside "
+            f"{_mm(lo)}–{_mm(hi)} (ground clearance to half the overall height)"
+        )
+    return None
+
+
 RULES: tuple[Rule, ...] = tuple(r for r, _ in _RULES)
 
 
