@@ -1,6 +1,6 @@
 """Builds the vehicle model from a parameter set: assembly placement + cached CAD."""
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -42,14 +42,19 @@ def build_model(values: Mapping[str, float], cache: GeometryCache) -> VehicleMod
     return VehicleModel(parts=parts, shapes=shapes)
 
 
-def mesh_payload(model: VehicleModel, cache: GeometryCache) -> dict:
-    """JSON-ready model: de-duplicated meshes plus one 4x4 transform per part."""
+def mesh_payload(model: VehicleModel, cache: GeometryCache, skip: Iterable[str] = ()) -> dict:
+    """JSON-ready model: de-duplicated meshes plus one 4x4 transform per part.
+
+    Geometry keys listed in ``skip`` (already held by the client) are left out.
+    """
+    skip = set(skip)
     return {
         "units": "mm",
         "axes": "ISO 8855 (X forward, Y left, Z up)",
         "geometries": {
-            key: {"vertices": mesh.vertices, "indices": mesh.indices}
+            key: {"vertices": [round(v, 3) for v in mesh.vertices], "indices": mesh.indices}
             for key in model.shapes
+            if key not in skip
             for mesh in [cache.mesh(key)]
         },
         "parts": [

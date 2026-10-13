@@ -1,10 +1,7 @@
 from fastapi.testclient import TestClient
 
-from autevra.main import create_app
 
-
-def test_health() -> None:
-    client = TestClient(create_app())
+def test_health(client: TestClient) -> None:
     response = client.get("/api/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
