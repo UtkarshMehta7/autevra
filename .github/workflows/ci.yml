@@ -90,10 +90,13 @@ jobs:
           done
           docker logs api
           exit 1
-      - name: Backend works within Render's free instance (512 MB, 0.1 CPU)
-        timeout-minutes: 25
+      # Render's free instance is 512 MB and 0.1 CPU. Memory is what can break it, so the
+      # full visitor session runs under the memory cap at normal CPU (at 0.1 CPU it takes
+      # ~14 minutes; measured once, see docs/DEPLOYMENT.md).
+      - name: Backend works within 512 MB (Render free instance)
+        timeout-minutes: 10
         run: |
-          docker run -d --name small --memory 512m --memory-swap 512m --cpus 0.1 \
+          docker run -d --name small --memory 512m --memory-swap 512m \
             -p 8100:8000 -e AUTEVRA_LLM_PROVIDER=off autevra-api
           start=$(date +%s)
           for i in $(seq 1 120); do curl -fsS http://localhost:8100/api/health >/dev/null && break; sleep 2; done
