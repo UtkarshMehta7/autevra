@@ -120,8 +120,18 @@ import), and a filleted box builds in milliseconds.
 | FastAPI 0.143, Pydantic 2.14, SQLAlchemy 2.1, Alembic 1.20, Uvicorn 0.54, pytest 9.1, ruff 0.17 | ✅ pure Python or arm64 wheels |
 | `httpx 0.28` (test client) | ✅; Starlette 1.8 prefers `httpx2` (pure-Python wheel) and warns about `httpx` |
 
+| `numpy 2.5` | ✅ arm64 wheel (already a CadQuery dependency; now explicit) |
+| Frontend: `react 19.3.0`, `three 0.186.1`, `vite 8.3.4`, `@vitejs/plugin-react 6.1.2`, `typescript 7.0.2`, `vitest 5.0.4` | ✅ installed with npm on arm64 (52 packages, 111 MB `node_modules`); typecheck, tests, build and dev server verified; production bundle 787 kB (211 kB gzip) |
+| Workspace in Chrome (WebGL) | ✅ checked by hand on the Mac |
+| Docker images | not built locally (Docker not installed); built in CI on x86_64 |
+
 Gotcha: if `import autevra` fails in tests after the first `uv sync`, run
 `uv sync --reinstall-package autevra` to rewrite the editable-install `.pth` file.
+
+Gotcha: current Chrome returns a Promise from `element.scrollTo()`. A React
+effect written as `useEffect(() => el.scrollTo(...))` therefore returns that
+Promise as its "cleanup", which crashes React on unmount. Effects use block
+bodies.
 
 ## 4. Apple Silicon compatibility risks
 
