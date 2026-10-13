@@ -73,8 +73,9 @@ What to expect from the free instance (measured in CI with the same limits; see 
 1. Sign up at netlify.com, **Add new site → Import an existing project → GitHub**, pick
    this repository. `netlify.toml` sets the base directory (`frontend`), the build
    command, the publish directory and the client-side route fallback.
-2. **Site configuration → Environment variables**: `VITE_API_URL` = the Render address
-   (for example `https://autevra-api.onrender.com`), then **Deploys → Trigger deploy**.
+2. `netlify.toml` sets `VITE_API_URL = "https://autevra.onrender.com"`. For another backend
+   address, change it there or override it in **Site configuration → Environment
+   variables**, then **Deploys → Trigger deploy**.
 3. Put the Netlify address into Render's `AUTEVRA_CORS_ORIGINS`
    (**autevra-api → Environment**); Render restarts the service with it.
 

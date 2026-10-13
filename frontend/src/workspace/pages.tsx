@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { api } from "../api/client";
+import { api, backendHint } from "../api/client";
 import type { DomainDef, LLMStatus, ProjectSummary, RunIndexItem, TestDefinition } from "../api/types";
 import { STATUS_SHORT } from "../state/engineering";
 import { llmLabel } from "../state/llm";
@@ -18,7 +18,7 @@ function useLoad<T>(load: () => Promise<T>): [T | null, () => void, string | nul
 }
 
 function Problem({ error }: { error: string | null }) {
-  return error ? <p className="bad-text">Backend unreachable: {error}. Start it with <code>make dev</code>.</p> : null;
+  return error ? <p className="bad-text">Backend unreachable: {error}. {backendHint()}</p> : null;
 }
 
 export function Dashboard() {

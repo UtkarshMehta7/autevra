@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
-import { api, ApiError } from "../api/client";
+import { api, ApiError, backendHint } from "../api/client";
 import type {
   Command, CommandResult, Comparison, Diagnosis, ComponentTestStatus, HistoryEntry, IntegrationReport, LLMStatus,
   LoopResult, ModelPayload, RunRecord as RunRecordType, ParameterDef, ProjectState, ProjectSummary, Requirement, RequirementRow,
@@ -140,7 +140,7 @@ function StudioView({ projectId, workspace, navigate }: {
         await open(projectId);
       } catch (e) {
         if ((e as ApiError).status === 404) setMissing(true);
-        else setStatus(`Backend unreachable: ${(e as Error).message}. Start it with "make dev".`);
+        else setStatus(`Backend unreachable: ${(e as Error).message}. ${backendHint()}`);
       }
     })();
   }, [open, projectId]);
