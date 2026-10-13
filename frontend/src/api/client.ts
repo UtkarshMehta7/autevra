@@ -47,8 +47,54 @@ export class ApiError extends Error {
 // backend is set at build time: VITE_API_URL=https://api.example.com
 const API = `${(import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "")}/api`;
 
+// A free hosted backend (Hugging Face Spaces) sleeps when unused and takes a minute or
+// two to start. While it does, requests fail at the network level or with 502-504.
+// Reads are retried for up to WAKE_LIMIT_MS and listeners are told the backend is waking;
+// writes are never retried, so nothing is applied twice.
+const WAKE_STATUSES = new Set([502, 503, 504]);
+const WAKE_LIMIT_MS = 180_000;
+const wakeListeners = new Set<(waking: boolean) => void>();
+let waking = false;
+
+function setWaking(value: boolean) {
+  if (waking === value) return;
+  waking = value;
+  wakeListeners.forEach((listener) => listener(value));
+}
+
+export function onBackendWaking(listener: (waking: boolean) => void): () => void {
+  wakeListeners.add(listener);
+  listener(waking);
+  return () => wakeListeners.delete(listener);
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function send(url: string, init: RequestInit): Promise<Response> {
+  const idempotent = (init.method ?? "GET").toUpperCase() === "GET";
+  const started = Date.now();
+  for (let attempt = 0; ; attempt++) {
+    let response: Response | undefined;
+    try {
+      response = await fetch(url, init);
+    } catch (error) {
+      if (!idempotent || Date.now() - started > WAKE_LIMIT_MS) {
+        setWaking(false);
+        throw error;
+      }
+    }
+    if (response && (!idempotent || !WAKE_STATUSES.has(response.status)
+        || Date.now() - started > WAKE_LIMIT_MS)) {
+      setWaking(false);
+      return response;
+    }
+    setWaking(true);
+    await sleep(Math.min(2000 * (attempt + 1), 8000));
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API}${path}`, {
+  const response = await send(`${API}${path}`, {
     ...init,
     headers: { "content-type": "application/json", ...init?.headers },
   });

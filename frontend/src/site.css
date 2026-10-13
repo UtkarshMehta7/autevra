@@ -101,3 +101,7 @@ a.brand { color: var(--text); text-decoration: none; }
 .tabs { overflow-x: auto; white-space: nowrap; scrollbar-width: thin; }
 .tabs button { white-space: nowrap; padding: 4px 8px; }
 .tabs .toggle { white-space: nowrap; }
+
+.backend-waking { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 50;
+  max-width: calc(100vw - 32px); padding: 10px 14px; border-radius: 8px; font-size: 13px;
+  background: var(--panel); color: var(--text); border: 1px solid var(--accent); box-shadow: 0 6px 24px #0006; }
