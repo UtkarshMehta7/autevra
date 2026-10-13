@@ -32,6 +32,7 @@ class Source(StrEnum):
     RULES = "rules"
     LLM = "llm"
     OPTIMIZER = "optimizer"  # applied only after the user accepts a study result
+    SPEC = "spec"  # design generated from the specification, applied after a preview
 
 
 class Change(BaseModel):

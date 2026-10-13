@@ -379,6 +379,47 @@ def reject_study(project_id: str, study_id: str, ws: WorkspaceDep) -> None:
         raise HTTPException(status_code=409, detail=str(exc)) from None
 
 
+@router.get("/projects/{project_id}/spec", response_model=schemas.SpecState)
+def get_spec(project_id: str, ws: WorkspaceDep) -> schemas.SpecState:
+    return ws.spec(project_id)
+
+
+@router.post("/projects/{project_id}/spec/answers", response_model=schemas.SpecState)
+def answer_spec(project_id: str, body: schemas.SpecAnswer, ws: WorkspaceDep) -> schemas.SpecState:
+    try:
+        return ws.spec_answer(project_id, body.question, body.value)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.post("/projects/{project_id}/spec/text", response_model=schemas.SpecState)
+def spec_from_text(project_id: str, body: schemas.SpecText, ws: WorkspaceDep) -> schemas.SpecState:
+    return ws.spec_text(project_id, body.text)[0]
+
+
+@router.delete("/projects/{project_id}/spec", response_model=schemas.SpecState)
+def reset_spec(project_id: str, ws: WorkspaceDep) -> schemas.SpecState:
+    return ws.spec_reset(project_id)
+
+
+@router.post("/projects/{project_id}/spec/design", response_model=schemas.SpecDesign)
+def spec_design(project_id: str, ws: WorkspaceDep) -> schemas.SpecDesign:
+    try:
+        return ws.spec_design(project_id)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.post("/projects/{project_id}/spec/apply", response_model=schemas.SpecApplied)
+def spec_apply(project_id: str, ws: WorkspaceDep) -> schemas.SpecApplied:
+    try:
+        return ws.spec_apply(project_id)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    except CommandRejectedError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 def run_not_found_handler(_request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": f"'{exc}' not found"})
 

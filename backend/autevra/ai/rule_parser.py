@@ -34,6 +34,7 @@ class Kind(StrEnum):
     PREVIEW = "preview"  # impact of a command, without applying it
     REQUIREMENT = "requirement"  # create a requirement
     VERIFY = "verify"  # verify every requirement (runs missing tests)
+    SPEC = "spec"  # specification statement ("I want an electric SUV with 150 kW")
 
 
 class Reason(StrEnum):
@@ -129,6 +130,11 @@ _DIAGNOSE = re.compile(
 _PREVIEW = re.compile(
     r"^(?:what if|what happens if|what would happen if|preview|show the impact of|"
     r"impact of)\s+(?:i|we|you)?\s*(?P<rest>.+?)\??$"
+)
+_SPEC = re.compile(
+    r"^(?:i want|i'd like|i would like|i need|we need|we want|design|build|create|make me|"
+    r"give me)\s+(?:a|an|me a|me an)\s+.*\b(car|city ?car|hatch(?:back)?|sedan|saloon|suv|"
+    r"crossover|pick-?up|truck|sports ?car|coupe|roadster|van|minivan|mpv|vehicle|ev)\b"
 )
 _VERIFY = re.compile(r"^(?:please )?(?:verify|check|re-?check)\b.*\brequirements?\b")
 _REQUIRE = re.compile(
@@ -496,6 +502,8 @@ def parse(text: str) -> Interpretation:
         return Interpretation(Kind.REDO)
     if _VERIFY.search(t):
         return Interpretation(Kind.VERIFY)
+    if _SPEC.match(t) or t.startswith("spec:") or t.startswith("specification:"):
+        return Interpretation(Kind.SPEC)
     if (req := _REQUIRE.match(t)) is not None:
         return _parse_requirement(req.group("rest"))
     if (what_if := _PREVIEW.match(t)) is not None:
