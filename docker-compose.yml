@@ -1,0 +1,30 @@
+# Packaging check and future deployment shape. Daily development runs natively
+# (`make dev`); see docs/ENVIRONMENT.md for why the backend image is linux/amd64.
+services:
+  backend:
+    build: ./backend
+    platform: linux/amd64
+    environment:
+      AUTEVRA_DATA_DIR: /data
+      # Phase 2: the local LLM runs natively on the host (Metal GPU).
+      AUTEVRA_LLM_URL: http://host.docker.internal:11434
+    volumes:
+      - autevra-data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  autevra-data:

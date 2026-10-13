@@ -36,5 +36,18 @@ application in a working, tested state.
 
 ## Commands
 
-Commands for setup, running and testing will be added here in Phase 1
-(`make setup`, `make dev`, `make test`, `make docker`).
+| Command | What it does |
+|---|---|
+| `make setup` | install backend and frontend dependencies |
+| `make dev` | run backend and frontend with reload |
+| `make test` | backend pytest + frontend vitest |
+| `make lint` | ruff check/format check + TypeScript check |
+| `make docker` | build the Docker images |
+
+CI (`.github/workflows/ci.yml`) runs the same lint and tests on every pull
+request, builds the frontend and builds both Docker images.
+
+Database schema changes: edit `backend/autevra/storage/models.py`, then
+`cd backend && uv run alembic revision --autogenerate -m "..."`, review the
+generated file in `migrations/versions/`, and commit it. The app applies
+migrations on start.

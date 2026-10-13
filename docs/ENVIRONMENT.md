@@ -106,6 +106,33 @@ import), and a filleted box builds in milliseconds.
 | `echarts` | 6.1.0 | report charts |
 | `occt-import-js` | 0.0.23 | view STEP files directly in the browser (WASM) |
 
+## 3a. Verified on the Mac (2026-10-13)
+
+| Item | Result |
+|---|---|
+| Machine | Apple M2, 8 GB, macOS 27.0 (arm64), ~28 GB free disk |
+| uv / Python | uv 0.12.19; Python 3.12.14 (Homebrew) used by the venv |
+| Node.js / npm | 22.23.2 / 10.9.8 |
+| Docker, Ollama | **not installed**; Docker is only needed for packaging checks, Ollama for Phase 2 |
+| `cadquery 2.8.0` + `cadquery-ocp 7.9.3.1.1` | ✅ native arm64 wheels; build, fillet, STEP export and re-import pass |
+| Backend venv size | 1.3 GB (`backend/.venv`) |
+| First test run | ~2.5 min: macOS scans the newly installed native libraries on first load; later runs take ~4 s |
+| FastAPI 0.143, Pydantic 2.14, SQLAlchemy 2.1, Alembic 1.20, Uvicorn 0.54, pytest 9.1, ruff 0.17 | ✅ pure Python or arm64 wheels |
+| `httpx2 2.13.1` (+ `httpcore2`, `truststore`) | ✅ pure-Python wheels; replaces `httpx`, which Starlette 1.8 deprecates for its test client; also the HTTP client for local LLM runtimes |
+
+| `numpy 2.5` | ✅ arm64 wheel (already a CadQuery dependency; now explicit) |
+| Frontend: `react 19.3.0`, `three 0.186.1`, `vite 8.3.4`, `@vitejs/plugin-react 6.1.2`, `typescript 7.0.2`, `vitest 5.0.4` | ✅ installed with npm on arm64 (52 packages, 111 MB `node_modules`); typecheck, tests, build and dev server verified; production bundle 787 kB (211 kB gzip) |
+| Workspace in Chrome (WebGL) | ✅ checked by hand on the Mac |
+| Docker images | not built locally (Docker not installed); ✅ `docker compose build` passes in CI on x86_64 (ubuntu-24.04) |
+
+Gotcha: if `import autevra` fails in tests after the first `uv sync`, run
+`uv sync --reinstall-package autevra` to rewrite the editable-install `.pth` file.
+
+Gotcha: current Chrome returns a Promise from `element.scrollTo()`. A React
+effect written as `useEffect(() => el.scrollTo(...))` therefore returns that
+Promise as its "cleanup", which crashes React on unmount. Effects use block
+bodies.
+
 ## 4. Apple Silicon compatibility risks
 
 | # | Risk | Impact | Mitigation |

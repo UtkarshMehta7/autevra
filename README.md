@@ -15,9 +15,13 @@ becomes a validated engineering operation on parametric geometry.
 
 ## Status
 
-**Phase 0 (research and planning) is complete.** There is no application
-code yet. The repository holds the research, architecture, compatibility
-findings and phased plan that the implementation will follow.
+**Phase 1 (foundation prototype) is implemented.** A parametric vehicle
+(body with wheel wells and cabin, hollow ladder frame, axles, wheels) is
+edited through typed, validated commands from the property editor, the API or
+plain-English instructions, with undo/redo, persistence and STEP export.
+"Increase the wheelbase by 100 mm" moves the rear axle and wheels back,
+lengthens the body and frame, and is reflected in the STEP file; undo restores
+it. See [docs/ROADMAP.md](docs/ROADMAP.md) for progress and what is next.
 
 | Document | Contents |
 |---|---|
@@ -25,6 +29,7 @@ findings and phased plan that the implementation will follow.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Proposed modules, data model, NL pipeline, repository layout, path to AWS |
 | [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) | Environment inspection, verified Apple Silicon compatibility matrix, risks and memory budget |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phased implementation plan and progress log (completed and remaining work) |
+| [docs/MODULES.md](docs/MODULES.md) | How each implemented module works |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow, branch and commit conventions |
 
 ## Core capabilities (planned)
@@ -63,36 +68,61 @@ See [docs/RESEARCH.md](docs/RESEARCH.md) for the alternatives considered and why
 
 ## Getting started (Mac M2)
 
-The application code arrives in Phase 1. To prepare the machine now:
+Prerequisites: `xcode-select --install`, then `brew install uv node@22`.
 
 ```bash
-# Developer tools
-xcode-select --install                 # Git and compilers
-brew install uv node@22                # Python manager and Node.js 22
-
-# Get the repository
 git clone https://github.com/UtkarshMehta7/autevra.git ~/Downloads/autevra
 cd ~/Downloads/autevra
-
-# Optional: local LLM runtime (native, uses the Metal GPU)
-brew install ollama
-ollama pull qwen2.5:1.5b               # about 1 GB download
+make setup        # backend venv via uv (~1.3 GB, CadQuery + OCCT) and frontend npm packages
+make dev          # backend on http://127.0.0.1:8000, workspace on http://localhost:5173
 ```
 
-Docker Desktop is optional for daily development. See
-[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for why the backend runs natively
-on the Mac and why its container image targets `linux/amd64` for now.
+Open http://localhost:5173 and try "increase the wheelbase by 100 mm",
+"set the rims to 18 inch and lower the car by 20 mm", "make it longer",
+"how long is the car?" or "undo". The first start after installing can take a
+minute or two while macOS scans the new native libraries; later starts take seconds.
 
-## Repository layout (planned)
+| Command | What it does |
+|---|---|
+| `make setup` | install backend (`uv sync`) and frontend (`npm ci`) dependencies |
+| `make dev` | run the backend (auto-reload) and the Vite dev server together |
+| `make backend` / `make frontend` | run one of them |
+| `make test` | backend `pytest` (includes the acceptance test) and frontend `vitest` |
+| `make lint` | `ruff check`, `ruff format --check` and the TypeScript check |
+| `make format` | apply ruff formatting and fixes |
+| `make docker` / `make docker-up` | build / run the Compose stack (UI on http://localhost:8080) |
+
+Data (SQLite database and STEP exports) lives in `backend/data/` by default;
+set `AUTEVRA_DATA_DIR` or `AUTEVRA_DATABASE_URL` to change it. The API is
+documented interactively at http://127.0.0.1:8000/docs.
+
+Optional, for Phase 2: `brew install ollama && ollama pull qwen2.5:1.5b`
+(about 1 GB). The app does not need it. Docker Desktop is optional too: daily
+development runs natively, and the backend image targets `linux/amd64` (see
+[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)).
+
+## Repository layout
 
 ```
 autevra/
-├── backend/      FastAPI app: domain, cad, assembly, ai, simulation, storage
-├── frontend/     React + three.js workspace
-├── workers/      separate-environment solvers (Chrono, FEA) — later
-├── eval/         natural-language → command evaluation sets — Phase 2
-└── docs/         research, architecture, environment, roadmap
+├── backend/            FastAPI app (uv, Python 3.12)
+│   ├── autevra/
+│   │   ├── domain/     units, parameter registry, derived values, rules, commands, history
+│   │   ├── cad/        kernel adapter (only CadQuery importer), component builders, geometry cache
+│   │   ├── assembly/   transforms, interfaces and mates, dependency graph
+│   │   ├── ai/         lexicon and deterministic intent parser
+│   │   ├── storage/    SQLAlchemy models, repository, migrations runner
+│   │   └── api/        routes, schemas, workspace service, model building
+│   ├── migrations/     Alembic
+│   └── tests/
+├── frontend/           React + TypeScript + Vite + three.js workspace
+├── docs/               research, architecture, modules, environment, roadmap
+├── docker-compose.yml  backend (linux/amd64) + nginx frontend
+└── Makefile            setup, dev, test, lint, docker
 ```
+
+Planned later: `workers/` (Chrono, FEA in separate environments) and `eval/`
+(natural-language → command evaluation sets, Phase 2).
 
 ## Author
 

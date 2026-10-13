@@ -22,19 +22,19 @@ Legend: `[x]` done, `[ ]` to do.
 
 Goal: change a **real** CAD parameter of a simple vehicle through natural language.
 
-- [ ] Mac smoke test: `uv` + Python 3.12 + `cadquery==2.8.0` imports and exports a STEP file
-- [ ] Backend skeleton: FastAPI app, config, health endpoint, pytest, ruff
-- [ ] Domain: units, parameter registry, derived values, cross-parameter rules
-- [ ] Command system: typed commands, validation, history, undo/redo
-- [ ] CAD: kernel adapter; builders for body (with wheel arches and cabin), ladder frame, axles, wheels (tyre + rim)
-- [ ] Assembly: interfaces + mates, dependency graph, rebuild only affected components (cache by parameter hash)
-- [ ] Deterministic intent parser (automotive lexicon + units) for set/increase/decrease/scale, undo/redo, queries, clarifications
-- [ ] API: projects, parameters, model mesh, commands, instructions, undo/redo, history, STEP export
-- [ ] SQLite persistence via SQLAlchemy + Alembic
-- [ ] Frontend: Vite + React + TS + three.js viewport, component tree, property editor, AI instruction panel, history
-- [ ] Docker Compose (backend `linux/amd64`, frontend nginx) and Makefile
-- [ ] GitHub Actions CI: lint + backend tests + frontend build
-- [ ] **Acceptance:** "increase the wheelbase by 100 mm" → wheelbase 2800 mm, rear axle and wheels move, body lengthens, STEP export reflects it, undo restores 2700 mm, all covered by automated tests
+- [x] Mac smoke test: `uv` + Python 3.12 + `cadquery==2.8.0` imports and exports a STEP file
+- [x] Backend skeleton: FastAPI app, config, health endpoint, pytest, ruff
+- [x] Domain: units, parameter registry, derived values, cross-parameter rules
+- [x] Command system: typed commands, validation, history, undo/redo
+- [x] CAD: kernel adapter; builders for body (with wheel arches and cabin), ladder frame, axles, wheels (tyre + rim)
+- [x] Assembly: interfaces + mates, dependency graph, rebuild only affected components (cache by parameter hash)
+- [x] Deterministic intent parser (automotive lexicon + units) for set/increase/decrease/scale, undo/redo, queries, clarifications
+- [x] API: projects, parameters, model mesh, commands, instructions, undo/redo, history, STEP export
+- [x] SQLite persistence via SQLAlchemy + Alembic
+- [x] Frontend: Vite + React + TS + three.js viewport, component tree, property editor, AI instruction panel, history
+- [x] Docker Compose (backend `linux/amd64`, frontend nginx) and Makefile
+- [x] GitHub Actions CI: lint + backend tests + frontend build
+- [x] **Acceptance:** "increase the wheelbase by 100 mm" → wheelbase 2800 mm, rear axle and wheels move, body lengthens, STEP export reflects it, undo restores 2700 mm, all covered by automated tests
 
 ## Phase 2: Local LLM integration
 
@@ -110,6 +110,45 @@ Goal: change a **real** CAD parameter of a simple vehicle through natural langua
 ---
 
 ## Progress log
+
+### 2026-10-13: Phase 1 complete (steps 5–9)
+
+**Done**
+- Assembly: 4×4 transforms; components declare geometry dependencies and per-interface frame dependencies, enforced by a view that raises on undeclared reads; wheels are mated to axle hubs and axles to vehicle mounts; dependency graph splits affected components into *rebuild* and *move*.
+- Geometry cache keyed by a hash of (builder, inputs): the four wheels share one solid and mesh; a wheelbase change rebuilds only the body and frame.
+- Deterministic intent parser: aliases from the registry, units, compound requests, group aliases ("track"), "lower the car", "make it 1.9 m wide", "18 inch wheels", undo/redo, queries, and clarifying questions for derived values ("make it longer"), missing amounts and typos.
+- API: projects, catalogue, commands (422 with violations), instructions, undo/redo, history, de-duplicated meshes with 4×4 transforms (`?known=` skips geometry the client already has), STEP export. SQLite via SQLAlchemy 2 with an Alembic migration applied on start.
+- Frontend: three.js viewport (Z-up, picking, x-ray body, change highlight), component tree, property editor with derived values, instruction panel with suggestions and a sequential action queue, history; client-side geometry LRU so undo/redo download nothing.
+- Docker Compose (backend `linux/amd64`, nginx frontend), Makefile, GitHub Actions CI (lint, tests, frontend build, image build).
+- **Acceptance test passes** (`backend/tests/api/test_api.py::test_acceptance_increase_wheelbase_by_100_mm`), and the flow was checked by hand in Chrome on the Mac.
+- 163 backend tests and 4 frontend tests pass; ruff and TypeScript clean.
+
+**Not verified locally**
+- Docker images: Docker is not installed on the Mac. CI builds them successfully on x86_64; running the stack (`make docker-up`) is untested until Docker Desktop is installed.
+
+**Remaining / follow-ups**
+- ~~Switch the test client from `httpx` to `httpx2`~~ done: `httpx2` is now the backend's HTTP client (tests and, from Phase 2, the LLM clients); deprecation warnings are no longer filtered.
+- Phase 2: local LLM fallback for text the parser cannot resolve, with confirmation of LLM proposals and an evaluation set.
+- Phase 4 items already prepared for: `max_steer_angle` is in the registry but unused until the steering sweep clearance check.
+
+### 2026-10-13: Phase 1 steps 1–4 (backend, domain, commands, CAD builders)
+
+**Done**
+- Mac smoke test passed natively on arm64: `uv` 0.12.19, Python 3.12.14, `cadquery 2.8.0` with `cadquery-ocp 7.9.3.1.1`; a filleted box exports to STEP and re-imports with the same volume.
+- Backend skeleton (`backend/`): FastAPI app factory, settings, `/api/health`, pytest, ruff.
+- Domain: units (mm, cm, m, in, %, deg), 21-parameter registry from the architecture draft, derived values (overall length, tyre geometry, arch heights), 11 cross-parameter rules.
+- Command system: `set` / `increase` / `decrease` / `scale`, unit conversion, relative `%`, atomic validation, history with exact undo and redo, replay check, JSON round trip.
+- CAD: kernel adapter (`cad/kernel.py`, the only module that imports CadQuery) and builders for the body (lower body, wheel wells, lofted cabin), hollow ladder frame, beam axles and wheels (filleted tyre, rim barrel, spoked disc). Each builds in under 0.1 s.
+- 71 tests pass; ruff clean.
+
+**Remaining in Phase 1**
+- Interfaces, mates, dependency graph and geometry cache (wheels placed by mates).
+- Deterministic intent parser.
+- API, SQLite persistence (SQLAlchemy + Alembic), STEP export endpoint.
+- Frontend workspace; Docker Compose, Makefile, CI; acceptance test.
+
+**Notes**
+- Two rules (`rail_wall_fits_section`, `arches_do_not_overlap`) cannot fire within today's registry bounds; they guard against wider bounds later and are tested directly.
 
 ### 2026-10-13: Phase 0 complete
 
