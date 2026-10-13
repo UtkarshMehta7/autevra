@@ -119,3 +119,14 @@ def test_generation_proposes_unapproved_requirements_and_names_sources() -> None
     assert accel and accel[0]["test_id"] == "longitudinal" and accel[0]["limit"] == 8
     assert g.sources["vehicle_mass"].endswith("(default)")
     assert g.values["ground_clearance"] >= 200
+
+
+@pytest.mark.parametrize("cls", ["hatchback", "sedan", "suv", "pickup", "sports_car", "van"])
+def test_generated_designs_pass_the_step_and_hump(cls: str) -> None:
+    from autevra.engineering import testing as tst
+
+    g = sp.generate(_spec(vehicle_class=cls, seats=TYPICAL_SEATS.get(cls, "5")))
+    for axle in ("front", "rear"):
+        for scenario in ("step_25", "hump_75"):
+            run = tst.run_test("quarter_car", axle, scenario, g.values)
+            assert run.status is tst.RunStatus.PASSED_WITHIN_MODEL, (axle, scenario)

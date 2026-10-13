@@ -118,3 +118,37 @@ def test_spring_rate_changes_the_coil_but_damping_does_not() -> None:
 def test_overlapping_coils_are_rejected() -> None:
     with pytest.raises(k.KernelError):
         k.helical_coil(50, 60, 8, 10, 0)
+
+
+def test_body_builds_for_random_valid_designs() -> None:
+    """Robustness: the body is a valid single solid across the valid design space."""
+    import random
+
+    from autevra.assembly.vehicle import BY_ID
+    from autevra.domain.parameters import REGISTRY
+    from autevra.domain.rules import validate
+
+    rng, built = random.Random(7), 0
+    geometry = BY_ID["body"].geometry
+    while built < 25:
+        v = default_values()
+        for pid in geometry:
+            spec = REGISTRY[pid]
+            v[pid] = round(rng.uniform(spec.min, spec.max) / spec.step) * spec.step
+        if validate(v):
+            continue
+        body = c.build_body(BY_ID["body"].resolve_inputs(v))
+        assert k.is_valid(body) and k.solid_count(body) == 1
+        built += 1
+
+
+def test_body_profile_keeps_the_hood_above_the_front_arch() -> None:
+    from autevra.assembly.vehicle import BY_ID
+
+    inputs = BY_ID["body"].resolve_inputs(default_values() | {"rim_diameter": 22})
+    profile = c.body_profile(inputs)
+    nose = profile[3][1]
+    assert (
+        nose >= inputs["tyre_radius"] + inputs["arch_radius"] + 40 - 1e-6
+        or nose == inputs["beltline_height"] - 20
+    )

@@ -188,6 +188,12 @@ def run_tests(
     return ws.run_tests(project_id, body.test_id, targets, body.scenario_id)
 
 
+@router.post("/projects/{project_id}/tests/retest", response_model=schemas.TestRunResponse)
+def retest_stale(project_id: str, ws: WorkspaceDep) -> schemas.TestRunResponse:
+    """Rerun every previously run test case whose result is out of date."""
+    return ws.retest_stale(project_id)
+
+
 @router.get("/projects/{project_id}/runs", response_model=list[schemas.RunSummary])
 def list_runs(
     project_id: str,

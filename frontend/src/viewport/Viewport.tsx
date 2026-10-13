@@ -3,12 +3,15 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { ModelPayload } from "../api/types";
 import { staleGeometry } from "../state/format";
+import { type Animation, frameIndex, framePoses, readout } from "./animation";
 
 interface Props {
   model: ModelPayload | null;
   selected: string | null;
   highlighted: string[];
   xray: boolean;
+  animation: Animation | null;
+  onStop: () => void;
   onSelect: (partId: string | null) => void;
 }
 
@@ -35,9 +38,16 @@ function toGeometry(vertices: number[], indices: number[]): THREE.BufferGeometry
   return g;
 }
 
-export function Viewport({ model, selected, highlighted, xray, onSelect }: Props) {
+export function Viewport({ model, selected, highlighted, xray, animation, onStop, onSelect }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const ctx = useRef<Scene | null>(null);
+  const label = useRef<HTMLDivElement>(null);
+  const anim = useRef<{ data: Animation; start: number } | null>(null);
+  const restore = useRef(false);
+  useEffect(() => {
+    anim.current = animation ? { data: animation, start: performance.now() } : null;
+    if (!animation) restore.current = true;
+  }, [animation]);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
@@ -99,8 +109,31 @@ export function Viewport({ model, selected, highlighted, xray, onSelect }: Props
     renderer.domElement.addEventListener("pointerup", onUp);
 
     let frame = 0;
+    const meshes = () => ctx.current?.meshes ?? new Map<string, THREE.Mesh>();
+    const base = () => new Map([...meshes()].map(([id, m]) => [id, m.userData.base as THREE.Matrix4]));
+    const damperLength = (id: string) => {
+      const g = meshes().get(id)?.geometry;
+      if (!g) return 0;
+      if (!g.boundingBox) g.computeBoundingBox();
+      return g.boundingBox!.max.z - 18; // upper eye centre (eye radius 18 mm)
+    };
     const loop = () => {
       frame = requestAnimationFrame(loop);
+      const a = anim.current;
+      if (a) {
+        const i = frameIndex(a.data.t, (performance.now() - a.start) / 1000);
+        for (const [id, m] of framePoses(a.data, i, base(), damperLength)) {
+          const mesh = meshes().get(id);
+          if (mesh) { mesh.matrix.copy(m); mesh.matrixWorldNeedsUpdate = true; }
+        }
+        if (label.current) label.current.textContent = readout(a.data, i);
+      } else if (restore.current) {
+        for (const mesh of meshes().values()) {
+          mesh.matrix.copy(mesh.userData.base as THREE.Matrix4);
+          mesh.matrixWorldNeedsUpdate = true;
+        }
+        restore.current = false;
+      }
       controls.update();
       renderer.render(scene, camera);
     };
@@ -154,6 +187,7 @@ export function Viewport({ model, selected, highlighted, xray, onSelect }: Props
       mesh.userData.category = part.category;
       const m = part.matrix;
       mesh.matrix.set(...(m.flat() as Parameters<THREE.Matrix4["set"]>));
+      mesh.userData.base = mesh.matrix.clone();
       mesh.matrixWorldNeedsUpdate = true;
     }
     for (const key of staleGeometry(c.geometries.keys(), model.parts)) {
@@ -185,5 +219,15 @@ export function Viewport({ model, selected, highlighted, xray, onSelect }: Props
     }
   }, [model, selected, highlighted, xray]);
 
-  return <div className="viewport" ref={host} />;
+  return (
+    <>
+      <div className="viewport" ref={host} />
+      {animation && (
+        <div className="playback">
+          <span ref={label}>{animation.label}</span>
+          <button onClick={onStop}>Stop</button>
+        </div>
+      )}
+    </>
+  );
 }

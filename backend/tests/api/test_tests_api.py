@@ -306,3 +306,20 @@ def test_longitudinal_test_verifies_an_acceleration_requirement(
     _say(client, project, "test the acceleration")
     failed = client.get(f"/api/projects/{project}/requirements").json()[0]["verification"]["status"]
     assert failed == "failed"
+
+
+def test_retest_reruns_only_stale_cases(client: TestClient, project: str) -> None:
+    url = f"/api/projects/{project}/tests"
+    client.post(f"{url}/run", json={"target": "rear", "scenario_id": "hump_75"})
+    client.post(
+        f"{url}/run",
+        json={"test_id": "longitudinal", "target": "vehicle", "scenario_id": "accel_0_100"},
+    )
+    assert client.post(f"{url}/retest").json()["runs"] == []  # nothing stale yet
+    _say(client, project, "increase the rear damping by 10%")
+    rerun = client.post(f"{url}/retest").json()
+    assert [(r["test_id"], r["scenario"]["id"]) for r in rerun["runs"]] == [
+        ("quarter_car", "hump_75")
+    ]
+    assert len(rerun["comparisons"]) == 1
+    assert client.post(f"{url}/retest").json()["runs"] == []

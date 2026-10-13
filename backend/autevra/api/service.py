@@ -540,6 +540,32 @@ class Workspace:
                         comparisons.append(tst.compare(base, run))
             return schemas.TestRunResponse(runs=runs, comparisons=comparisons)
 
+    def retest_stale(self, project_id: str) -> schemas.TestRunResponse:
+        """Rerun every test case whose latest run is out of date (live simulation)."""
+        with self.db.session() as s:
+            state = ProjectRepository(s).load(project_id)
+            repo = RunRepository(s)
+            reqs = repo.requirements(project_id)
+            stale: dict[tuple[str, str], list[str]] = {}
+            for run in repo.find(project_id, limit=500):
+                case = (run.test_id, run.target, run.scenario["id"])
+                if any(case[2] in v and (case[0], case[1]) == k for k, v in stale.items()):
+                    continue
+                definition = tst.DEFINITIONS.get(run.test_id)
+                if definition is None:
+                    continue
+                scenario = definition.scenario(run.scenario["id"])
+                key = tst.inputs_hash(definition, run.target, scenario, state.values, reqs)
+                if repo.latest_by_inputs(project_id, key) is None:
+                    stale.setdefault((run.test_id, run.target), []).append(run.scenario["id"])
+        runs, comparisons = [], []
+        for (test_id, target), scenarios in stale.items():
+            for scenario in dict.fromkeys(scenarios):
+                out = self.run_tests(project_id, test_id, [target], scenario)
+                runs += out.runs
+                comparisons += out.comparisons
+        return schemas.TestRunResponse(runs=runs, comparisons=comparisons)
+
     @staticmethod
     def _previous_values(state: DesignState) -> dict[str, float] | None:
         if state.cursor == 0:

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
 import type {
   Command, CommandResult, Comparison, Diagnosis, ComponentTestStatus, HistoryEntry, IntegrationReport, LLMStatus,
-  LoopResult, ModelPayload, ParameterDef, ProjectState, ProjectSummary, Requirement, RequirementRow,
+  LoopResult, ModelPayload, RunRecord as RunRecordType, ParameterDef, ProjectState, ProjectSummary, Requirement, RequirementRow,
   RunSummary, SpecDesign, SpecState, StudyResult,
   TestDefinition, Variable,
 } from "./api/types";
@@ -15,6 +15,7 @@ import { RequirementsPanel } from "./panels/RequirementsPanel";
 import { SpecPanel } from "./panels/SpecPanel";
 import { StudiesPanel } from "./panels/StudiesPanel";
 import { TestBench } from "./panels/TestBench";
+import type { Animation } from "./viewport/animation";
 import { geometryCache, Viewport } from "./viewport/Viewport";
 
 const LAST_PROJECT = "autevra.lastProject";
@@ -70,6 +71,10 @@ export function App() {
   const [loops, setLoops] = useState<LoopResult[]>([]);
   const [integration, setIntegration] = useState<IntegrationReport | null>(null);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
+  const [animation, setAnimation] = useState<Animation | null>(null);
+  const [live, setLive] = useState(true);
+  const liveRef = useRef(true);
+  liveRef.current = live;
   const highlightTimer = useRef<number | undefined>(undefined);
   // Actions run strictly one after another, in the order the user issued them.
   const queue = useRef<Promise<void>>(Promise.resolve());
@@ -144,7 +149,16 @@ export function App() {
     queue.current = queue.current.then(async () => {
       setError(null);
       try {
-        flash(await action());
+        const result = await action();
+        flash(result);
+        // Live simulation: tests already run on this project follow every design change.
+        if (liveRef.current && result && result.changed.length > 0) {
+          const out = await api.retest(id);
+          if (out.runs.length) {
+            setComparisons(out.comparisons);
+            setStatus(`Live simulation: reran ${out.runs.length} test case(s)`);
+          }
+        }
       } catch (e) {
         const err = e as ApiError;
         setError(err.violations?.length ? err.violations.map((v) => v.message).join("; ")
@@ -272,6 +286,20 @@ export function App() {
   const focusTarget = selected?.match(/_(f|r)[lr]$|^(front|rear)_axle$/)
     ? (selected.includes("front") || /_f[lr]$/.test(selected) ? "front" : "rear") : null;
 
+  const play = (run: RunRecordType) => {
+    if (!project) return;
+    if (run.trace.speed_kmh) {
+      const tyre = project.derived.find((d) => d.id === "tyre_diameter")?.value ?? 650;
+      setAnimation({ kind: "longitudinal", label: `${run.scenario.label}`, tyreRadius: tyre / 2,
+        t: run.trace.t, distance: run.trace.distance_m, speed: run.trace.speed_kmh });
+    } else {
+      setAnimation({ kind: "quarter_car", label: `${run.target} quarter-car, ${run.scenario.label}`,
+        axle: run.target as "front" | "rear", wheelbase: project.values.wheelbase,
+        t: run.trace.t, body: run.trace.body_mm, wheel: run.trace.wheel_mm,
+        road: run.trace.road_mm, exaggeration: 3 });
+    }
+  };
+
   const newProject = async () => {
     const name = `Vehicle ${projects.length + 1}`;
     const created = await api.createProject(name);
@@ -314,7 +342,7 @@ export function App() {
       </aside>
       <main>
         <Viewport model={model} selected={selected} highlighted={highlighted} xray={xray}
-          onSelect={setSelected} />
+          animation={animation} onStop={() => setAnimation(null)} onSelect={setSelected} />
         <div className="status">{busy ? "Working…" : status}</div>
       </main>
       <section className={`dock${dock ? "" : " closed"}`}>
@@ -332,13 +360,17 @@ export function App() {
           <button className={dock === "requirements" ? "active" : ""}
             onClick={() => setDock("requirements")}>Requirements ({requirements.length})</button>
           <span className="spacer" />
+          <label className="toggle" title="Rerun tests already run on this project after every change">
+            <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
+            Live simulation
+          </label>
           <button onClick={() => setDock(dock ? null : "bench")}>{dock ? "Hide" : "Show"}</button>
         </nav>
         {project && dock === "bench" && (
           <TestBench projectId={project.id} definitions={tests} runs={runs}
             comparisons={comparisons} selected={selectedRun} busy={busy}
             focusTarget={focusTarget} onSelect={setSelectedRun} onRun={runTests}
-            onApply={applyFix} diagnosis={diagnosis} />
+            onApply={applyFix} onPlay={play} diagnosis={diagnosis} />
         )}
         {project && dock === "optimize" && (
           <StudiesPanel definition={tests.find((t) => t.id === "quarter_car")} parameters={parameters}

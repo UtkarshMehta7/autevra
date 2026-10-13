@@ -17,6 +17,7 @@ interface Props {
   onSelect: (runId: string) => void;
   onRun: (testId: string, target: string, scenarioId: string | null) => void;
   onApply: (command: Command) => void;
+  onPlay: (run: RunRecord) => void;
   /** A diagnosis already computed (e.g. by an instruction) for the selected run. */
   diagnosis: Diagnosis | null;
 }
@@ -26,6 +27,19 @@ const BLUE = "#4f8fe6", GREY = "#8b96a3", AMBER = "#e0a33a", GREEN = "#5cbf8a";
 function TraceCharts({ run, baseline }: { run: RunRecord; baseline: RunRecord | null }) {
   const tr = run.trace, bt = baseline?.trace;
   if (!tr.t?.length) return <p className="hint">This test has no time history (closed-form result).</p>;
+  if (tr.speed_kmh) {
+    const series = (label: string, key: string, color: string): Series[] => [
+      { label, values: tr[key], color },
+      ...(bt?.[key] ? [{ label: "before", values: bt[key], color: GREY, dashed: true }] : []),
+    ];
+    return (
+      <div className="charts">
+        <LineChart title="Speed" unit="km/h" t={tr.t} baselineT={bt?.t} series={series("speed", "speed_kmh", BLUE)} />
+        <LineChart title="Acceleration" unit="m/s²" t={tr.t} baselineT={bt?.t} series={series("accel", "accel", GREEN)} />
+        <LineChart title="Distance" unit="m" t={tr.t} baselineT={bt?.t} series={series("distance", "distance_m", AMBER)} />
+      </div>
+    );
+  }
   const limit = (id: string) => run.criteria.find((c) => c.id === id)?.limit;
   const bump = limit("bump_travel"), rebound = limit("rebound_travel");
   const withBase = (label: string, key: string, color: string): Series[] => [
@@ -54,7 +68,7 @@ function TraceCharts({ run, baseline }: { run: RunRecord; baseline: RunRecord | 
 
 export function TestBench({
   projectId, definitions, runs, comparisons, selected, busy, focusTarget, onSelect, onRun,
-  onApply, diagnosis: given,
+  onApply, onPlay, diagnosis: given,
 }: Props) {
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [diagnosing, setDiagnosing] = useState(false);
@@ -159,6 +173,11 @@ export function TestBench({
             </div>
             {run.warnings.length > 0 && <div className="warnings">{run.warnings.join(" · ")}</div>}
             <div className="bench-controls">
+              {(run.trace.body_mm || run.trace.speed_kmh) && (
+                <button onClick={() => onPlay(run)} title="Play the solver output in the 3D view">
+                  Play in 3D
+                </button>
+              )}
               <button onClick={diagnose} disabled={diagnosing}>
                 {diagnosing ? "Diagnosing…" : run.status === "failed" ? "Diagnose failure" : "Find tightest margin"}
               </button>
