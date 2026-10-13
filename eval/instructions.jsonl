@@ -1,0 +1,47 @@
+{"tier": "rules", "text": "increase the wheelbase by 100 mm", "expect": {"set": {"wheelbase": 2800}}}
+{"tier": "rules", "text": "set the rims to 18 inch", "expect": {"set": {"rim_diameter": 18}}}
+{"tier": "rules", "text": "lower the car by 20 mm", "expect": {"set": {"ground_clearance": 140}}}
+{"tier": "rules", "text": "make it wider by 50 mm", "expect": {"set": {"body_width": 1870}}}
+{"tier": "rules", "text": "widen the track by 10 mm", "expect": {"set": {"track_front": 1570, "track_rear": 1570}}}
+{"tier": "rules", "text": "reduce the rear overhang by 5 cm", "expect": {"set": {"rear_overhang": 950}}}
+{"tier": "rules", "text": "increase the wheelbase by 5%", "expect": {"set": {"wheelbase": 2835}}}
+{"tier": "rules", "text": "set the steering lock to 38 degrees", "expect": {"set": {"max_steer_angle": 38}}}
+{"tier": "rules", "text": "fit 19\" rims and lower the car by 10 mm", "expect": {"set": {"rim_diameter": 19, "ground_clearance": 150}}}
+{"tier": "rules", "text": "raise the roof by 30 mm", "expect": {"set": {"overall_height": 1480}}}
+{"tier": "rules", "text": "make the car 1.9 m wide", "expect": {"set": {"body_width": 1900}}}
+{"tier": "rules", "text": "set the tyre width to 245 mm", "expect": {"set": {"tyre_width": 245}}}
+{"tier": "rules", "text": "reduce the tyre aspect ratio by 5%", "expect": {"set": {"tyre_aspect_ratio": 45}}}
+{"tier": "rules", "text": "increase the rail wall thickness by 1 mm", "expect": {"set": {"rail_wall": 5}}}
+{"tier": "rules", "text": "what is the wheelbase?", "expect": {"query": ["wheelbase"]}}
+{"tier": "rules", "text": "how long is the car?", "expect": {"query": ["overall_length"]}}
+{"tier": "rules", "text": "make it longer", "expect": {"action": "clarify"}}
+{"tier": "rules", "text": "lower the car", "expect": {"action": "clarify"}}
+{"tier": "rules", "text": "make the suspension softer", "expect": {"action": "clarify"}}
+{"tier": "rules", "text": "paint it red", "expect": {"action": "clarify"}}
+{"tier": "rules", "text": "write me a poem about the sea", "expect": {"action": "out_of_scope"}}
+{"tier": "rules", "text": "what's the capital of France?", "expect": {"action": "out_of_scope"}}
+{"tier": "rules", "text": "undo", "expect": {"action": "undo"}}
+{"tier": "rules", "text": "redo", "expect": {"action": "redo"}}
+{"tier": "llm", "text": "stretch the distance between the front and back wheels by 100 mm", "expect": {"set": {"wheelbase": 2800}}}
+{"tier": "llm", "text": "push the rear axle back 10 cm", "expect": {"set": {"wheelbase": 2800}}}
+{"tier": "llm", "text": "I want 18 inch alloys on it", "expect": {"set": {"rim_diameter": 18}}}
+{"tier": "llm", "text": "slam it 2 cm closer to the ground", "expect": {"set": {"ground_clearance": 140}}}
+{"tier": "llm", "text": "give it 25 mm more room underneath", "expect": {"set": {"ground_clearance": 185}}}
+{"tier": "llm", "text": "put fatter rubber on it, 255 mm wide", "expect": {"set": {"tyre_width": 255}}}
+{"tier": "llm", "text": "chop the nose by 50 mm", "expect": {"set": {"front_overhang": 850}}}
+{"tier": "llm", "text": "extend the boot section behind the rear wheels by 80 mm", "expect": {"set": {"rear_overhang": 1080}}}
+{"tier": "llm", "text": "space the frame rails 50 mm further apart", "expect": {"set": {"rail_spacing": 950}}}
+{"tier": "llm", "text": "beef up the chassis rail walls to 6 mm", "expect": {"set": {"rail_wall": 6}}}
+{"tier": "llm", "text": "make the glasshouse 200 mm longer", "expect": {"set": {"cabin_length": 2700}}}
+{"tier": "llm", "text": "slide the cabin 100 mm forward", "expect": {"set": {"cabin_offset": -50}}}
+{"tier": "llm", "text": "push the wheels further out, 20 mm more track at both ends", "expect": {"set": {"track_front": 1580, "track_rear": 1580}}}
+{"tier": "llm", "text": "drop the window line by 40 mm", "expect": {"set": {"beltline_height": 920}}}
+{"tier": "llm", "text": "let the front wheels turn up to 40 degrees", "expect": {"set": {"max_steer_angle": 40}}}
+{"tier": "llm", "text": "leave a 50 mm gap between tyre and arch", "expect": {"set": {"arch_clearance": 50}}}
+{"tier": "llm", "text": "lower profile tyres please, 40 series", "expect": {"set": {"tyre_aspect_ratio": 40}}}
+{"tier": "llm", "text": "how much space is there between the axles", "expect": {"query": ["wheelbase"]}}
+{"tier": "llm", "text": "how tall is the roofline right now", "expect": {"query": ["overall_height"]}}
+{"tier": "llm", "text": "make the car look more aggressive", "expect": {"action": "clarify"}}
+{"tier": "llm", "text": "make the stance better", "expect": {"action": "clarify"}}
+{"tier": "llm", "text": "book me a table for two tonight", "expect": {"action": "out_of_scope"}}
+{"tier": "llm", "text": "translate this sentence into German", "expect": {"action": "out_of_scope"}}
