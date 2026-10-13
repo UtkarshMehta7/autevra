@@ -221,6 +221,29 @@ every result. Verified in `tests/sim` against the exact linear solution
   optional final optimisation. Candidate designs stay in the record until
   accepted.
 
+## Requirements and traceability (`autevra.engineering`)
+
+- `requirements`: `Requirement` (performance, design or text) with validation
+  (known test, metric, scenario, quantity; compatible units, converted to the
+  quantity's unit), `statement()`, `linked_parameters()`, `linked_cases()`,
+  `verify()` → `Verification` with evidence, `next_key()`. Performance
+  requirements become test criteria (`as_test_requirement`) and take part in
+  run verdicts, which is why adding one makes earlier runs stale.
+- `trace`: `matrix()` (rows of requirement, verification, parameters,
+  components, cases) and `preview()` → `ImpactPreview`.
+- `reqif`: `export()` and `parse()` for ReqIF 1.2 using the standard library;
+  rejects DOCTYPE/entity declarations and files over 5 MB.
+- Storage keeps requirement records as JSON in `requirements`
+  (`RunRepository.requirement_records`); records saved before Phase 4 load as
+  performance requirements with generated keys.
+
+| Method and path | Purpose |
+|---|---|
+| `GET/POST /projects/{id}/requirements`, `PATCH/DELETE /requirements/{r}` | requirements with verification and trace |
+| `POST /projects/{id}/requirements/verify` | run missing or stale cases, then verify all |
+| `GET/POST /projects/{id}/requirements.reqif` | ReqIF export / import (raw XML body) |
+| `POST /projects/{id}/preview` | impact preview of a command; nothing is applied |
+
 ## Frontend (`frontend/src`)
 
 - `api/` — typed client mirroring the backend schemas.
@@ -235,6 +258,7 @@ every result. Verified in `tests/sim` against the exact linear solution
 - `panels/TestBench.tsx`, `LineChart.tsx`, `DiagnosisView.tsx` — test runs,
   criteria with margins, solver traces (SVG, real samples only) with limits
   and the previous revision, comparisons, diagnosis with Apply.
+- `panels/RequirementsPanel.tsx` — requirements, evidence, trace, ReqIF.
 - `panels/IntegrationPanel.tsx`, `panels/StudiesPanel.tsx` — assembly checks;
   optimisation and loop set-up, candidate scatter, Pareto choice, accept or
   reject.

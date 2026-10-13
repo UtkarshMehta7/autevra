@@ -61,12 +61,12 @@ specification interview moves to Phase 5.
 - [x] Test bench, integration and optimisation panels in the workspace
 - [x] **Acceptance:** "Increase the rear shock absorber damping by 10% and test its response" changes the dynamic model only, reruns the rear tests, compares with the previous revision and keeps undo; automated tests cover NL → command → simulation → evaluation → history
 
-## Phase 4: Traceability core
+## Phase 4: Traceability core ✅
 
-- [ ] Requirements as first-class records linked to parameters, tests, runs and verdicts
-- [ ] Impact report of any change on requirements and evidence (before applying it)
-- [ ] ReqIF import and export
-- [ ] Evidence structure ready for ISO 26262 / ASPICE work products (no compliance claims)
+- [x] Requirements as first-class records linked to parameters, tests, runs and verdicts
+- [x] Impact report of any change on requirements and evidence (before applying it)
+- [x] ReqIF import and export
+- [x] Evidence structure ready for ISO 26262 / ASPICE work products (no compliance claims)
 
 ## Phase 5: Specification interview and conflict detection
 
@@ -131,6 +131,38 @@ specification interview moves to Phase 5.
 ---
 
 ## Progress log
+
+### 2026-10-13: Phase 4 complete (traceability core)
+
+**Done**
+- Requirement records: key (REQ-001…), statement (generated when not given), rationale, priority, parent, approval, source, verification method. Three kinds:
+  - **performance**: a limit on a test metric, verified only by current test runs;
+  - **design**: a limit on a parameter or derived value, with unit conversion (15 cm is stored as 150 mm), verified by deterministic analysis;
+  - **text**: no machine-checkable form, verified manually.
+- Verification from evidence: verified, failed, stale (the design or the requirement changed since the run), not verified, not approved, manual. Each item of evidence names the run, scenario, measured value, limit, credibility and design revision.
+- Trace matrix: requirement → parameters that can change it → components they build or place → test cases → evidence.
+- Impact preview (`POST /preview`, "what if I …"). Without applying anything it reports:
+  - changed values and derived values;
+  - rule violations;
+  - components rebuilt or moved, and tests to rerun;
+  - packaging warnings added or cleared;
+  - each requirement's status before and after.
+  
+  Example: 20-inch rims rebuild 9 components and move 10. The usable bump travel becomes limited by damper compression (28.5 mm) instead of the arch, and REQ-002 needs re-verification.
+- "Verify the requirements" runs the missing or stale test cases, then reports.
+- ReqIF 1.2 export and import. Exports round-trip exactly, including the hierarchy. Objects from other tools become text requirements (XHTML text read), re-import updates by key, and DOCTYPE/entity declarations and files over 5 MB are rejected.
+- Parser: requirement statements; the comparator is taken from the words just before the number. Engineering units in commands (kg, lb, N/mm, kN/m, lbf/in, N·s/m, kN·s/m) are now converted. Previously a "kN/m" was read as the parameter's own unit, which was correct only by coincidence.
+- UI: Requirements tab with add form (all three kinds), status, evidence, trace, approve/delete, Verify all, ReqIF import and export. Checked by hand in Chrome.
+- 363 backend tests and 9 frontend tests pass; ruff and TypeScript clean.
+
+**Known limitations**
+- ReqIF text is written as a plain string attribute; some tools expect XHTML for `ReqIF.Text`.
+- Requirements cannot yet span two corners with different limits, or ranges ("between 1.0 and 1.5 Hz"): add two requirements.
+- No change history per requirement yet (edits overwrite); that comes with design branches (Phase 12).
+- Requirements apply to the quarter-car metrics; vehicle-level metrics follow the fidelity ladder.
+
+**Next**
+- Phase 5: specification interview and conflict detection.
 
 ### 2026-10-13: Phase 3 complete (suspension, test bench, diagnosis, optimisation, loop)
 
