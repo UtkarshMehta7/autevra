@@ -25,6 +25,19 @@ class Kind(StrEnum):
     REDO = "redo"
     QUERY = "query"
     CLARIFICATION = "clarification"
+    PROPOSAL = "proposal"  # LLM-derived command: must be confirmed before it is applied
+    OUT_OF_SCOPE = "out_of_scope"
+
+
+class Reason(StrEnum):
+    """Why a clarification was asked; only ``NO_TARGET`` may be escalated to the LLM."""
+
+    EMPTY = "empty"
+    NO_TARGET = "no_target"
+    DERIVED = "derived"
+    MISSING_AMOUNT = "missing_amount"
+    INVALID = "invalid"
+    UNMODELLED = "unmodelled"
 
 
 @dataclass
@@ -35,6 +48,8 @@ class Interpretation:
     question: str | None = None
     suggestions: list[str] = field(default_factory=list)
     assumptions: list[str] = field(default_factory=list)
+    reason: Reason | None = None
+    interpreted_by: str = "rules"
 
 
 _NUMBER = r"(-?\d+(?:\.\d+)?)"
@@ -42,7 +57,7 @@ _UNIT = (
     r"(mm|millimet(?:er|re)s?|cm|centimet(?:er|re)s?|m|met(?:er|re)s?|inch(?:es)?|in|\"|"
     r"deg(?:rees?)?|°|%|percent|pct)"
 )
-_QUANTITY = re.compile(_NUMBER + r"\s*" + _UNIT + r"?(?![a-z0-9])")
+QUANTITY = re.compile(_NUMBER + r"\s*" + _UNIT + r"?(?![a-z0-9])")
 _SPLIT = re.compile(r"\s*(?:,|;|\band then\b|\bthen\b|\band also\b|\balso\b|\band\b)\s*")
 _QUESTION_START = re.compile(r"^(what|what's|whats|how|show|tell|give me|list|which)\b")
 
@@ -89,7 +104,7 @@ def _detect_operation(clause: str, words: list[str]) -> Operation | None:
 
 
 def _quantity(clause: str) -> tuple[float, Unit | None] | None:
-    matches = list(_QUANTITY.finditer(clause))
+    matches = list(QUANTITY.finditer(clause))
     if not matches:
         return None
     chosen = matches[-1]
@@ -115,9 +130,12 @@ class _Clause:
 
 
 class _UnresolvedError(Exception):
-    def __init__(self, question: str, suggestions: list[str] | None = None) -> None:
+    def __init__(
+        self, question: str, suggestions: list[str] | None = None, reason: Reason = Reason.INVALID
+    ) -> None:
         self.question = question
         self.suggestions = suggestions or []
+        self.reason = reason
 
 
 def _derived_clarification(derived_id: str) -> _UnresolvedError:
@@ -133,13 +151,55 @@ def _derived_clarification(derived_id: str) -> _UnresolvedError:
     return _UnresolvedError(
         f"{spec.label} is derived from the {controls}. Which of these should change?",
         examples,
+        Reason.DERIVED,
     )
+
+
+# Words that carry no meaning of their own in an instruction.
+_FILLER = frozenset({
+    "the", "a", "an", "it", "its", "to", "by", "of", "at", "is", "be", "on", "for", "please",
+    "me", "from", "with", "set", "make", "so", "that", "now", "value", "size",
+    "mm", "cm", "m", "in", "inch", "inches", "deg", "degree", "degrees", "percent", "pct",
+    "millimetre", "millimetres", "millimeter", "millimeters", "metre", "metres", "meter",
+    "meters", "centimetre", "centimetres", "centimeter", "centimeters", "factor", "times",
+})  # fmt: skip
+_KNOWN = (
+    _FILLER
+    | lx.INCREASE_VERBS
+    | lx.DECREASE_VERBS
+    | lx.SET_VERBS
+    | set(lx.COMPARATIVES)
+    | set(lx.ADJECTIVES)
+)
+
+
+def _unexplained(clause: str, alias: str | None) -> list[str]:
+    """Words the parser cannot account for. Used before any guess: if a clause has words
+    we do not understand, guessing could change the wrong parameter."""
+    text = clause if alias is None else re.sub(re.escape(alias), " ", clause)
+    return [w for w in _words(text) if w not in _KNOWN]
 
 
 def _parse_clause(clause: str, previous_op: Operation | None) -> _Clause:
     words = _words(clause)
     target = _find_target(clause)
     op = _detect_operation(clause, words)
+
+    # Guards against confident misreadings ("slide the cabin forward" is not "set cabin
+    # length"; "drop the window line" is not "lower the car"): when the parser would have to
+    # guess the operation or the target, every other word must be understood.
+    guessing_op = target is not None and op is None and previous_op is None
+    if guessing_op and _unexplained(clause, target.alias):
+        raise _UnresolvedError(
+            f"I am not sure what '{clause}' should do to the {target.alias}.", [], Reason.NO_TARGET
+        )
+    if target is None and _unexplained(clause, None):
+        raise _UnresolvedError(
+            f"I could not find a design parameter in '{clause}'."
+            + (f" Did you mean: {', '.join(_suggest(clause))}?" if _suggest(clause) else ""),
+            _suggest(clause),
+            Reason.NO_TARGET,
+        )
 
     if target is None:
         comparative = next((lx.COMPARATIVES[w] for w in words if w in lx.COMPARATIVES), None)
@@ -151,7 +211,9 @@ def _parse_clause(clause: str, previous_op: Operation | None) -> _Clause:
             suggestions = _suggest(clause)
             hint = f" Did you mean: {', '.join(suggestions)}?" if suggestions else ""
             raise _UnresolvedError(
-                f"I could not find a design parameter in '{clause}'.{hint}", suggestions
+                f"I could not find a design parameter in '{clause}'.{hint}",
+                suggestions,
+                Reason.NO_TARGET,
             )
         target_id, is_increase = comparative
         kind = TargetKind.DERIVED if target_id in DERIVED else TargetKind.PARAMETER
@@ -187,6 +249,7 @@ def _parse_clause(clause: str, previous_op: Operation | None) -> _Clause:
                     if what != "set"
                     else f"set the {label} to {REGISTRY[target.ids[0]].default:g} {unit}"
                 ],
+                Reason.MISSING_AMOUNT,
             )
     if op is None:
         op = Operation.SET
@@ -217,16 +280,24 @@ def _parse_query(text: str) -> Interpretation:
             "high": "overall_height",
         }
         hit = next((comparative[w] for w in words if w in comparative), None)
-        if hit is None:
+        if hit is not None:
+            return Interpretation(Kind.QUERY, query=(hit,))
+        if set(words) & {"everything", "all", "parameters", "specs", "specification", "dimensions"}:
             return Interpretation(Kind.QUERY, query=tuple(REGISTRY))  # "show me everything"
-        return Interpretation(Kind.QUERY, query=(hit,))
+        return Interpretation(
+            Kind.CLARIFICATION,
+            question=f"I could not find a design parameter in '{text}'.",
+            reason=Reason.NO_TARGET,
+        )
     return Interpretation(Kind.QUERY, query=target.ids)
 
 
 def parse(text: str) -> Interpretation:
     t = normalise(text)
     if not t:
-        return Interpretation(Kind.CLARIFICATION, question="What would you like to change?")
+        return Interpretation(
+            Kind.CLARIFICATION, question="What would you like to change?", reason=Reason.EMPTY
+        )
     if t in lx.UNDO_PHRASES:
         return Interpretation(Kind.UNDO)
     if t in lx.REDO_PHRASES:
@@ -243,7 +314,10 @@ def parse(text: str) -> Interpretation:
             parsed = _parse_clause(clause, previous)
         except _UnresolvedError as exc:
             return Interpretation(
-                Kind.CLARIFICATION, question=exc.question, suggestions=exc.suggestions
+                Kind.CLARIFICATION,
+                question=exc.question,
+                suggestions=exc.suggestions,
+                reason=exc.reason,
             )
         changes.extend(parsed.changes)
         assumptions.extend(parsed.assumptions)
