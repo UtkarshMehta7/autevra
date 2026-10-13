@@ -43,8 +43,12 @@ export class ApiError extends Error {
   }
 }
 
+// Same origin by default (Vite proxy, nginx, Netlify rewrite). A separately hosted
+// backend is set at build time: VITE_API_URL=https://api.example.com
+const API = `${(import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "")}/api`;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${API}${path}`, {
     ...init,
     headers: { "content-type": "application/json", ...init?.headers },
   });
@@ -89,7 +93,7 @@ export const api = {
   history: (id: string) => request<{ entries: HistoryEntry[]; cursor: number }>(`/projects/${id}/history`),
   model: (id: string, known: Iterable<string>) =>
     request<ModelPayload>(`/projects/${id}/model?known=${encodeURIComponent([...known].join(","))}`),
-  stepUrl: (id: string) => `/api/projects/${id}/export.step`,
+  stepUrl: (id: string) => `${API}/projects/${id}/export.step`,
   tests: () => request<TestDefinition[]>("/tests"),
   runTests: (id: string, body: { test_id: string; target: string; scenario_id?: string | null }) =>
     post<TestRunResponse>(`/projects/${id}/tests/run`, body),
@@ -122,7 +126,7 @@ export const api = {
   importReqif: (id: string, xml: string) =>
     request<RequirementRow[]>(`/projects/${id}/requirements.reqif`, {
       method: "POST", body: xml, headers: { "content-type": "application/xml" } }),
-  reqifUrl: (id: string) => `/api/projects/${id}/requirements.reqif`,
+  reqifUrl: (id: string) => `${API}/projects/${id}/requirements.reqif`,
   preview: (id: string, command: Command) => post<ImpactPreview>(`/projects/${id}/preview`, { command }),
   spec: (id: string) => request<SpecState>(`/projects/${id}/spec`),
   specAnswer: (id: string, question: string, value: string | number | null) =>
