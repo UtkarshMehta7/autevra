@@ -68,13 +68,13 @@ specification interview moves to Phase 5.
 - [x] ReqIF import and export
 - [x] Evidence structure ready for ISO 26262 / ASPICE work products (no compliance claims)
 
-## Phase 5: Specification interview and conflict detection
+## Phase 5: Specification interview and conflict detection ✅
 
-- [ ] Typed `VehicleSpec` (class, use, powertrain, power, torque, mass, drivetrain, dimensions, materials, suspension, budget)
-- [ ] Adaptive question graph with conditions
-- [ ] Physics-based plausibility and conflict rules (power-to-weight vs acceleration, traction limits, packaging)
-- [ ] Spec → initial parameter set generation; provisional targets the user approves
-- [ ] Interview UI (forms + chat)
+- [x] Typed `VehicleSpec` (class, use, powertrain, drivetrain, power, battery, mass, seats, 0–100 target, ride character, wheel size); torque, materials and budget deferred
+- [x] Adaptive question graph with conditions
+- [x] Physics-based plausibility and conflict rules (traction- and power-limited acceleration bound, battery mass share, cabin share; packaging through the design rules)
+- [x] Spec → initial parameter set generation; provisional targets the user approves
+- [x] Interview UI (forms + chat)
 
 ## Phase 6: Fidelity ladder and validation
 
@@ -131,6 +131,26 @@ specification interview moves to Phase 5.
 ---
 
 ## Progress log
+
+### 2026-10-13: Phase 5 complete (specification interview)
+
+**Done**
+- `VehicleSpec` with a source on every answer (you, or a labelled class-typical default); adaptive questions (battery capacity only for electric vehicles); validated ranges; optional questions can be skipped.
+- Free text fills the specification deterministically, with unit conversion: "an electric SUV, 300 hp, 2.3 t, 0-100 in 6.5 s, 7 seats, AWD, 20 inch wheels, 90 kWh".
+- Conflict checks:
+  - the 0–100 km/h lower bound is traction-limited (μ 1.0, driven-axle static load), then constant power at 90 % efficiency, with no drag, rolling resistance or shifting. A target faster than the bound is a conflict. Example: 150 kW and 2.2 t gives a 6.8 s bound, so 6 s is impossible. A slower target is only "not ruled out".
+  - battery mass share at an assumed 160 Wh/kg pack density;
+  - cabin share of the body length (seven seats in a city car).
+- Generation: class templates (all seven pass every design rule); springs sized for target ride frequencies with the tyre in series (rear 10 % above front); dampers from damping ratios; electric layouts move mass rearwards. The result is shown as an impact preview and applied only on request, as one undoable `spec` command. The proposed requirements (ride frequency band, off-road ground clearance, the 0–100 target as text) are added unapproved.
+- UI: Specification tab with the question flow, answers with their source, checks with their basis, the generated design with the reason for each value, and Apply. Checked by hand in Chrome.
+- 379 backend tests and 9 frontend tests pass.
+
+**Known limitations**
+- The acceleration check is a bound, not a simulation: meeting a target is never claimed until a longitudinal test exists.
+- Templates are proportion starting points, not data from real vehicles; torque, top speed, range, materials and budget are not captured yet.
+
+**Next**
+- Longitudinal performance test (acceleration and braking) so the 0–100 target can be verified by simulation, then the validation module and the half-car.
 
 ### 2026-10-13: Phase 4 complete (traceability core)
 

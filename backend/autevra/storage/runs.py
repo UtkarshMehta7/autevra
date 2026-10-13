@@ -7,8 +7,9 @@ from sqlalchemy.orm import Session
 
 from autevra.engineering.requirements import Requirement as RequirementRecord
 from autevra.engineering.requirements import next_key
+from autevra.engineering.spec import VehicleSpec
 from autevra.engineering.testing import Requirement, RunRecord
-from autevra.storage.models import RequirementRow, StudyRow, TestRunRow
+from autevra.storage.models import RequirementRow, SpecificationRow, StudyRow, TestRunRow
 
 
 class RunNotFoundError(LookupError):
@@ -172,3 +173,22 @@ class StudyRepository:
             .limit(limit)
         )
         return [r.record_json for r in rows]
+
+
+class SpecRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def load(self, project_id: str) -> VehicleSpec:
+        row = self.session.get(SpecificationRow, project_id)
+        return VehicleSpec() if row is None else VehicleSpec.model_validate_json(row.spec_json)
+
+    def save(self, project_id: str, spec: VehicleSpec) -> None:
+        row = self.session.get(SpecificationRow, project_id)
+        if row is None:
+            self.session.add(
+                SpecificationRow(project_id=project_id, spec_json=spec.model_dump_json())
+            )
+        else:
+            row.spec_json = spec.model_dump_json()
+        self.session.flush()

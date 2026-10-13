@@ -20,7 +20,7 @@ from autevra.api import model_service, schemas
 from autevra.assembly import graph
 from autevra.cad.cache import GeometryCache
 from autevra.domain import derived, parameters
-from autevra.domain.commands import CommandError, SetParameters, Source
+from autevra.domain.commands import Change, CommandError, Operation, SetParameters, Source
 from autevra.domain.design import ApplyResult, CommandRejectedError, DesignState
 from autevra.domain.rules import validate
 from autevra.engineering import diagnosis as dgn
@@ -28,11 +28,17 @@ from autevra.engineering import integration, reqif
 from autevra.engineering import loop as eloop
 from autevra.engineering import optimize as opt
 from autevra.engineering import requirements as rqm
+from autevra.engineering import spec as vspec
 from autevra.engineering import testing as tst
 from autevra.engineering import trace as tracing
 from autevra.storage.database import Database
 from autevra.storage.repository import ProjectInfo, ProjectRepository
-from autevra.storage.runs import RunNotFoundError, RunRepository, StudyRepository
+from autevra.storage.runs import (
+    RunNotFoundError,
+    RunRepository,
+    SpecRepository,
+    StudyRepository,
+)
 
 
 def _derived(values: dict[str, float]) -> list[schemas.DerivedValue]:
@@ -265,6 +271,27 @@ class Workspace:
             case Kind.TEST:
                 assert interpretation.tests is not None
                 return self._instruct_tests(project_id, interpretation.tests)
+            case Kind.SPEC:
+                state, accepted = self.spec_text(project_id, text)
+                labels = {q.id: q.prompt.rstrip("?").lower() for q in vspec.QUESTIONS}
+                got = (
+                    ", ".join(f"{labels[k]}: {state.spec.get(k)}" for k in accepted)
+                    or "nothing I could use"
+                )
+                parts = [f"Specification updated ({got})."]
+                parts += [
+                    f"{c.severity.capitalize()}: {c.message}"
+                    for c in state.checks
+                    if c.severity != "info"
+                ]
+                if state.next is not None:
+                    parts.append(f"Next: {state.next.prompt}")
+                else:
+                    parts.append(
+                        "All questions answered; generate the design in the "
+                        "Specification tab or say 'generate the design'."
+                    )
+                return schemas.InstructionResult(kind="spec", message=" ".join(parts), spec=state)
             case Kind.PREVIEW:
                 assert interpretation.command is not None
                 try:
@@ -273,8 +300,9 @@ class Workspace:
                     return schemas.InstructionResult(kind="clarification", message=str(exc))
                 lines = [impact.summary]
                 lines += [f"{c.label}: {c.before:g} → {c.after:g} {c.unit}" for c in impact.changes]
-                lines += [f"{r.key} {r.before} → {r.after.replace('_', ' ')}"
-                          for r in impact.requirements]  # fmt: skip
+                lines += [
+                    f"{r.key} {r.before} → {r.after.replace('_', ' ')}" for r in impact.requirements
+                ]
                 lines += [f"New warning: {w}" for w in impact.warnings_added]
                 lines += [f"Cleared: {w}" for w in impact.warnings_cleared]
                 lines.append("Nothing was applied.")
@@ -885,6 +913,112 @@ class Workspace:
             for scenario in sorted(scenarios):
                 self.run_tests(project_id, test_id, [target], scenario)
         return self.trace(project_id)
+
+    # --- specification ---
+    def _spec_state(self, spec: vspec.VehicleSpec) -> schemas.SpecState:
+        generated = vspec.generate(spec) if spec.get("vehicle_class") else None
+        return schemas.SpecState(
+            spec=spec,
+            questions=list(vspec.QUESTIONS),
+            applicable=[q.id for q in vspec.QUESTIONS if vspec.applicable(q, spec)],
+            next=vspec.next_question(spec),
+            checks=generated.checks if generated else vspec.checks(spec),
+            missing=generated.missing
+            if generated
+            else [
+                q.id
+                for q in vspec.QUESTIONS
+                if vspec.applicable(q, spec) and not q.optional and q.id not in spec.answers
+            ],
+        )
+
+    def spec(self, project_id: str) -> schemas.SpecState:
+        with self.db.session() as s:
+            ProjectRepository(s).info(project_id)
+            return self._spec_state(SpecRepository(s).load(project_id))
+
+    def spec_answer(
+        self, project_id: str, question: str, value: str | float | None
+    ) -> schemas.SpecState:
+        with self.db.session() as s:
+            ProjectRepository(s).info(project_id)
+            repo = SpecRepository(s)
+            spec = repo.load(project_id)
+            error = vspec.answer(spec, question, value)
+            if error:
+                raise CommandError(error)
+            repo.save(project_id, spec)
+            return self._spec_state(spec)
+
+    def spec_text(self, project_id: str, text: str) -> tuple[schemas.SpecState, list[str]]:
+        found = vspec.extract(text)
+        with self.db.session() as s:
+            ProjectRepository(s).info(project_id)
+            repo = SpecRepository(s)
+            spec = repo.load(project_id)
+            accepted = []
+            for key, value in found.items():
+                if vspec.answer(spec, key, value) is None:
+                    accepted.append(key)
+            repo.save(project_id, spec)
+            return self._spec_state(spec), accepted
+
+    def spec_reset(self, project_id: str) -> schemas.SpecState:
+        with self.db.session() as s:
+            ProjectRepository(s).info(project_id)
+            SpecRepository(s).save(project_id, vspec.VehicleSpec())
+            return self._spec_state(vspec.VehicleSpec())
+
+    def spec_design(self, project_id: str) -> schemas.SpecDesign:
+        state = self.project(project_id)
+        with self.db.session() as s:
+            spec = SpecRepository(s).load(project_id)
+        if not spec.get("vehicle_class"):
+            raise CommandError("answer at least the vehicle class first")
+        generated = vspec.generate(spec)
+        changes = tuple(
+            Change(parameter=p, operation=Operation.SET, value=v)
+            for p, v in generated.values.items()
+            if v != state.values[p]
+        )
+        command = (
+            SetParameters(
+                changes=changes,
+                source=Source.SPEC,
+                instruction="design generated from the specification",
+            )
+            if changes
+            else None
+        )
+        impact = self.preview(project_id, command) if command else None
+        return schemas.SpecDesign(
+            values=generated.values,
+            sources=generated.sources,
+            violations=generated.violations,
+            checks=generated.checks,
+            requirements=generated.requirements,
+            missing=generated.missing,
+            command=command,
+            preview=impact,
+        )
+
+    def spec_apply(self, project_id: str) -> schemas.SpecApplied:
+        """Apply the generated design (one undoable command) and add its provisional
+        requirements, unapproved. Refused while conflicts or rule violations remain."""
+        design = self.spec_design(project_id)
+        conflicts = [c.message for c in design.checks if c.severity == "conflict"]
+        if conflicts:
+            raise CommandError("resolve the specification conflicts first: " + "; ".join(conflicts))
+        if design.missing:
+            raise CommandError(f"answer the remaining questions first: {', '.join(design.missing)}")
+        if design.command is None:
+            raise CommandError("the design already matches the specification")
+        result = self.apply(project_id, design.command)
+        keys = []
+        for body in design.requirements:
+            out = self.add_requirement(project_id, schemas.RequirementIn(**body))
+            keys.append(out.requirement.key)
+        return schemas.SpecApplied(result=result, requirements=keys)
 
     def integration(self, project_id: str) -> schemas.IntegrationOut:
         values = self.project(project_id).values

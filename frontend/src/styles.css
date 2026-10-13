@@ -172,3 +172,11 @@ tr.trace td { background: #191d23; padding: 6px 10px; }
 label.button { cursor: pointer; }
 .reply.preview { border-left-color: #a77be0; }
 .reply.requirement, .reply.verification { border-left-color: var(--accent); }
+
+.question { border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin: 6px 0; }
+.choices { display: flex; flex-wrap: wrap; }
+.chip.picked { border-color: var(--accent); background: #24406a; }
+input.grow { flex: 1; min-width: 0; }
+table.answers td { padding: 2px 4px; cursor: pointer; }
+tr.selected-row td { background: #2b4366; }
+.reply.spec { border-left-color: var(--accent); }

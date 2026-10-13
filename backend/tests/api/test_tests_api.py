@@ -250,3 +250,41 @@ def test_preview_endpoint_applies_nothing(client: TestClient, project: str) -> N
     p = client.post(f"/api/projects/{project}/preview", json=body).json()
     assert p["valid"] and "damper_fl" in p["rebuild"] and p["retest"]
     assert client.get(f"/api/projects/{project}").json()["values"]["rim_diameter"] == 17
+
+
+def test_specification_interview_to_design(client: TestClient, project: str) -> None:
+    reply = _say(
+        client,
+        project,
+        "I want an electric SUV with 150 kW, 0-100 in 6 seconds, 7 seats, AWD and 90 kWh",
+    )
+    assert reply["kind"] == "spec" and "Conflict" in reply["message"]
+    assert reply["spec"]["next"]["id"] == "use"
+    url = f"/api/projects/{project}/spec"
+    for q, v in [
+        ("use", "family"),
+        ("target_mass", None),
+        ("ride", "comfort"),
+        ("rim_diameter", None),
+    ]:
+        assert client.post(f"{url}/answers", json={"question": q, "value": v}).status_code == 200
+    assert (
+        client.post(f"{url}/answers", json={"question": "seats", "value": "11"}).status_code == 422
+    )
+    blocked = client.post(f"{url}/apply")
+    assert blocked.status_code == 409 and "conflicts" in blocked.json()["detail"]
+
+    client.post(f"{url}/answers", json={"question": "peak_power", "value": 300})
+    design = client.post(f"{url}/design").json()
+    assert design["violations"] == [] and design["preview"]["valid"]
+    assert not [c for c in design["checks"] if c["severity"] == "conflict"]
+    applied = client.post(f"{url}/apply").json()
+    assert applied["requirements"]  # provisional requirements were created
+    state = client.get(f"/api/projects/{project}").json()
+    assert state["values"]["wheelbase"] == design["values"]["wheelbase"]
+    history = client.get(f"/api/projects/{project}/history").json()["entries"]
+    assert history[-1]["command"]["source"] == "spec"
+    reqs = client.get(f"/api/projects/{project}/requirements").json()
+    assert all(r["verification"]["status"] == "not_approved" for r in reqs)
+    _say(client, project, "undo")
+    assert client.get(f"/api/projects/{project}").json()["values"]["wheelbase"] == 2700

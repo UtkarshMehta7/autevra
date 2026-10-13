@@ -87,3 +87,15 @@ class StudyRow(Base):
     status: Mapped[str] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(default=_now)
     record_json: Mapped[str] = mapped_column(Text)
+
+
+class SpecificationRow(Base):
+    """The vehicle specification of a project (one per project)."""
+
+    __tablename__ = "specifications"
+
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
+    spec_json: Mapped[str] = mapped_column(Text)

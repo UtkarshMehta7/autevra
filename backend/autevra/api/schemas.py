@@ -13,6 +13,8 @@ from autevra.engineering.diagnosis import Diagnosis
 from autevra.engineering.loop import LoopResult
 from autevra.engineering.optimize import StudyResult
 from autevra.engineering.requirements import Requirement, Verification
+from autevra.engineering.spec import Check as SpecCheck
+from autevra.engineering.spec import Question, VehicleSpec
 from autevra.engineering.testing import Comparison, RunRecord, RunStatus
 from autevra.engineering.trace import ImpactPreview
 
@@ -98,6 +100,7 @@ InstructionKind = Literal[
     "preview",
     "requirement",
     "verification",
+    "spec",
 ]
 
 
@@ -119,6 +122,7 @@ class InstructionResult(BaseModel):
     studies: list[StudyResult] = []
     loops: list[LoopResult] = []
     impact_preview: ImpactPreview | None = None
+    spec: "SpecState | None" = None
     requirements: list["RequirementOut"] = []
 
 
@@ -263,6 +267,40 @@ class IntegrationOut(BaseModel):
     checks: list[CheckOut]
     counts: dict[str, int]
     not_checked: list[str]
+
+
+class SpecState(BaseModel):
+    spec: VehicleSpec
+    questions: list[Question]
+    applicable: list[str]  # question ids that apply to this specification
+    next: Question | None
+    checks: list[SpecCheck]
+    missing: list[str]
+
+
+class SpecAnswer(BaseModel):
+    question: str
+    value: str | float | None = None  # None skips an optional question
+
+
+class SpecText(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class SpecDesign(BaseModel):
+    values: dict[str, float]
+    sources: dict[str, str]
+    violations: list[Violation]
+    checks: list[SpecCheck]
+    requirements: list[dict]
+    missing: list[str]
+    command: SetParameters | None
+    preview: ImpactPreview | None
+
+
+class SpecApplied(BaseModel):
+    result: "CommandResult"
+    requirements: list[str]  # keys of the provisional requirements created
 
 
 InstructionResult.model_rebuild()
