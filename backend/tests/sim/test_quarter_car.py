@@ -5,9 +5,9 @@ import math
 import numpy as np
 import pytest
 
-from autevra.core import derived as d
 from autevra.core.parameters import default_values
-from autevra.sim import quarter_car as q
+from autevra.domains.automotive import derived as d
+from autevra.domains.automotive.sim import quarter_car as q
 
 P = q.Params(
     sprung_mass=395, unsprung_mass=45, spring_rate=26_000, damping_bump=1500,

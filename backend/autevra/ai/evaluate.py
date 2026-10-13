@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from autevra import domains
 from autevra.ai.interpreter import interpret
 from autevra.ai.llm.clients import LLMClient, make_client
 from autevra.ai.rule_parser import Interpretation, Kind
@@ -119,6 +120,9 @@ def summary(outcomes: list[Outcome]) -> dict:
             else 0.0,
         }
     return out
+
+
+domains.load_builtin()  # the evaluation set uses the automotive vocabulary
 
 
 def main() -> None:

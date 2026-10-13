@@ -1,7 +1,7 @@
 import pytest
 
 from autevra.core.rules import validate
-from autevra.engineering import spec as sp
+from autevra.domains.automotive import spec as sp
 
 TYPICAL_SEATS = {"city_car": "4", "sports_car": "2", "van": "7"}
 
@@ -97,7 +97,7 @@ def test_battery_and_packaging_warnings() -> None:
 
 
 def test_springs_follow_the_target_ride_frequency() -> None:
-    from autevra.core import derived as d
+    from autevra.domains.automotive import derived as d
 
     for ride, hz in sp.RIDE_FRONT_HZ.items():
         g = sp.generate(_spec(vehicle_class="sedan", ride=ride))

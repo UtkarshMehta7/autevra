@@ -17,7 +17,6 @@ from collections.abc import Iterable, Mapping
 
 from pydantic import BaseModel
 
-from autevra.core import derived as d
 from autevra.core.commands import Change, Operation, SetParameters, Source
 from autevra.core.parameters import REGISTRY
 from autevra.core.rules import validate
@@ -25,9 +24,6 @@ from autevra.engineering import testing as tst
 
 Values = Mapping[str, float]
 STEPS = (0.1, 0.2, 0.3)  # relative steps tried for corrective changes
-# A criterion whose margin saturates (tyre load is 0 whenever the tyre is off the road) is
-# probed through a metric that keeps responding: less time off the road is better.
-PROXIES = {"tyre_contact": "lift_off_time"}
 
 
 class Effect(BaseModel):
@@ -86,14 +82,14 @@ class Diagnosis(BaseModel):
     caveats: list[str]
 
 
-def _limit_source(criterion: tst.CriterionResult, values: Values, target: str):  # type: ignore[no-untyped-def]
-    if criterion.id in ("bump_travel", "rebound_travel"):
-        limits = d.travel_limits(values, target)
-        keys = d.BUMP_LIMITS if criterion.id == "bump_travel" else d.REBOUND_LIMITS
-        governing = min(keys, key=lambda k: limits[k][0])
-        parts = ", ".join(f"{k.replace('_', ' ')} {limits[k][0]:.1f} mm" for k in keys)
-        return (f"usable travel is the smallest of: {parts}; the "
-                f"{governing.replace('_', ' ')} governs", limits[governing][1])  # fmt: skip
+def _limit_source(definition: tst.TestDefinition, criterion: tst.CriterionResult, values: Values,
+                  target: str) -> tuple[str, str | None]:  # fmt: skip
+    """How the criterion's limit is set; the test definition may explain design limits."""
+    explained = (
+        definition.explain_limit(criterion, values, target) if definition.explain_limit else None
+    )
+    if explained is not None:
+        return explained
     if criterion.source == "user":
         return "user requirement", None
     return "test definition", None
@@ -140,7 +136,9 @@ def diagnose(
 
     def evaluate(v: Values) -> list[tst.CriterionResult]:
         metrics, criteria = tst.quick_evaluate(run.test_id, run.target, scenario, v, requirements)
-        for cid, metric in PROXIES.items():  # stash the proxy metric alongside the criteria
+        # A criterion whose margin saturates (e.g. tyre load is 0 whenever the tyre is off the
+        # road) is probed through a metric that keeps responding (the test's ``proxies``).
+        for cid, metric in definition.proxies.items():
             if metrics.get(metric) is not None:
                 criteria.append(tst.CriterionResult(
                     id=f"proxy:{cid}", label=metric, metric=metric, comparator="<=", limit=0,
@@ -160,11 +158,11 @@ def diagnose(
 
     findings = []
     for crit in targets:
-        source, governing = _limit_source(crit, values, run.target)
+        source, governing = _limit_source(definition, crit, values, run.target)
         probe = crit.id
-        if crit.id in PROXIES and crit.measured == 0:
+        if crit.id in definition.proxies and crit.measured == 0:
             probe = f"proxy:{crit.id}"  # tyre off the road: rank by time off the road
-            source += f"; effects measured on {PROXIES[crit.id].replace('_', ' ')}"
+            source += f"; effects measured on {definition.proxies[crit.id].replace('_', ' ')}"
         base_margin = _margin(base, probe)
         effects = []
         for pid in params:
@@ -243,7 +241,8 @@ def diagnose(
             f"scenario. Limit: {source}."
         )
         if top:
-            unit = "s less off the road" if probe != crit.id else crit.unit
+            proxy = definition.proxies.get(crit.id, "")
+            unit = f"less {definition.metrics[proxy][0].lower()}" if probe != crit.id else crit.unit
             explanation += (
                 " Largest measured effects (one 10 % step): "
                 + "; ".join(

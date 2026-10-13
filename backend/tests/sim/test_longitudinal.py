@@ -2,7 +2,7 @@
 
 import pytest
 
-from autevra.sim import longitudinal as lg
+from autevra.domains.automotive.sim import longitudinal as lg
 
 BASE = lg.Params(
     mass=1500, power=100e3, efficiency=0.9, front_drive_share=1.0, front_static_share=0.6,

@@ -2,10 +2,10 @@
 
 import pytest
 
-from autevra.cad import components as c
 from autevra.cad import kernel as k
-from autevra.core import derived as d
 from autevra.core.parameters import default_values
+from autevra.domains.automotive import builders as c
+from autevra.domains.automotive import derived as d
 
 pytestmark = pytest.mark.cad
 
@@ -93,7 +93,7 @@ def test_step_export_contains_named_parts(tmp_path) -> None:
 
 
 def _damper_inputs(**changes: float) -> dict[str, float]:
-    from autevra.assembly.vehicle import BY_ID
+    from autevra.assembly.model import BY_ID
 
     return BY_ID["damper_fl"].resolve_inputs(default_values() | changes)
 
@@ -124,7 +124,7 @@ def test_body_builds_for_random_valid_designs() -> None:
     """Robustness: the body is a valid single solid across the valid design space."""
     import random
 
-    from autevra.assembly.vehicle import BY_ID
+    from autevra.assembly.model import BY_ID
     from autevra.core.parameters import REGISTRY
     from autevra.core.rules import validate
 
@@ -143,7 +143,7 @@ def test_body_builds_for_random_valid_designs() -> None:
 
 
 def test_body_profile_keeps_the_hood_above_the_front_arch() -> None:
-    from autevra.assembly.vehicle import BY_ID
+    from autevra.assembly.model import BY_ID
 
     inputs = BY_ID["body"].resolve_inputs(default_values() | {"rim_diameter": 22})
     profile = c.body_profile(inputs)

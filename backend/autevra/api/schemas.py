@@ -9,12 +9,12 @@ from autevra.core.commands import SetParameters
 from autevra.core.design import HistoryEntry
 from autevra.core.parameters import ParameterDef
 from autevra.core.rules import Violation
+from autevra.domains.automotive.spec import Check as SpecCheck
+from autevra.domains.automotive.spec import Question, VehicleSpec
 from autevra.engineering.diagnosis import Diagnosis
 from autevra.engineering.loop import LoopResult
 from autevra.engineering.optimize import StudyResult
 from autevra.engineering.requirements import Requirement, Verification
-from autevra.engineering.spec import Check as SpecCheck
-from autevra.engineering.spec import Question, VehicleSpec
 from autevra.engineering.testing import Comparison, RunRecord, RunStatus
 from autevra.engineering.trace import ImpactPreview
 

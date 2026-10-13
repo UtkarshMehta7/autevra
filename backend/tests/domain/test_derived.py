@@ -1,7 +1,7 @@
 import pytest
 
-from autevra.core import derived
 from autevra.core.parameters import default_values
+from autevra.domains.automotive import derived
 
 
 def test_overall_length_is_sum_of_wheelbase_and_overhangs() -> None:

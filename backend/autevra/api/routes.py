@@ -171,6 +171,7 @@ def plugins() -> list[dict]:
             "tests": [t.id for t in p.tests],
         }
         for p in extensions.LOADED.values()
+        if domains.get(p.name) is None  # domain modules are listed by /domains
     ]
 
 

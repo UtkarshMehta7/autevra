@@ -1,4 +1,4 @@
-"""The vehicle assembly: component definitions, interfaces, mates and coincidences.
+"""The automotive vehicle assembly: components, interfaces, mates and coincidences.
 
 Each component declares the parameters its geometry depends on (``geometry``)
 and, per interface, the parameters that interface frame depends on (``frames``). Input and
@@ -7,68 +7,16 @@ declared parameters, so an undeclared dependency fails loudly instead of
 silently breaking selective rebuilds.
 """
 
-from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass, field
+from collections.abc import Callable, Mapping
 
 from autevra.assembly import transforms as tf
+from autevra.assembly.model import Coincidence, ComponentDef, Mate
 from autevra.assembly.transforms import Matrix
-from autevra.core import derived as d
+from autevra.domains.automotive import derived as d
 
 Values = Mapping[str, float]
 
 TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
-
-
-class UndeclaredDependencyError(KeyError):
-    pass
-
-
-class DeclaredView(Mapping[str, float]):
-    """Read-only view of a parameter set restricted to declared keys."""
-
-    def __init__(self, values: Values, allowed: tuple[str, ...], owner: str) -> None:
-        self._values, self._allowed, self._owner = values, frozenset(allowed), owner
-
-    def __getitem__(self, key: str) -> float:
-        if key not in self._allowed:
-            raise UndeclaredDependencyError(f"{self._owner} reads undeclared parameter '{key}'")
-        return self._values[key]
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(k for k in self._values if k in self._allowed)
-
-    def __len__(self) -> int:
-        return sum(1 for _ in self)
-
-
-@dataclass(frozen=True)
-class Mate:
-    """Places a child so its ``child_interface`` coincides with the parent's interface."""
-
-    parent: str
-    parent_interface: str
-    child_interface: str
-
-
-@dataclass(frozen=True)
-class ComponentDef:
-    id: str
-    name: str
-    category: str
-    builder: str | None  # None for components without geometry (the vehicle root)
-    geometry: tuple[str, ...] = ()
-    inputs: Callable[[Values], dict[str, float]] = lambda p: {}
-    frames: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
-    interfaces: Callable[[Values], dict[str, Matrix]] = lambda p: {}
-    mate: Mate | None = None
-    color: tuple[float, float, float] = (0.6, 0.6, 0.6)
-
-    def resolve_inputs(self, values: Values) -> dict[str, float]:
-        return self.inputs(DeclaredView(values, self.geometry, self.id))
-
-    def resolve_interfaces(self, values: Values) -> dict[str, Matrix]:
-        allowed = tuple({p for deps in self.frames.values() for p in deps})
-        return self.interfaces(DeclaredView(values, allowed, self.id))
 
 
 BODY_GEOMETRY = (
@@ -187,19 +135,6 @@ _WHEEL_COLOR = (0.12, 0.12, 0.13)
 _DAMPER_COLOR = (0.85, 0.55, 0.12)
 
 
-@dataclass(frozen=True)
-class Coincidence:
-    """Two interfaces that must coincide in world space (a closed loop the mates do not set).
-
-    The dampers are placed by their lower eye; their upper eye must meet the body's shock
-    tower. ``integration.check`` verifies it for every design.
-    """
-
-    a: tuple[str, str]  # (component, interface)
-    b: tuple[str, str]
-    tolerance: float = 0.01  # mm
-
-
 def _wheel(cid: str, name: str, axle: str, side: str) -> ComponentDef:
     return ComponentDef(
         id=cid, name=name, category="wheel", builder="wheel",
@@ -230,7 +165,7 @@ def _axle(cid: str, name: str, track: str, mount: str) -> ComponentDef:
     )  # fmt: skip
 
 
-COMPONENTS: list[ComponentDef] = [
+COMPONENTS: tuple[ComponentDef, ...] = (
     ComponentDef(
         id="vehicle", name="Vehicle", category="assembly", builder=None,
         frames={"origin": (), "front_axle_mount": TYRE,
@@ -262,17 +197,16 @@ COMPONENTS: list[ComponentDef] = [
     _damper("damper_fr", "Damper front right", "front", "right"),
     _damper("damper_rl", "Damper rear left", "rear", "left"),
     _damper("damper_rr", "Damper rear right", "rear", "right"),
-]  # fmt: skip
+)  # fmt: skip
 
-BY_ID: dict[str, ComponentDef] = {c.id: c for c in COMPONENTS}  # extensible
 
-COINCIDENCES: list[Coincidence] = [
+COINCIDENCES: tuple[Coincidence, ...] = (
     Coincidence((f"damper_{tower[-2:]}", "upper_eye"), ("body", tower)) for tower in SHOCK_TOWERS
-]
+)
 
 # Vertical load paths from the road to the body. Each consecutive pair must be joined by a
 # mate or a coincidence; ``integration.check`` verifies this against the definitions above.
-LOAD_PATHS: list[tuple[str, ...]] = [
+LOAD_PATHS: tuple[tuple[str, ...], ...] = (
     (f"wheel_{c}", f"{'front' if c[0] == 'f' else 'rear'}_axle", f"damper_{c}", "body")
     for c in ("fl", "fr", "rl", "rr")
-]
+)

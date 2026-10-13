@@ -21,8 +21,9 @@ from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 
 from autevra.ai import lexicon
-from autevra.assembly import graph, vehicle
-from autevra.assembly.vehicle import Coincidence, ComponentDef
+from autevra.assembly import graph
+from autevra.assembly import model as vehicle
+from autevra.assembly.model import Coincidence, ComponentDef
 from autevra.cad import cache
 from autevra.core import derived, parameters, rules
 from autevra.core.derived import DerivedDef
@@ -55,6 +56,8 @@ class Plugin:
     compatible_interfaces: Sequence[tuple[str, str]] = ()
     clearances: Sequence[Clearance] = ()
     tests: Sequence[TestDefinition] = ()
+    integration_checks: Sequence[Callable] = ()  # values -> list of integration Checks
+    notes: Sequence[str] = ()  # stated limitations of what is checked
 
 
 LOADED: dict[str, Plugin] = {}
@@ -106,6 +109,8 @@ def register(plugin: Plugin) -> Plugin:
         vehicle.LOAD_PATHS.extend(plugin.load_paths)
         integration.COMPATIBLE.update(plugin.compatible_interfaces)
         integration.CLEARANCES.extend(plugin.clearances)
+        integration.DOMAIN_CHECKS.extend(plugin.integration_checks)
+        integration.NOT_CHECKED.extend(plugin.notes)
         for t in plugin.tests:
             testing.DEFINITIONS[t.id] = t
         graph.reindex()
@@ -119,6 +124,8 @@ def register(plugin: Plugin) -> Plugin:
 
 def _verify() -> None:
     values = parameters.default_values()
+    if not values:
+        return
     for c in vehicle.COMPONENTS:  # raises UndeclaredDependencyError on undeclared reads
         c.resolve_inputs(values)
         c.resolve_interfaces(values)
@@ -152,6 +159,10 @@ def unregister(name: str) -> None:
     vehicle.LOAD_PATHS[:] = [x for x in vehicle.LOAD_PATHS if x not in plugin.load_paths]
     integration.COMPATIBLE.difference_update(plugin.compatible_interfaces)
     integration.CLEARANCES[:] = [x for x in integration.CLEARANCES if x not in plugin.clearances]
+    integration.DOMAIN_CHECKS[:] = [
+        x for x in integration.DOMAIN_CHECKS if x not in plugin.integration_checks
+    ]
+    integration.NOT_CHECKED[:] = [x for x in integration.NOT_CHECKED if x not in plugin.notes]
     for t in plugin.tests:
         testing.DEFINITIONS.pop(t.id, None)
     graph.reindex()

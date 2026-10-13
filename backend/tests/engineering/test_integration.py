@@ -1,10 +1,11 @@
 import pytest
 
 from autevra.api import model_service
-from autevra.assembly import vehicle
-from autevra.assembly.vehicle import Coincidence
+from autevra.assembly import model as vehicle
+from autevra.assembly.model import Coincidence
 from autevra.cad.cache import GeometryCache
 from autevra.core.parameters import default_values
+from autevra.domains.automotive import integration as auto_ig
 from autevra.engineering import integration as ig
 from autevra.engineering.integration import Status
 
@@ -48,10 +49,10 @@ def test_broken_load_path_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_travel_warning_names_the_governing_parameter() -> None:
-    warnings = [c for c in ig.travel_checks(default_values()) if c.status is Status.WARNING]
+    warnings = [c for c in auto_ig.travel_checks(default_values()) if c.status is Status.WARNING]
     assert {c.id for c in warnings} == {"travel:front_bump", "travel:rear_bump"}
     assert all("arch_clearance" in c.parameters for c in warnings)
-    roomy = ig.travel_checks(default_values() | {"arch_clearance": 80})
+    roomy = auto_ig.travel_checks(default_values() | {"arch_clearance": 80})
     assert all(c.status is Status.PASS for c in roomy)
 
 

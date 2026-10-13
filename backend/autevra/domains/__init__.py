@@ -36,7 +36,7 @@ class DomainDef(BaseModel):
 
 def _automotive() -> DomainDef:
     from autevra import __version__
-    from autevra.assembly.vehicle import COMPONENTS
+    from autevra.assembly.model import COMPONENTS
     from autevra.engineering.testing import DEFINITIONS
 
     categories = sorted({c.category for c in COMPONENTS if c.builder})
@@ -78,6 +78,17 @@ _PLANNED: tuple[tuple[str, str, str, list[str]], ...] = (
     ("manufacturing", "Advanced manufacturing", "Manufacturing processes and planning.",
      ["manufacturability checks", "process plans"]),
 )  # fmt: skip
+
+
+BUILTIN = ("autevra.domains.automotive",)
+
+
+def load_builtin() -> None:
+    """Register the built-in domain modules (idempotent)."""
+    import importlib
+
+    for module in BUILTIN:
+        importlib.import_module(module)
 
 
 def registry() -> list[DomainDef]:

@@ -24,12 +24,12 @@ from autevra.core import derived, parameters
 from autevra.core.commands import Change, CommandError, Operation, SetParameters, Source
 from autevra.core.design import ApplyResult, CommandRejectedError, DesignState
 from autevra.core.rules import validate
+from autevra.domains.automotive import spec as vspec
 from autevra.engineering import diagnosis as dgn
 from autevra.engineering import integration, reqif
 from autevra.engineering import loop as eloop
 from autevra.engineering import optimize as opt
 from autevra.engineering import requirements as rqm
-from autevra.engineering import spec as vspec
 from autevra.engineering import testing as tst
 from autevra.engineering import trace as tracing
 from autevra.storage.database import Database
@@ -90,6 +90,11 @@ def _command_result(state: DesignState, changed: Iterable[str], entry) -> schema
         can_undo=state.can_undo,
         can_redo=state.can_redo,
     )
+
+
+def _load_spec(repo: SpecRepository, project_id: str) -> vspec.VehicleSpec:
+    raw = repo.load_json(project_id)
+    return vspec.VehicleSpec() if raw is None else vspec.VehicleSpec.model_validate_json(raw)
 
 
 def _entry_id(state: DesignState, cursor: int) -> str | None:
@@ -199,11 +204,11 @@ class Workspace:
             for record in runs.requirement_records(project_id):
                 runs.add_requirement(copy.id, record.model_copy(update={"id": uuid4().hex[:12]}))
             specs = SpecRepository(s)
-            specs.save(copy.id, specs.load(project_id))
+            specs.save_json(copy.id, _load_spec(specs, project_id).model_dump_json())
             return _state(copy, repo.load(copy.id))
 
     def system_graph(self, project_id: str) -> schemas.SystemGraph:
-        from autevra.assembly.vehicle import BY_ID, COINCIDENCES, COMPONENTS, LOAD_PATHS
+        from autevra.assembly.model import BY_ID, COINCIDENCES, COMPONENTS, LOAD_PATHS
 
         values = self.project(project_id).values
         used: dict[tuple[str, str], list[str]] = {}
@@ -1085,7 +1090,7 @@ class Workspace:
     def spec(self, project_id: str) -> schemas.SpecState:
         with self.db.session() as s:
             ProjectRepository(s).info(project_id)
-            return self._spec_state(SpecRepository(s).load(project_id))
+            return self._spec_state(_load_spec(SpecRepository(s), project_id))
 
     def spec_answer(
         self, project_id: str, question: str, value: str | float | None
@@ -1093,11 +1098,11 @@ class Workspace:
         with self.db.session() as s:
             ProjectRepository(s).info(project_id)
             repo = SpecRepository(s)
-            spec = repo.load(project_id)
+            spec = _load_spec(repo, project_id)
             error = vspec.answer(spec, question, value)
             if error:
                 raise CommandError(error)
-            repo.save(project_id, spec)
+            repo.save_json(project_id, spec.model_dump_json())
             return self._spec_state(spec)
 
     def spec_text(self, project_id: str, text: str) -> tuple[schemas.SpecState, list[str]]:
@@ -1105,24 +1110,24 @@ class Workspace:
         with self.db.session() as s:
             ProjectRepository(s).info(project_id)
             repo = SpecRepository(s)
-            spec = repo.load(project_id)
+            spec = _load_spec(repo, project_id)
             accepted = []
             for key, value in found.items():
                 if vspec.answer(spec, key, value) is None:
                     accepted.append(key)
-            repo.save(project_id, spec)
+            repo.save_json(project_id, spec.model_dump_json())
             return self._spec_state(spec), accepted
 
     def spec_reset(self, project_id: str) -> schemas.SpecState:
         with self.db.session() as s:
             ProjectRepository(s).info(project_id)
-            SpecRepository(s).save(project_id, vspec.VehicleSpec())
+            SpecRepository(s).save_json(project_id, vspec.VehicleSpec().model_dump_json())
             return self._spec_state(vspec.VehicleSpec())
 
     def spec_design(self, project_id: str) -> schemas.SpecDesign:
         state = self.project(project_id)
         with self.db.session() as s:
-            spec = SpecRepository(s).load(project_id)
+            spec = _load_spec(SpecRepository(s), project_id)
         if not spec.get("vehicle_class"):
             raise CommandError("answer at least the vehicle class first")
         generated = vspec.generate(spec)
@@ -1176,7 +1181,7 @@ class Workspace:
             model = model_service.build_model(values, self.cache)
             checks = (
                 integration.structural_checks(values)
-                + integration.travel_checks(values)
+                + integration.domain_checks(values)
                 + integration.clearance_checks(model, self._clearances)
             )
         counts: dict[str, int] = {}

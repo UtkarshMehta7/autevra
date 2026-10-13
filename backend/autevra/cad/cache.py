@@ -11,15 +11,10 @@ from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
-from autevra.cad import components, kernel
+from autevra.cad import kernel
 
-BUILDERS: dict[str, Callable[[Mapping[str, float]], kernel.Shape]] = {  # extensible
-    "body": components.build_body,
-    "frame": components.build_frame,
-    "axle": components.build_axle,
-    "wheel": components.build_wheel,
-    "damper": components.build_damper,
-}
+# Builder name -> function(inputs) -> shape. Filled by domain modules and plugins.
+BUILDERS: dict[str, Callable[[Mapping[str, float]], kernel.Shape]] = {}
 
 
 def geometry_key(builder: str, inputs: Mapping[str, float]) -> str:

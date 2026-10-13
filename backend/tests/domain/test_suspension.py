@@ -4,8 +4,8 @@ import math
 
 import pytest
 
-from autevra.core import derived as d
 from autevra.core.parameters import default_values
+from autevra.domains.automotive import derived as d
 
 
 def test_sprung_corner_mass_splits_axle_load() -> None:
