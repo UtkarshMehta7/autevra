@@ -22,11 +22,11 @@ Legend: `[x]` done, `[ ]` to do.
 
 Goal: change a **real** CAD parameter of a simple vehicle through natural language.
 
-- [ ] Mac smoke test: `uv` + Python 3.12 + `cadquery==2.8.0` imports and exports a STEP file
-- [ ] Backend skeleton: FastAPI app, config, health endpoint, pytest, ruff
-- [ ] Domain: units, parameter registry, derived values, cross-parameter rules
-- [ ] Command system: typed commands, validation, history, undo/redo
-- [ ] CAD: kernel adapter; builders for body (with wheel arches and cabin), ladder frame, axles, wheels (tyre + rim)
+- [x] Mac smoke test: `uv` + Python 3.12 + `cadquery==2.8.0` imports and exports a STEP file
+- [x] Backend skeleton: FastAPI app, config, health endpoint, pytest, ruff
+- [x] Domain: units, parameter registry, derived values, cross-parameter rules
+- [x] Command system: typed commands, validation, history, undo/redo
+- [x] CAD: kernel adapter; builders for body (with wheel arches and cabin), ladder frame, axles, wheels (tyre + rim)
 - [ ] Assembly: interfaces + mates, dependency graph, rebuild only affected components (cache by parameter hash)
 - [ ] Deterministic intent parser (automotive lexicon + units) for set/increase/decrease/scale, undo/redo, queries, clarifications
 - [ ] API: projects, parameters, model mesh, commands, instructions, undo/redo, history, STEP export
@@ -110,6 +110,26 @@ Goal: change a **real** CAD parameter of a simple vehicle through natural langua
 ---
 
 ## Progress log
+
+### 2026-10-13: Phase 1 steps 1–4 (backend, domain, commands, CAD builders)
+
+**Done**
+- Mac smoke test passed natively on arm64: `uv` 0.12.19, Python 3.12.14, `cadquery 2.8.0` with `cadquery-ocp 7.9.3.1.1`; a filleted box exports to STEP and re-imports with the same volume.
+- Backend skeleton (`backend/`): FastAPI app factory, settings, `/api/health`, pytest, ruff.
+- Domain: units (mm, cm, m, in, %, deg), 21-parameter registry from the architecture draft, derived values (overall length, tyre geometry, arch heights), 11 cross-parameter rules.
+- Command system: `set` / `increase` / `decrease` / `scale`, unit conversion, relative `%`, atomic validation, history with exact undo and redo, replay check, JSON round trip.
+- CAD: kernel adapter (`cad/kernel.py`, the only module that imports CadQuery) and builders for the body (lower body, wheel wells, lofted cabin), hollow ladder frame, beam axles and wheels (filleted tyre, rim barrel, spoked disc). Each builds in under 0.1 s.
+- 71 tests pass; ruff clean.
+
+**Remaining in Phase 1**
+- Interfaces, mates, dependency graph and geometry cache (wheels placed by mates).
+- Deterministic intent parser.
+- API, SQLite persistence (SQLAlchemy + Alembic), STEP export endpoint.
+- Frontend workspace; Docker Compose, Makefile, CI; acceptance test.
+
+**Notes**
+- Two rules (`rail_wall_fits_section`, `arches_do_not_overlap`) cannot fire within today's registry bounds; they guard against wider bounds later and are tested directly.
+- Starlette 1.8 deprecates `httpx` for its test client in favour of `httpx2`; the warning is filtered for now and the switch is pending approval.
 
 ### 2026-10-13: Phase 0 complete
 

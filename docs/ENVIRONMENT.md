@@ -106,6 +106,23 @@ import), and a filleted box builds in milliseconds.
 | `echarts` | 6.1.0 | report charts |
 | `occt-import-js` | 0.0.23 | view STEP files directly in the browser (WASM) |
 
+## 3a. Verified on the Mac (2026-10-13)
+
+| Item | Result |
+|---|---|
+| Machine | Apple M2, 8 GB, macOS 27.0 (arm64), ~28 GB free disk |
+| uv / Python | uv 0.12.19; Python 3.12.14 (Homebrew) used by the venv |
+| Node.js / npm | 22.23.2 / 10.9.8 |
+| Docker, Ollama | **not installed**; Docker is only needed for packaging checks, Ollama for Phase 2 |
+| `cadquery 2.8.0` + `cadquery-ocp 7.9.3.1.1` | ✅ native arm64 wheels; build, fillet, STEP export and re-import pass |
+| Backend venv size | 1.3 GB (`backend/.venv`) |
+| First test run | ~2.5 min: macOS scans the newly installed native libraries on first load; later runs take ~4 s |
+| FastAPI 0.143, Pydantic 2.14, SQLAlchemy 2.1, Alembic 1.20, Uvicorn 0.54, pytest 9.1, ruff 0.17 | ✅ pure Python or arm64 wheels |
+| `httpx 0.28` (test client) | ✅; Starlette 1.8 prefers `httpx2` (pure-Python wheel) and warns about `httpx` |
+
+Gotcha: if `import autevra` fails in tests after the first `uv sync`, run
+`uv sync --reinstall-package autevra` to rewrite the editable-install `.pth` file.
+
 ## 4. Apple Silicon compatibility risks
 
 | # | Risk | Impact | Mitigation |
