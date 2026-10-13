@@ -79,3 +79,8 @@ legend { color: var(--muted); padding: 0; margin-bottom: 4px; }
 .hint { color: var(--muted); }
 .ai form { display: flex; gap: 6px; }
 .ai form input { flex: 1; }
+.reply.proposal { border-left-color: #a77be0; }
+.reply.out_of_scope { border-left-color: var(--muted); }
+.badge { font-size: 10px; border: 1px solid #a77be0; color: #c9a8f5; border-radius: 3px; padding: 0 4px; margin-right: 6px; }
+.decision { margin-top: 6px; display: flex; gap: 6px; color: var(--muted); }
+.decision .confirm { border-color: var(--good); }

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
 import type {
-  CommandResult, HistoryEntry, ModelPayload, ParameterDef, ProjectState, ProjectSummary,
+  CommandResult, HistoryEntry, LLMStatus, ModelPayload, ParameterDef, ProjectState,
+  ProjectSummary,
 } from "./api/types";
 import { AiPanel, type ChatTurn } from "./panels/AiPanel";
 import { ComponentTree } from "./panels/ComponentTree";
@@ -44,6 +45,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Connecting…");
+  const [llm, setLlm] = useState<LLMStatus | null>(null);
   const highlightTimer = useRef<number | undefined>(undefined);
   // Actions run strictly one after another, in the order the user issued them.
   const queue = useRef<Promise<void>>(Promise.resolve());
@@ -67,6 +69,13 @@ export function App() {
     setSelected(null);
     await refresh(id);
   }, [refresh]);
+
+  useEffect(() => {
+    const poll = () => { api.llmStatus().then(setLlm).catch(() => setLlm(null)); };
+    poll();
+    const timer = window.setInterval(poll, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -134,6 +143,29 @@ export function App() {
       }
     });
 
+  const decide = (turn: number, confirm: boolean) => {
+    const reply = turns[turn]?.reply;
+    if (!project || !reply || reply.kind !== "proposal" || !reply.proposal_id) return;
+    const proposal = reply.proposal_id;
+    const mark = (decision: ChatTurn["decision"]) =>
+      setTurns((all) => all.map((t, i) => (i === turn ? { ...t, decision } : t)));
+    run(async () => {
+      try {
+        if (!confirm) {
+          await api.reject(project.id, proposal);
+          mark("rejected");
+          return null;
+        }
+        const result = await api.confirm(project.id, proposal);
+        mark("confirmed");
+        return result;
+      } catch (e) {
+        mark("failed");
+        throw e;
+      }
+    });
+  };
+
   const newProject = async () => {
     const name = `Vehicle ${projects.length + 1}`;
     const created = await api.createProject(name);
@@ -180,7 +212,7 @@ export function App() {
         <div className="status">{busy ? "Rebuilding…" : status}</div>
       </main>
       <aside className="right">
-        <AiPanel turns={turns} busy={busy} onSend={send} />
+        <AiPanel turns={turns} busy={busy} llm={llm} onSend={send} onDecide={decide} />
         {project && (
           <PropertyEditor parameters={parameters} values={project.values} derived={project.derived}
             error={error} onSet={setParameter} />
