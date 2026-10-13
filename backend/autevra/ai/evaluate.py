@@ -15,9 +15,9 @@ from pathlib import Path
 from autevra.ai.interpreter import interpret
 from autevra.ai.llm.clients import LLMClient, make_client
 from autevra.ai.rule_parser import Interpretation, Kind
-from autevra.domain.commands import CommandError, resolve
-from autevra.domain.parameters import default_values
-from autevra.domain.rules import validate
+from autevra.core.commands import CommandError, resolve
+from autevra.core.parameters import default_values
+from autevra.core.rules import validate
 
 DATASET = Path(__file__).resolve().parents[3] / "eval" / "instructions.jsonl"
 TOLERANCE = 0.5

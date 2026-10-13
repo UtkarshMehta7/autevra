@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from autevra.domain.derived import DERIVED
-from autevra.domain.parameters import GROUP_ALIASES, REGISTRY
+from autevra.core.derived import DERIVED
+from autevra.core.parameters import GROUP_ALIASES, REGISTRY
 
 
 class TargetKind(StrEnum):

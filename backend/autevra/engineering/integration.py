@@ -21,7 +21,7 @@ import numpy as np
 from autevra.assembly import graph
 from autevra.assembly.vehicle import BY_ID, COINCIDENCES, COMPONENTS, LOAD_PATHS
 from autevra.cad import kernel
-from autevra.domain import derived as d
+from autevra.core import derived as d
 
 Values = Mapping[str, float]
 

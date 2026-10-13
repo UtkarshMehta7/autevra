@@ -5,10 +5,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from autevra.domain.commands import SetParameters
-from autevra.domain.design import HistoryEntry
-from autevra.domain.parameters import ParameterDef
-from autevra.domain.rules import Violation
+from autevra.core.commands import SetParameters
+from autevra.core.design import HistoryEntry
+from autevra.core.parameters import ParameterDef
+from autevra.core.rules import Violation
 from autevra.engineering.diagnosis import Diagnosis
 from autevra.engineering.loop import LoopResult
 from autevra.engineering.optimize import StudyResult

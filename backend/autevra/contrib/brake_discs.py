@@ -13,11 +13,11 @@ from autevra.assembly import transforms as tf
 from autevra.assembly.vehicle import ComponentDef, Mate
 from autevra.cad import kernel as k
 from autevra.cad.components import RIM_BARREL
-from autevra.domain import derived as d
-from autevra.domain.derived import DerivedDef
-from autevra.domain.parameters import ParameterDef
-from autevra.domain.rules import Rule
-from autevra.domain.units import Unit
+from autevra.core import derived as d
+from autevra.core.derived import DerivedDef
+from autevra.core.parameters import ParameterDef
+from autevra.core.rules import Rule
+from autevra.core.units import Unit
 from autevra.engineering.integration import Clearance
 from autevra.engineering.testing import Credibility, Scenario, TestDefinition
 from autevra.extensions import Plugin

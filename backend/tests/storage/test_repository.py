@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from autevra.domain.commands import Change, Operation, SetParameters
-from autevra.domain.design import DesignState
+from autevra.core.commands import Change, Operation, SetParameters
+from autevra.core.design import DesignState
 from autevra.storage.database import Database, migrate
 from autevra.storage.repository import ProjectNotFoundError, ProjectRepository
 
@@ -80,7 +80,7 @@ def test_delete_cascades(db: Database) -> None:
 def test_projects_saved_before_new_parameters_load_with_defaults(tmp_path) -> None:  # type: ignore[no-untyped-def]
     import json
 
-    from autevra.domain.parameters import default_values
+    from autevra.core.parameters import default_values
     from autevra.storage.database import Database, migrate
     from autevra.storage.models import ProjectRow
     from autevra.storage.repository import ProjectRepository

@@ -23,9 +23,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from autevra.domain import derived as d
-from autevra.domain.parameters import REGISTRY, default_values
-from autevra.domain.rules import Violation, validate
+from autevra.core import derived as d
+from autevra.core.parameters import REGISTRY, default_values
+from autevra.core.rules import Violation, validate
 
 G = d.G
 HP_KW = 0.745699872  # mechanical horsepower

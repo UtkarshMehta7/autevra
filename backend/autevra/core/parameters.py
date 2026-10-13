@@ -8,7 +8,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from autevra.domain.units import Unit
+from autevra.core.units import Unit
 
 
 class Group(StrEnum):

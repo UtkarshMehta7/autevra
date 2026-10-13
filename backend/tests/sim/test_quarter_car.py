@@ -5,8 +5,8 @@ import math
 import numpy as np
 import pytest
 
-from autevra.domain import derived as d
-from autevra.domain.parameters import default_values
+from autevra.core import derived as d
+from autevra.core.parameters import default_values
 from autevra.sim import quarter_car as q
 
 P = q.Params(

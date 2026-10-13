@@ -23,7 +23,7 @@ from autevra.ai import lexicon as lx
 from autevra.ai.llm import prompt, schema
 from autevra.ai.llm.clients import LLMClient, LLMResponseError, LLMUnavailableError
 from autevra.ai.rule_parser import Interpretation, Kind, Reason
-from autevra.domain.commands import (
+from autevra.core.commands import (
     Change,
     CommandError,
     Operation,
@@ -31,9 +31,9 @@ from autevra.domain.commands import (
     Source,
     resolve,
 )
-from autevra.domain.derived import DERIVED
-from autevra.domain.parameters import REGISTRY
-from autevra.domain.units import parse_unit
+from autevra.core.derived import DERIVED
+from autevra.core.parameters import REGISTRY
+from autevra.core.units import parse_unit
 
 OUT_OF_SCOPE_MESSAGE = (
     "Autevra handles automotive design, engineering and testing. I can change the vehicle's "

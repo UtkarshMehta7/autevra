@@ -24,9 +24,9 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, model_validator
 
-from autevra.domain import derived as d
-from autevra.domain.parameters import REGISTRY
-from autevra.domain.units import UnitError, convert, parse_unit
+from autevra.core import derived as d
+from autevra.core.parameters import REGISTRY
+from autevra.core.units import UnitError, convert, parse_unit
 from autevra.engineering import testing as tst
 
 Values = Mapping[str, float]

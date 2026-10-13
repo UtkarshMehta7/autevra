@@ -1,7 +1,7 @@
 import pytest
 
-from autevra.domain.parameters import default_values
-from autevra.domain.rules import RULES, check_rules, validate
+from autevra.core.parameters import default_values
+from autevra.core.rules import RULES, check_rules, validate
 
 
 def _violated(changes: dict[str, float]) -> set[str]:

@@ -15,8 +15,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from autevra.domain.parameters import REGISTRY
-from autevra.domain.units import Dimension, Unit, UnitError, convert, dimension_of
+from autevra.core.parameters import REGISTRY
+from autevra.core.units import Dimension, Unit, UnitError, convert, dimension_of
 
 
 class Operation(StrEnum):

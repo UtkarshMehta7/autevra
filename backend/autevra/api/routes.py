@@ -8,9 +8,9 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from autevra import domains
 from autevra.api import schemas
 from autevra.api.service import ProposalNotFoundError, Workspace, _derived
-from autevra.domain import parameters
-from autevra.domain.commands import CommandError
-from autevra.domain.design import CommandRejectedError
+from autevra.core import parameters
+from autevra.core.commands import CommandError
+from autevra.core.design import CommandRejectedError
 from autevra.domains import DomainDef
 from autevra.engineering import loop as eloop
 from autevra.engineering import optimize as opt

@@ -10,9 +10,9 @@ from collections.abc import Callable
 
 from pydantic import BaseModel, ConfigDict
 
-from autevra.domain import derived as d
-from autevra.domain.derived import Values
-from autevra.domain.parameters import REGISTRY
+from autevra.core import derived as d
+from autevra.core.derived import Values
+from autevra.core.parameters import REGISTRY
 
 
 class Violation(BaseModel):

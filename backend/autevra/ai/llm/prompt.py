@@ -3,8 +3,8 @@
 import json
 from collections.abc import Mapping
 
-from autevra.domain import derived
-from autevra.domain.parameters import REGISTRY
+from autevra.core import derived
+from autevra.core.parameters import REGISTRY
 
 _RULES = """You convert automotive design instructions into JSON for the Autevra CAD system.
 Output only JSON matching the schema. Never invent parameter ids; use only the ids listed.

@@ -24,10 +24,10 @@ from autevra.ai import lexicon
 from autevra.assembly import graph, vehicle
 from autevra.assembly.vehicle import Coincidence, ComponentDef
 from autevra.cad import cache
-from autevra.domain import derived, parameters, rules
-from autevra.domain.derived import DerivedDef
-from autevra.domain.parameters import ParameterDef
-from autevra.domain.rules import Rule
+from autevra.core import derived, parameters, rules
+from autevra.core.derived import DerivedDef
+from autevra.core.parameters import ParameterDef
+from autevra.core.rules import Rule
 from autevra.engineering import integration, testing
 from autevra.engineering.integration import Clearance
 from autevra.engineering.testing import TestDefinition

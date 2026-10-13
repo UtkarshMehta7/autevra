@@ -22,8 +22,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from autevra.domain import derived as d
-from autevra.domain.parameters import REGISTRY
+from autevra.core import derived as d
+from autevra.core.parameters import REGISTRY
 from autevra.sim import longitudinal as lg
 from autevra.sim import quarter_car as qc
 

@@ -1,7 +1,7 @@
 import pytest
 
-from autevra.domain.commands import Change, Operation, SetParameters
-from autevra.domain.design import CommandRejectedError, DesignState
+from autevra.core.commands import Change, Operation, SetParameters
+from autevra.core.design import CommandRejectedError, DesignState
 
 
 def _cmd(parameter: str, op: Operation, value: float) -> SetParameters:

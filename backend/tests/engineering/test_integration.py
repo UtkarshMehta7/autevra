@@ -4,7 +4,7 @@ from autevra.api import model_service
 from autevra.assembly import vehicle
 from autevra.assembly.vehicle import Coincidence
 from autevra.cad.cache import GeometryCache
-from autevra.domain.parameters import default_values
+from autevra.core.parameters import default_values
 from autevra.engineering import integration as ig
 from autevra.engineering.integration import Status
 

@@ -20,10 +20,10 @@ from autevra.ai.rule_parser import Kind, TestRequest
 from autevra.api import model_service, schemas
 from autevra.assembly import graph
 from autevra.cad.cache import GeometryCache
-from autevra.domain import derived, parameters
-from autevra.domain.commands import Change, CommandError, Operation, SetParameters, Source
-from autevra.domain.design import ApplyResult, CommandRejectedError, DesignState
-from autevra.domain.rules import validate
+from autevra.core import derived, parameters
+from autevra.core.commands import Change, CommandError, Operation, SetParameters, Source
+from autevra.core.design import ApplyResult, CommandRejectedError, DesignState
+from autevra.core.rules import validate
 from autevra.engineering import diagnosis as dgn
 from autevra.engineering import integration, reqif
 from autevra.engineering import loop as eloop
@@ -264,7 +264,7 @@ class Workspace:
         return schemas.SystemGraph(nodes=nodes, edges=edges)
 
     def rule_status(self, project_id: str) -> list[schemas.RuleStatus]:
-        from autevra.domain.rules import _RULES
+        from autevra.core.rules import _RULES
 
         values = self.project(project_id).values
         return [

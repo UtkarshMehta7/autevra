@@ -1,8 +1,8 @@
 """The evaluation set is well-formed, and the parser passes its whole 'rules' tier."""
 
 from autevra.ai import evaluate
-from autevra.domain.derived import DERIVED
-from autevra.domain.parameters import REGISTRY
+from autevra.core.derived import DERIVED
+from autevra.core.parameters import REGISTRY
 
 
 def test_dataset_is_well_formed() -> None:

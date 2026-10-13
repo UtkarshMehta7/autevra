@@ -15,7 +15,7 @@ import math
 from collections.abc import Mapping
 
 from autevra.cad import kernel as k
-from autevra.domain.derived import AXLE_RADIUS, SPRING_ACTIVE_COILS, SPRING_SEAT_OFFSET
+from autevra.core.derived import AXLE_RADIUS, SPRING_ACTIVE_COILS, SPRING_SEAT_OFFSET
 
 Inputs = Mapping[str, float]
 HUB_INSET = 60.0  # axle ends this far inboard of the wheel centre plane

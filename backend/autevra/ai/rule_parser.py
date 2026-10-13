@@ -13,10 +13,10 @@ from enum import StrEnum
 
 from autevra.ai import lexicon as lx
 from autevra.ai.lexicon import Target, TargetKind
-from autevra.domain.commands import Change, Operation, SetParameters, Source
-from autevra.domain.derived import DERIVED
-from autevra.domain.parameters import REGISTRY
-from autevra.domain.units import Unit, parse_unit
+from autevra.core.commands import Change, Operation, SetParameters, Source
+from autevra.core.derived import DERIVED
+from autevra.core.parameters import REGISTRY
+from autevra.core.units import Unit, parse_unit
 
 
 class Kind(StrEnum):

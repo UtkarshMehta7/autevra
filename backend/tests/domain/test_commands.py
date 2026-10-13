@@ -1,8 +1,8 @@
 import pytest
 
-from autevra.domain.commands import Change, CommandError, Operation, SetParameters, resolve
-from autevra.domain.parameters import default_values
-from autevra.domain.units import Unit
+from autevra.core.commands import Change, CommandError, Operation, SetParameters, resolve
+from autevra.core.parameters import default_values
+from autevra.core.units import Unit
 
 
 def _resolve(*changes: Change) -> dict[str, float]:

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 from autevra.assembly import transforms as tf
 from autevra.assembly.transforms import Matrix
-from autevra.domain import derived as d
+from autevra.core import derived as d
 
 Values = Mapping[str, float]
 

@@ -4,8 +4,8 @@ import pytest
 
 from autevra.cad import components as c
 from autevra.cad import kernel as k
-from autevra.domain import derived as d
-from autevra.domain.parameters import default_values
+from autevra.core import derived as d
+from autevra.core.parameters import default_values
 
 pytestmark = pytest.mark.cad
 
@@ -125,8 +125,8 @@ def test_body_builds_for_random_valid_designs() -> None:
     import random
 
     from autevra.assembly.vehicle import BY_ID
-    from autevra.domain.parameters import REGISTRY
-    from autevra.domain.rules import validate
+    from autevra.core.parameters import REGISTRY
+    from autevra.core.rules import validate
 
     rng, built = random.Random(7), 0
     geometry = BY_ID["body"].geometry

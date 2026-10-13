@@ -2,8 +2,8 @@ import pytest
 
 from autevra.ai import lexicon
 from autevra.ai.rule_parser import Kind, Reason, normalise, parse
-from autevra.domain.commands import Operation, Source
-from autevra.domain.units import Unit
+from autevra.core.commands import Operation, Source
+from autevra.core.units import Unit
 
 INC, DEC, SET, SCALE = Operation.INCREASE, Operation.DECREASE, Operation.SET, Operation.SCALE
 
@@ -213,8 +213,8 @@ def test_change_then_test() -> None:
     ],
 )
 def test_engineering_units_convert(text: str, values: dict) -> None:
-    from autevra.domain.commands import resolve
-    from autevra.domain.parameters import default_values
+    from autevra.core.commands import resolve
+    from autevra.core.parameters import default_values
 
     r = parse(text)
     assert r.command is not None

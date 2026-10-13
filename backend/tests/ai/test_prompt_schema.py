@@ -1,7 +1,7 @@
 from autevra.ai.interpreter import _LLMOutput
 from autevra.ai.llm import prompt, schema
-from autevra.domain.derived import DERIVED
-from autevra.domain.parameters import REGISTRY, default_values
+from autevra.core.derived import DERIVED
+from autevra.core.parameters import REGISTRY, default_values
 
 
 def test_schema_enumerates_registry_ids_only() -> None:

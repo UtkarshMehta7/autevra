@@ -1,7 +1,7 @@
 import pytest
 
-from autevra.domain.parameters import default_values
-from autevra.domain.rules import validate
+from autevra.core.parameters import default_values
+from autevra.core.rules import validate
 from autevra.engineering import loop as eloop
 from autevra.engineering import optimize as opt
 from autevra.engineering import testing as tst

@@ -17,10 +17,10 @@ from collections.abc import Iterable, Mapping
 
 from pydantic import BaseModel
 
-from autevra.domain import derived as d
-from autevra.domain.commands import Change, Operation, SetParameters, Source
-from autevra.domain.parameters import REGISTRY
-from autevra.domain.rules import validate
+from autevra.core import derived as d
+from autevra.core.commands import Change, Operation, SetParameters, Source
+from autevra.core.parameters import REGISTRY
+from autevra.core.rules import validate
 from autevra.engineering import testing as tst
 
 Values = Mapping[str, float]
