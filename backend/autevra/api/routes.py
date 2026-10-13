@@ -5,11 +5,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
+from autevra import domains
 from autevra.api import schemas
 from autevra.api.service import ProposalNotFoundError, Workspace, _derived
 from autevra.domain import parameters
 from autevra.domain.commands import CommandError
 from autevra.domain.design import CommandRejectedError
+from autevra.domains import DomainDef
 from autevra.engineering import loop as eloop
 from autevra.engineering import optimize as opt
 from autevra.engineering import testing as tst
@@ -42,7 +44,46 @@ def list_projects(ws: WorkspaceDep) -> list[schemas.ProjectSummary]:
 
 @router.post("/projects", response_model=schemas.ProjectState, status_code=201)
 def create_project(body: schemas.ProjectCreate, ws: WorkspaceDep) -> schemas.ProjectState:
-    return ws.create_project(body.name)
+    try:
+        return ws.create_project(body.name, body.domain)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+@router.post(
+    "/projects/{project_id}/duplicate", response_model=schemas.ProjectState, status_code=201
+)
+def duplicate_project(
+    project_id: str, ws: WorkspaceDep, body: schemas.ProjectRename | None = None
+) -> schemas.ProjectState:
+    return ws.duplicate_project(project_id, body.name if body else None)
+
+
+@router.get("/projects/{project_id}/system", response_model=schemas.SystemGraph)
+def system_graph(project_id: str, ws: WorkspaceDep) -> schemas.SystemGraph:
+    """Components, interfaces and typed relationships of the assembly."""
+    return ws.system_graph(project_id)
+
+
+@router.get("/projects/{project_id}/rules", response_model=list[schemas.RuleStatus])
+def rule_status(project_id: str, ws: WorkspaceDep) -> list[schemas.RuleStatus]:
+    return ws.rule_status(project_id)
+
+
+@router.get("/runs", response_model=list[schemas.RunIndexItem])
+def all_runs(ws: WorkspaceDep) -> list[schemas.RunIndexItem]:
+    """Recent runs across all projects."""
+    return ws.all_runs()
+
+
+@router.get("/domains", response_model=list[DomainDef])
+def list_domains() -> list[DomainDef]:
+    return domains.registry()
+
+
+@router.post("/contact", response_model=schemas.ContactOut, status_code=201)
+def contact(body: schemas.ContactIn, ws: WorkspaceDep) -> schemas.ContactOut:
+    return ws.contact(body)
 
 
 @router.get("/projects/{project_id}", response_model=schemas.ProjectState)

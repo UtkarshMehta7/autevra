@@ -1,24 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError } from "./api/client";
+import { Link, Navigate, useNavigate, useParams } from "react-router";
+import { api, ApiError } from "../api/client";
 import type {
   Command, CommandResult, Comparison, Diagnosis, ComponentTestStatus, HistoryEntry, IntegrationReport, LLMStatus,
   LoopResult, ModelPayload, RunRecord as RunRecordType, ParameterDef, ProjectState, ProjectSummary, Requirement, RequirementRow,
   RunSummary, SpecDesign, SpecState, StudyResult,
   TestDefinition, Variable,
-} from "./api/types";
-import { AiPanel, type ChatTurn } from "./panels/AiPanel";
-import { ComponentTree } from "./panels/ComponentTree";
-import { HistoryPanel } from "./panels/HistoryPanel";
-import { IntegrationPanel } from "./panels/IntegrationPanel";
-import { PropertyEditor } from "./panels/PropertyEditor";
-import { RequirementsPanel } from "./panels/RequirementsPanel";
-import { SpecPanel } from "./panels/SpecPanel";
-import { StudiesPanel } from "./panels/StudiesPanel";
-import { TestBench } from "./panels/TestBench";
-import type { Animation } from "./viewport/animation";
-import { geometryCache, Viewport } from "./viewport/Viewport";
+} from "../api/types";
+import { AiPanel, type ChatTurn } from "../panels/AiPanel";
+import { ComponentTree } from "../panels/ComponentTree";
+import { HistoryPanel } from "../panels/HistoryPanel";
+import { IntegrationPanel } from "../panels/IntegrationPanel";
+import { PropertyEditor } from "../panels/PropertyEditor";
+import { RequirementsPanel } from "../panels/RequirementsPanel";
+import { SpecPanel } from "../panels/SpecPanel";
+import { StudiesPanel } from "../panels/StudiesPanel";
+import { TestBench } from "../panels/TestBench";
+import type { Animation } from "../viewport/animation";
+import { geometryCache, Viewport } from "../viewport/Viewport";
+import { AiEngineeringPanel } from "./AiEngineeringPanel";
+import { DigitalPanel } from "./DigitalPanel";
+import { ManufacturingPanel } from "./ManufacturingPanel";
+import { SystemsPanel } from "./SystemsPanel";
+import { WORKSPACES, type WorkspaceId } from "./workspaces";
 
-const LAST_PROJECT = "autevra.lastProject";
+import { remember } from "./lastProject";
 
 // Startup runs once per page load (React StrictMode runs effects twice in development).
 let startup: Promise<{
@@ -28,21 +34,24 @@ function loadStartup() {
   startup ??= (async () => {
     const [catalogue, list, tests] = await Promise.all([
       api.catalogue(), api.listProjects(), api.tests()]);
-    const projects = list.length > 0 ? list : [await api.createProject("My first vehicle")];
-    return { parameters: catalogue.parameters, projects, tests };
+    return { parameters: catalogue.parameters, projects: list, tests };
   })();
   startup.catch(() => (startup = null));
   return startup;
 }
 
-function remember(id: string) {
-  try { localStorage.setItem(LAST_PROJECT, id); } catch { /* storage unavailable */ }
-}
-function recall(): string | null {
-  try { return localStorage.getItem(LAST_PROJECT); } catch { return null; }
+/** The engineering studio: one project, one shared model state, routed workspaces. */
+export function Studio() {
+  const { projectId = "", workspace = "design" } = useParams();
+  const navigate = useNavigate();
+  const known = WORKSPACES.find((w) => w.id === workspace);
+  if (!known) return <Navigate to={`/studio/${projectId}/design`} replace />;
+  return <StudioView projectId={projectId} workspace={known.id} navigate={navigate} />;
 }
 
-export function App() {
+function StudioView({ projectId, workspace, navigate }: {
+  projectId: string; workspace: WorkspaceId; navigate: ReturnType<typeof useNavigate>;
+}) {
   const [parameters, setParameters] = useState<ParameterDef[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [project, setProject] = useState<ProjectState | null>(null);
@@ -62,8 +71,12 @@ export function App() {
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<ComponentTestStatus[]>([]);
-  const [dock, setDock] = useState<
-    "spec" | "bench" | "integration" | "optimize" | "requirements" | null>("bench");
+  const [collapsed, setCollapsed] = useState(false);
+  const [missing, setMissing] = useState(false);
+  const go = useCallback((ws: WorkspaceId) => {
+    setCollapsed(false);
+    navigate(`/studio/${projectId}/${ws}`);
+  }, [navigate, projectId]);
   const [specState, setSpecState] = useState<SpecState | null>(null);
   const [specDesign, setSpecDesign] = useState<SpecDesign | null>(null);
   const [requirements, setRequirements] = useState<RequirementRow[]>([]);
@@ -123,13 +136,14 @@ export function App() {
         setParameters(defs);
         setTests(catalogue);
         setProjects(all);
-        const last = recall();
-        await open(all.find((p) => p.id === last)?.id ?? all[0].id);
+        setMissing(false);
+        await open(projectId);
       } catch (e) {
-        setStatus(`Backend unreachable: ${(e as Error).message}. Start it with "make dev".`);
+        if ((e as ApiError).status === 404) setMissing(true);
+        else setStatus(`Backend unreachable: ${(e as Error).message}. Start it with "make dev".`);
       }
     })();
-  }, [open]);
+  }, [open, projectId]);
 
   const flash = (result: CommandResult | null) => {
     if (!result) return;
@@ -185,14 +199,14 @@ export function App() {
       try {
         const reply = await api.instruct(project!.id, text);
         setTurns((t) => [...t, { text, reply }]);
-        if (reply.studies?.length || reply.loops?.length) setDock("optimize");
-        if (reply.kind === "requirement" || reply.kind === "verification") setDock("requirements");
-        if (reply.kind === "spec") { setSpecDesign(null); setDock("spec"); }
+        if (reply.studies?.length || reply.loops?.length) go("optimization");
+        if (reply.kind === "requirement" || reply.kind === "verification") go("requirements");
+        if (reply.kind === "spec") { setSpecDesign(null); go("design"); }
         if (reply.runs?.length) {
           setComparisons(reply.comparisons ?? []);
           setSelectedRun(reply.runs[0].id);
           setDiagnosis(reply.diagnosis ?? null);
-          setDock("bench");
+          go("simulation");
         }
         return reply.result;
       } catch (e) {
@@ -279,8 +293,8 @@ export function App() {
   }, [project]);
 
   useEffect(() => {
-    if (dock === "integration" && !integration && !busy) checkIntegration();
-  }, [dock, integration, busy, checkIntegration]);
+    if (workspace === "assembly" && !integration && !busy) checkIntegration();
+  }, [workspace, integration, busy, checkIntegration]);
 
   const statuses = Object.fromEntries(testStatus.map((s) => [s.component, s.status]));
   const focusTarget = selected?.match(/_(f|r)[lr]$|^(front|rear)_axle$/)
@@ -304,7 +318,8 @@ export function App() {
     const name = `Vehicle ${projects.length + 1}`;
     const created = await api.createProject(name);
     setProjects(await api.listProjects());
-    await open(created.id);
+    startup = null;
+    navigate(`/studio/${created.id}/${workspace}`);
   };
 
   useEffect(() => {
@@ -318,11 +333,22 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  if (missing) {
+    return (
+      <div className="notice-page">
+        <h1>Project not found</h1>
+        <p>The project <code>{projectId}</code> does not exist (it may have been deleted).</p>
+        <p><Link className="button primary" to="/app/projects">Open the project list</Link></p>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header>
-        <strong className="brand">Autevra</strong>
-        <select value={project?.id ?? ""} onChange={(e) => open(e.target.value)}>
+        <Link to="/" className="brand" title="AUTEVRA website">Autevra</Link>
+        <Link to="/app" className="button subtle" title="Projects, models and runs">Workspace</Link>
+        <select value={project?.id ?? ""} onChange={(e) => navigate(`/studio/${e.target.value}/${workspace}`)}>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <button onClick={newProject}>New</button>
@@ -345,40 +371,34 @@ export function App() {
           animation={animation} onStop={() => setAnimation(null)} onSelect={setSelected} />
         <div className="status">{busy ? "Working…" : status}</div>
       </main>
-      <section className={`dock${dock ? "" : " closed"}`}>
-        <nav className="tabs">
-          <button className={dock === "spec" ? "active" : ""} onClick={() => setDock("spec")}>
-            Specification
-          </button>
-          <button className={dock === "bench" ? "active" : ""} onClick={() => setDock("bench")}>
-            Test bench
-          </button>
-          <button className={dock === "integration" ? "active" : ""}
-            onClick={() => setDock("integration")}>Integration</button>
-          <button className={dock === "optimize" ? "active" : ""}
-            onClick={() => setDock("optimize")}>Optimise &amp; loop</button>
-          <button className={dock === "requirements" ? "active" : ""}
-            onClick={() => setDock("requirements")}>Requirements ({requirements.length})</button>
+      <section className={`dock${collapsed ? " closed" : ""}`}>
+        <nav className="tabs" aria-label="Studio workspaces">
+          {WORKSPACES.map((w) => (
+            <button key={w.id} className={workspace === w.id ? "active" : ""} onClick={() => go(w.id)}
+              title={w.description}>
+              {w.label}{w.id === "requirements" ? ` (${requirements.length})` : ""}
+            </button>
+          ))}
           <span className="spacer" />
           <label className="toggle" title="Rerun tests already run on this project after every change">
             <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
             Live simulation
           </label>
-          <button onClick={() => setDock(dock ? null : "bench")}>{dock ? "Hide" : "Show"}</button>
+          <button onClick={() => setCollapsed(!collapsed)}>{collapsed ? "Show" : "Hide"}</button>
         </nav>
-        {project && dock === "bench" && (
+        {project && !collapsed && workspace === "simulation" && (
           <TestBench projectId={project.id} definitions={tests} runs={runs}
             comparisons={comparisons} selected={selectedRun} busy={busy}
             focusTarget={focusTarget} onSelect={setSelectedRun} onRun={runTests}
             onApply={applyFix} onPlay={play} diagnosis={diagnosis} />
         )}
-        {project && dock === "optimize" && (
+        {project && !collapsed && workspace === "optimization" && (
           <StudiesPanel definition={tests.find((t) => t.id === "quarter_car")} parameters={parameters}
             values={project.values} studies={studies} loops={loops} busy={busy}
             onOptimize={optimize} onLoop={engineeringLoop} onDecide={decideStudy}
             onChoose={chooseCandidate} />
         )}
-        {project && dock === "spec" && (
+        {project && !collapsed && workspace === "design" && (
           <SpecPanel state={specState} design={specDesign} parameters={parameters}
             values={project.values} busy={busy}
             onAnswer={(q, v) => specAction(() => api.specAnswer(project.id, q, v))}
@@ -386,7 +406,7 @@ export function App() {
             onReset={() => specAction(() => api.specReset(project.id))}
             onDesign={generateDesign} onApply={applyDesign} />
         )}
-        {project && dock === "requirements" && (
+        {project && !collapsed && workspace === "requirements" && (
           <RequirementsPanel rows={requirements} parameters={parameters} derived={project.derived}
             test={tests.find((t) => t.id === "quarter_car")} reqifUrl={api.reqifUrl(project.id)}
             busy={busy}
@@ -396,8 +416,26 @@ export function App() {
             onVerify={() => requirementAction(() => api.verifyRequirements(project.id))}
             onImport={(xml) => requirementAction(() => api.importReqif(project.id, xml))} />
         )}
-        {project && dock === "integration" && (
-          <IntegrationPanel report={integration} onRefresh={checkIntegration} busy={busy} />
+        {project && !collapsed && workspace === "assembly" && (
+          <div className="split">
+            <IntegrationPanel report={integration} onRefresh={checkIntegration} busy={busy} />
+            <SystemsPanel projectId={project.id} version={history.cursor} compact
+              onSelect={setSelected} />
+          </div>
+        )}
+        {project && !collapsed && workspace === "ai-engineering" && (
+          <AiEngineeringPanel turns={turns} llm={llm} onSend={send} />
+        )}
+        {project && !collapsed && workspace === "systems" && (
+          <SystemsPanel projectId={project.id} version={history.cursor} onSelect={setSelected} />
+        )}
+        {project && !collapsed && workspace === "manufacturing" && (
+          <ManufacturingPanel projectId={project.id} version={history.cursor}
+            stepUrl={api.stepUrl(project.id)} reqifUrl={api.reqifUrl(project.id)} />
+        )}
+        {project && !collapsed && workspace === "digital-engineering" && (
+          <DigitalPanel history={history} runs={runs} studies={studies} loops={loops}
+            requirements={requirements} onOpenRun={(id) => { setSelectedRun(id); go("simulation"); }} />
         )}
       </section>
       <aside className="right">

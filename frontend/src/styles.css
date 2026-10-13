@@ -27,17 +27,17 @@ button:disabled { opacity: 0.45; }
     "head head head" auto "left main right" minmax(0, 1fr) "left dock right" auto
     / 240px minmax(0, 1fr) 360px;
 }
-header {
+.app > header {
   grid-area: head; display: flex; gap: 8px; align-items: center;
   padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel);
 }
 .brand { letter-spacing: 0.08em; text-transform: uppercase; margin-right: 8px; }
 .spacer { flex: 1; }
 .toggle { display: flex; gap: 6px; align-items: center; color: var(--muted); }
-aside { overflow-y: auto; background: var(--panel); }
-.left { grid-area: left; border-right: 1px solid var(--line); }
-.right { grid-area: right; border-left: 1px solid var(--line); display: flex; flex-direction: column; }
-main { grid-area: main; position: relative; min-width: 0; }
+.app aside { overflow-y: auto; background: var(--panel); }
+.app .left { grid-area: left; border-right: 1px solid var(--line); }
+.app .right { grid-area: right; border-left: 1px solid var(--line); display: flex; flex-direction: column; }
+.app > main { grid-area: main; position: relative; min-width: 0; }
 .viewport { position: absolute; inset: 0; }
 .status {
   position: absolute; left: 10px; bottom: 8px; color: var(--muted);

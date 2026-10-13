@@ -23,20 +23,27 @@ class ProjectInfo:
     name: str
     created_at: datetime
     updated_at: datetime
+    domain: str = "automotive"
 
 
 def _info(row: ProjectRow) -> ProjectInfo:
-    return ProjectInfo(row.id, row.name, row.created_at, row.updated_at)
+    return ProjectInfo(row.id, row.name, row.created_at, row.updated_at, row.domain)
 
 
 class ProjectRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def create(self, name: str, state: DesignState | None = None) -> ProjectInfo:
+    def create(
+        self, name: str, state: DesignState | None = None, domain: str = "automotive"
+    ) -> ProjectInfo:
         state = state or DesignState()
         row = ProjectRow(
-            id=uuid4().hex, name=name, values_json=json.dumps(state.values), cursor=state.cursor
+            id=uuid4().hex,
+            name=name,
+            values_json=json.dumps(state.values),
+            cursor=state.cursor,
+            domain=domain,
         )
         self.session.add(row)
         self.session.flush()

@@ -4,7 +4,11 @@ import type {
   ComponentTestStatus,
   Diagnosis,
   ImpactPreview,
+  DomainDef,
   IntegrationReport,
+  RuleStatus,
+  RunIndexItem,
+  SystemGraph,
   Requirement,
   RequirementRow,
   LoopResult,
@@ -58,7 +62,20 @@ const post = <T>(path: string, body?: unknown) =>
 export const api = {
   catalogue: () => request<{ parameters: ParameterDef[]; derived: DerivedValue[] }>("/parameters"),
   listProjects: () => request<ProjectSummary[]>("/projects"),
-  createProject: (name: string) => post<ProjectState>("/projects", { name }),
+  createProject: (name: string, domain = "automotive") =>
+    post<ProjectState>("/projects", { name, domain }),
+  renameProject: (id: string, name: string) =>
+    request<ProjectState>(`/projects/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+  deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: "DELETE" }),
+  duplicateProject: (id: string) => post<ProjectState>(`/projects/${id}/duplicate`),
+  domains: () => request<DomainDef[]>("/domains"),
+  allRuns: () => request<RunIndexItem[]>("/runs"),
+  system: (id: string) => request<SystemGraph>(`/projects/${id}/system`),
+  rules: (id: string) => request<RuleStatus[]>(`/projects/${id}/rules`),
+  plugins: () => request<{ name: string; version: string; description: string; parameters: string[];
+    components: string[]; rules: string[]; tests: string[] }[]>("/plugins"),
+  contact: (body: { name: string; email: string; topic: string; message: string }) =>
+    post<{ id: string; stored: boolean; delivered: boolean; note: string }>("/contact", body),
   project: (id: string) => request<ProjectState>(`/projects/${id}`),
   command: (id: string, command: Command) => post<CommandResult>(`/projects/${id}/commands`, { command }),
   instruct: (id: string, text: string) => post<InstructionResult>(`/projects/${id}/instructions`, { text }),

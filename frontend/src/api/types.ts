@@ -29,6 +29,7 @@ export interface DerivedValue {
 export interface ProjectSummary {
   id: string;
   name: string;
+  domain?: string;
   created_at: string;
   updated_at: string;
 }
@@ -490,4 +491,39 @@ export interface SpecDesign {
   missing: string[];
   command: Command | null;
   preview: ImpactPreview | null;
+}
+
+export interface SystemGraph {
+  nodes: { id: string; name: string; category: string; builder: string | null; parent: string | null;
+    interfaces: { name: string; kind: string; used_by: string[] }[]; parameters: string[];
+    tests: string[] }[];
+  edges: { kind: string; source: string; target: string; detail: string }[];
+}
+
+export interface RuleStatus {
+  id: string;
+  description: string;
+  parameters: string[];
+  passed: boolean;
+  message: string | null;
+}
+
+export interface DomainDef {
+  id: string;
+  name: string;
+  description: string;
+  status: "available" | "experimental" | "in_development" | "unavailable";
+  component_library: string[];
+  operations: string[];
+  simulations: string[];
+  formats: string[];
+  dependencies: string[];
+  version: string;
+  roadmap: string[];
+  evidence: string;
+}
+
+export interface RunIndexItem extends RunSummary {
+  project_id: string;
+  project_name: string;
 }

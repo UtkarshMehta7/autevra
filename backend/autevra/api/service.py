@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
+from autevra import domains
 from autevra.ai import interpreter
 from autevra.ai.llm.clients import DisabledClient, LLMClient
 from autevra.ai.rule_parser import Kind, TestRequest
@@ -61,6 +62,7 @@ def _state(info: ProjectInfo, state: DesignState) -> schemas.ProjectState:
         name=info.name,
         created_at=info.created_at,
         updated_at=info.updated_at,
+        domain=info.domain,
         values=state.values,
         derived=_derived(state.values),
         can_undo=state.can_undo,
@@ -175,11 +177,133 @@ class Workspace:
         self._proposals: dict[str, _Proposal] = {}
 
     # --- projects ---
-    def create_project(self, name: str) -> schemas.ProjectState:
+    def create_project(self, name: str, domain: str = "automotive") -> schemas.ProjectState:
+        if not domains.can_host_projects(domain):
+            raise CommandError(f"the '{domain}' domain is not available for projects yet")
         with self.db.session() as s:
             repo = ProjectRepository(s)
-            info = repo.create(name)
+            info = repo.create(name, domain=domain)
             return _state(info, repo.load(info.id))
+
+    def duplicate_project(self, project_id: str, name: str | None = None) -> schemas.ProjectState:
+        """A new project whose initial design is this project's current design (history,
+        runs and studies stay with the original; requirements and the specification copy)."""
+        with self.db.session() as s:
+            repo = ProjectRepository(s)
+            info = repo.info(project_id)
+            values = repo.load(project_id).values
+            copy = repo.create(
+                name or f"{info.name} (copy)", DesignState(values=values), domain=info.domain
+            )
+            runs = RunRepository(s)
+            for record in runs.requirement_records(project_id):
+                runs.add_requirement(copy.id, record.model_copy(update={"id": uuid4().hex[:12]}))
+            specs = SpecRepository(s)
+            specs.save(copy.id, specs.load(project_id))
+            return _state(copy, repo.load(copy.id))
+
+    def system_graph(self, project_id: str) -> schemas.SystemGraph:
+        from autevra.assembly.vehicle import BY_ID, COINCIDENCES, COMPONENTS, LOAD_PATHS
+
+        values = self.project(project_id).values
+        used: dict[tuple[str, str], list[str]] = {}
+        for c in COMPONENTS:
+            if c.mate:
+                used.setdefault((c.mate.parent, c.mate.parent_interface), []).append(c.id)
+        covered: dict[str, list[str]] = {}
+        for t in tst.DEFINITIONS.values():
+            for target, ids in t.components.items():
+                for cid in ids:
+                    covered.setdefault(cid, []).append(f"{t.id}:{target}")
+        nodes = [
+            schemas.SystemNode(
+                id=c.id,
+                name=c.name,
+                category=c.category,
+                builder=c.builder,
+                parent=c.mate.parent if c.mate else None,
+                interfaces=[
+                    {
+                        "name": n,
+                        "kind": integration.interface_kind(n),
+                        "used_by": used.get((c.id, n), []),
+                    }
+                    for n in c.resolve_interfaces(values)
+                ],
+                parameters=list(c.geometry),
+                tests=covered.get(c.id, []),
+            )
+            for c in COMPONENTS
+        ]
+        edges = [
+            schemas.SystemEdge(
+                kind="mounted_to",
+                source=c.id,
+                target=c.mate.parent,
+                detail=f"{c.mate.child_interface} → {c.mate.parent_interface}",
+            )
+            for c in COMPONENTS
+            if c.mate
+        ]
+        edges += [
+            schemas.SystemEdge(
+                kind="coincident", source=co.a[0], target=co.b[0], detail=f"{co.a[1]} = {co.b[1]}"
+            )
+            for co in COINCIDENCES
+        ]
+        for path in LOAD_PATHS:
+            for a, b in zip(path, path[1:], strict=False):
+                edges.append(
+                    schemas.SystemEdge(
+                        kind="load_path",
+                        source=a,
+                        target=b,
+                        detail=f"{BY_ID[path[0]].name} load path",
+                    )
+                )
+        return schemas.SystemGraph(nodes=nodes, edges=edges)
+
+    def rule_status(self, project_id: str) -> list[schemas.RuleStatus]:
+        from autevra.domain.rules import _RULES
+
+        values = self.project(project_id).values
+        return [
+            schemas.RuleStatus(
+                id=r.id,
+                description=r.description,
+                parameters=list(r.parameters),
+                passed=(m := fn(values)) is None,
+                message=m,
+            )
+            for r, fn in _RULES
+        ]
+
+    def all_runs(self, limit: int = 300) -> list[schemas.RunIndexItem]:
+        out = []
+        for p in self.list_projects():
+            for run in self.list_runs(p.id, None, None, None)[:limit]:
+                out.append(
+                    schemas.RunIndexItem(**run.model_dump(), project_id=p.id, project_name=p.name)
+                )
+        out.sort(key=lambda r: r.created_at, reverse=True)
+        return out[:limit]
+
+    def contact(self, body: schemas.ContactIn) -> schemas.ContactOut:
+        from autevra.storage.models import ContactMessageRow
+
+        mid = uuid4().hex
+        with self.db.session() as s:
+            s.add(
+                ContactMessageRow(
+                    id=mid, name=body.name, email=body.email, topic=body.topic, message=body.message
+                )
+            )
+        return schemas.ContactOut(
+            id=mid,
+            stored=True,
+            delivered=False,
+            note="Saved in the local database. This development build sends no e-mail.",
+        )
 
     def list_projects(self) -> list[schemas.ProjectSummary]:
         with self.db.session() as s:
