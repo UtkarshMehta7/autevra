@@ -86,7 +86,7 @@ export interface Violation {
 
 export interface InstructionResult {
   kind: "command" | "undo" | "redo" | "query" | "clarification" | "rejected" | "proposal"
-    | "out_of_scope" | "test" | "diagnosis";
+    | "out_of_scope" | "test" | "diagnosis" | "optimization" | "loop";
   message: string;
   interpreted_by: "rules" | "llm";
   command: Command | null;
@@ -100,6 +100,8 @@ export interface InstructionResult {
   runs?: RunSummary[];
   comparisons?: Comparison[];
   diagnosis?: Diagnosis | null;
+  studies?: StudyResult[];
+  loops?: LoopResult[];
 }
 
 export interface GeometryData {
@@ -322,4 +324,62 @@ export interface Diagnosis {
   evidence: Record<string, unknown>;
   recommendation: string;
   caveats: string[];
+}
+
+export interface Variable { parameter: string; lower: number; upper: number }
+export interface Objective { metric: string; sense: "minimize" | "maximize" }
+
+export interface Study {
+  test_id: string;
+  target: string;
+  scenarios: string[];
+  objectives: Objective[];
+  variables: Variable[];
+  budget: number;
+  seed?: number;
+}
+
+export interface Candidate {
+  index: number;
+  phase: "baseline" | "sample" | "refine";
+  values: Record<string, number>;
+  rule_violations: string[];
+  simulated: boolean;
+  feasible: boolean;
+  objectives: Record<string, number>;
+  failed: string[];
+}
+
+export interface StudyResult {
+  id: string;
+  created_at: string;
+  study: Study;
+  method: string;
+  baseline: Candidate;
+  candidates: Candidate[];
+  best: Candidate | null;
+  pareto: number[];
+  verified: { scenario: string; status: string; converged: boolean;
+    metrics: Record<string, number> }[];
+  improvement: Record<string, number>;
+  command: Command | null;
+  evaluations: number;
+  status: "proposed" | "accepted" | "rejected" | "no_feasible_design";
+  blocking: string | null;
+  notes: string[];
+}
+
+export interface LoopResult {
+  id: string;
+  created_at: string;
+  goal: { test_id: string; target: string; scenarios: string[] | null;
+    objective: Objective | null; max_iterations: number };
+  iterations: { index: number; changes: Record<string, { from: number; to: number; unit: string }>;
+    runs: { scenario: string; status: string; converged: boolean; failed: string[] }[];
+    diagnosis: string | null; decision: string }[];
+  outcome: "all_pass" | "needs_decision" | "iteration_limit" | "already_passing";
+  optimization: StudyResult | null;
+  command: Command | null;
+  status: "proposed" | "accepted" | "rejected" | "nothing_to_apply";
+  notes: string[];
 }

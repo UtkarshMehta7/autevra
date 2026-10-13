@@ -4,6 +4,10 @@ import type {
   ComponentTestStatus,
   Diagnosis,
   IntegrationReport,
+  LoopResult,
+  Study,
+  StudyResult,
+  Variable,
   RunRecord,
   RunSummary,
   TestDefinition,
@@ -73,5 +77,16 @@ export const api = {
     request<Comparison>(`/projects/${id}/runs/compare?baseline=${baseline}&candidate=${candidate}`),
   diagnosis: (id: string, run: string) => request<Diagnosis>(`/projects/${id}/runs/${run}/diagnosis`),
   componentStatus: (id: string) => request<ComponentTestStatus[]>(`/projects/${id}/components/status`),
+  optimize: (id: string, study: Study) => post<StudyResult>(`/projects/${id}/optimize`, study),
+  loop: (id: string, goal: { target: string; scenarios: string[] | null;
+    objective: { metric: string; sense: string } | null }) => post<LoopResult>(`/projects/${id}/loop`, goal),
+  studies: (id: string) => request<StudyResult[]>(`/projects/${id}/studies`),
+  loops: (id: string) => request<LoopResult[]>(`/projects/${id}/loops`),
+  acceptStudy: (id: string, study: string) => post<CommandResult>(`/projects/${id}/studies/${study}/accept`),
+  rejectStudy: (id: string, study: string) => post<void>(`/projects/${id}/studies/${study}/reject`),
+  chooseCandidate: (id: string, study: string, index: number) =>
+    post<StudyResult>(`/projects/${id}/studies/${study}/choose/${index}`),
+  optimizeDefaults: (target: string) =>
+    request<{ variables: Variable[] }>(`/optimize/defaults?target=${target}`),
   integration: (id: string) => request<IntegrationReport>(`/projects/${id}/integration`),
 };

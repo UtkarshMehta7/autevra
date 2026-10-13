@@ -2,13 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
 import type {
   Command, CommandResult, Comparison, Diagnosis, ComponentTestStatus, HistoryEntry, IntegrationReport, LLMStatus,
-  ModelPayload, ParameterDef, ProjectState, ProjectSummary, RunSummary, TestDefinition,
+  LoopResult, ModelPayload, ParameterDef, ProjectState, ProjectSummary, RunSummary, StudyResult,
+  TestDefinition, Variable,
 } from "./api/types";
 import { AiPanel, type ChatTurn } from "./panels/AiPanel";
 import { ComponentTree } from "./panels/ComponentTree";
 import { HistoryPanel } from "./panels/HistoryPanel";
 import { IntegrationPanel } from "./panels/IntegrationPanel";
 import { PropertyEditor } from "./panels/PropertyEditor";
+import { StudiesPanel } from "./panels/StudiesPanel";
 import { TestBench } from "./panels/TestBench";
 import { geometryCache, Viewport } from "./viewport/Viewport";
 
@@ -56,7 +58,9 @@ export function App() {
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<ComponentTestStatus[]>([]);
-  const [dock, setDock] = useState<"bench" | "integration" | null>("bench");
+  const [dock, setDock] = useState<"bench" | "integration" | "optimize" | null>("bench");
+  const [studies, setStudies] = useState<StudyResult[]>([]);
+  const [loops, setLoops] = useState<LoopResult[]>([]);
   const [integration, setIntegration] = useState<IntegrationReport | null>(null);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const highlightTimer = useRef<number | undefined>(undefined);
@@ -66,10 +70,12 @@ export function App() {
 
   const refresh = useCallback(async (id: string) => {
     const started = performance.now();
-    const [state, hist, mdl, runList, status] = await Promise.all([
+    const [state, hist, mdl, runList, status, studyList, loopList] = await Promise.all([
       api.project(id), api.history(id), api.model(id, geometryCache.keys()), api.runs(id),
-      api.componentStatus(id),
+      api.componentStatus(id), api.studies(id), api.loops(id),
     ]);
+    setStudies(studyList);
+    setLoops(loopList);
     setProject(state);
     setHistory(hist);
     setModel(mdl);
@@ -156,6 +162,7 @@ export function App() {
       try {
         const reply = await api.instruct(project!.id, text);
         setTurns((t) => [...t, { text, reply }]);
+        if (reply.studies?.length || reply.loops?.length) setDock("optimize");
         if (reply.runs?.length) {
           setComparisons(reply.comparisons ?? []);
           setSelectedRun(reply.runs[0].id);
@@ -199,6 +206,29 @@ export function App() {
       setSelectedRun(out.runs[0]?.id ?? null);
       return null;
     });
+
+  const optimize = (target: string, scenarios: string[], metric: string,
+    sense: "minimize" | "maximize", second: string | null, variables: Variable[], budget: number) =>
+    run(async () => {
+      await api.optimize(project!.id, {
+        test_id: "quarter_car", target, scenarios, budget, variables,
+        objectives: [{ metric, sense }, ...(second ? [{ metric: second, sense: "minimize" as const }] : [])],
+      });
+      return null;
+    });
+  const engineeringLoop = (target: string, scenarios: string[], metric: string | null) =>
+    run(async () => {
+      await api.loop(project!.id, { target, scenarios,
+        objective: metric ? { metric, sense: "minimize" } : null });
+      return null;
+    });
+  const decideStudy = (studyId: string, accept: boolean) =>
+    run(async () => {
+      if (!accept) { await api.rejectStudy(project!.id, studyId); return null; }
+      return api.acceptStudy(project!.id, studyId);
+    });
+  const chooseCandidate = (studyId: string, index: number) =>
+    run(async () => { await api.chooseCandidate(project!.id, studyId, index); return null; });
 
   // A diagnosis fix goes through the same validated command path as any edit.
   const applyFix = (command: Command) => run(() => api.command(project!.id, command));
@@ -269,6 +299,8 @@ export function App() {
           </button>
           <button className={dock === "integration" ? "active" : ""}
             onClick={() => setDock("integration")}>Integration</button>
+          <button className={dock === "optimize" ? "active" : ""}
+            onClick={() => setDock("optimize")}>Optimise &amp; loop</button>
           <span className="spacer" />
           <button onClick={() => setDock(dock ? null : "bench")}>{dock ? "Hide" : "Show"}</button>
         </nav>
@@ -277,6 +309,12 @@ export function App() {
             comparisons={comparisons} selected={selectedRun} busy={busy}
             focusTarget={focusTarget} onSelect={setSelectedRun} onRun={runTests}
             onApply={applyFix} diagnosis={diagnosis} />
+        )}
+        {project && dock === "optimize" && (
+          <StudiesPanel definition={tests.find((t) => t.id === "quarter_car")} parameters={parameters}
+            values={project.values} studies={studies} loops={loops} busy={busy}
+            onOptimize={optimize} onLoop={engineeringLoop} onDecide={decideStudy}
+            onChoose={chooseCandidate} />
         )}
         {project && dock === "integration" && (
           <IntegrationPanel report={integration} onRefresh={checkIntegration} busy={busy} />

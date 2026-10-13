@@ -148,3 +148,18 @@ tr.governing td:first-child { color: var(--warn); }
 .fixes li { margin: 3px 0; }
 .bad-text { color: var(--bad); }
 .reply.diagnosis { border-left-color: var(--warn); }
+
+.study { margin-bottom: 10px; }
+.notes { color: var(--muted); padding-left: 16px; margin: 4px 0; }
+.iterations { padding-left: 18px; }
+.iterations li { margin: 4px 0; }
+input.narrow { width: 72px; padding: 2px 4px; text-align: right; }
+table.vars td { padding: 1px 4px; }
+.pt-ok { fill: #5cbf8a88; }
+.pt-bad { fill: #8b96a355; }
+.pt-front { fill: var(--accent); }
+.pt-best { fill: var(--good); stroke: #fff; }
+.pt-base { fill: var(--warn); stroke: #fff; }
+tr.better td:last-child { color: var(--good); }
+.reply.optimization, .reply.loop { border-left-color: var(--good); }
+.bench.wide { grid-template-columns: 400px minmax(0, 1fr); }

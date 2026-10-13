@@ -22,6 +22,8 @@ const EXAMPLES = [
   "increase the rear shock absorber damping by 10% and test its response",
   "test the front suspension over a pothole",
   "explain why the suspension travel limit was exceeded",
+  "optimise ride comfort on the rear over the hump",
+  "fix the rear suspension",
   "make the suspension softer",
   "how long is the car?",
 ];
