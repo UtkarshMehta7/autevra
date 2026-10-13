@@ -23,3 +23,21 @@ def test_default_database_is_sqlite_in_the_data_dir(tmp_path, monkeypatch) -> No
     monkeypatch.delenv("AUTEVRA_DATABASE_URL", raising=False)
     url = Settings(data_dir=tmp_path).resolved_database_url()
     assert url == f"sqlite:///{(tmp_path / 'autevra.db').resolve()}"
+
+
+@pytest.mark.parametrize(
+    ("given", "expected"),
+    [
+        ('["https://a.netlify.app"]', ["https://a.netlify.app"]),
+        ("https://a.netlify.app/", ["https://a.netlify.app"]),
+        (
+            "https://a.netlify.app, https://b.example",
+            ["https://a.netlify.app", "https://b.example"],
+        ),
+        ("", []),
+        ("[]", []),
+    ],
+)
+def test_cors_origins_accept_json_comma_list_or_one_url(given, expected, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("AUTEVRA_CORS_ORIGINS", given)
+    assert Settings().cors_origins == expected
