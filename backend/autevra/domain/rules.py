@@ -211,6 +211,127 @@ def _frame_clears_tyres(p: Values) -> str | None:
     return None
 
 
+def _suspension_rules(a: str) -> None:
+    A = a.capitalize()  # noqa: N806
+    mount = (f"{a}_shock_mount_height", f"{a}_damper_stroke", "rim_diameter", "tyre_width",
+             "tyre_aspect_ratio")  # fmt: skip
+
+    @_rule(
+        f"{a}_damper_fits_mounts",
+        f"{A} dampers must fit between their mounts (within their length range).",
+        *mount,
+    )
+    def _fits(p: Values) -> str | None:
+        length = d.damper_installed_length(p, a)
+        lo, hi = d.damper_min_length(p, a), d.damper_max_length(p, a)
+        if not lo <= length <= hi:
+            return (
+                f"{a} damper length between mounts {_mm(length)} is outside its range "
+                f"{_mm(lo)}–{_mm(hi)}"
+            )
+        return None
+
+    @_rule(
+        f"{a}_stroke_covers_travel",
+        f"{A} damper stroke must cover bump plus rebound travel.",
+        f"{a}_damper_stroke",
+        f"{a}_bump_travel",
+        f"{a}_rebound_travel",
+    )
+    def _stroke(p: Values) -> str | None:
+        travel = p[f"{a}_bump_travel"] + p[f"{a}_rebound_travel"]
+        if p[f"{a}_damper_stroke"] < travel:
+            return (
+                f"{a} damper stroke {_mm(p[f'{a}_damper_stroke'])} is shorter than bump plus "
+                f"rebound travel {_mm(travel)}"
+            )
+        return None
+
+    @_rule(
+        f"{a}_shock_mount_inside_body",
+        f"{A} upper damper mounts must sit at least 50 mm below the beltline.",
+        f"{a}_shock_mount_height",
+        "beltline_height",
+    )
+    def _inside(p: Values) -> str | None:
+        limit = p["beltline_height"] - 50.0
+        if p[f"{a}_shock_mount_height"] > limit:
+            return (
+                f"{a} upper damper mount {_mm(p[f'{a}_shock_mount_height'])} is above "
+                f"{_mm(limit)} (50 mm below the beltline)"
+            )
+        return None
+
+    @_rule(
+        f"{a}_springs_clear_tyres",
+        f"{A} coil springs must clear the inner tyre faces by 20 mm.",
+        "spring_coil_diameter",
+        f"{a}_spring_rate",
+        "rail_spacing",
+        f"track_{a}",
+        "tyre_width",
+    )
+    def _clear(p: Values) -> str | None:
+        spring_outer = p["rail_spacing"] / 2.0 + d.spring_outer_diameter(p, a) / 2.0
+        gap = (p[f"track_{a}"] - p["tyre_width"]) / 2.0 - spring_outer
+        if gap < 20:
+            return f"{a} coil springs are only {_mm(gap)} from the inner tyre face (minimum 20 mm)"
+        return None
+
+    @_rule(
+        f"{a}_spring_index",
+        f"{A} spring index (coil / wire diameter) must be 4–12.",
+        "spring_coil_diameter",
+        f"{a}_spring_rate",
+    )
+    def _index(p: Values) -> str | None:
+        index = p["spring_coil_diameter"] / d.spring_wire_diameter(p, a)
+        if not 4.0 <= index <= 12.0:
+            return (
+                f"{a} spring index {index:.1f} is outside 4–12: the coil is impractical to "
+                "manufacture; change the coil diameter"
+            )
+        return None
+
+    @_rule(
+        f"{a}_spring_clears_coil_bind",
+        f"{A} springs must not reach solid length at full bump travel.",
+        *mount,
+        f"{a}_spring_rate",
+        "spring_coil_diameter",
+        f"{a}_bump_travel",
+        "arch_clearance",
+    )
+    def _bind(p: Values) -> str | None:
+        squeezed = d.spring_installed_length(p, a) - d.available_bump_travel(p, a)
+        solid = d.spring_solid_length(p, a)
+        if squeezed < solid:
+            return (
+                f"{a} springs compress to {_mm(squeezed)} at full bump, below their solid "
+                f"length {_mm(solid)} (coil bind)"
+            )
+        return None
+
+    @_rule(
+        f"{a}_positive_sprung_mass",
+        f"{A} sprung corner mass must be positive.",
+        "vehicle_mass",
+        "front_mass_distribution",
+        f"{a}_unsprung_mass",
+    )
+    def _sprung(p: Values) -> str | None:
+        m = d.sprung_corner_mass(p, a)
+        if m <= 0:
+            return (
+                f"{a} sprung corner mass is {m:.1f} kg: the unsprung mass exceeds the corner load"
+            )
+        return None
+
+
+for _axle in d.AXLES:
+    _suspension_rules(_axle)
+
+
 RULES: tuple[Rule, ...] = tuple(r for r, _ in _RULES)
 
 

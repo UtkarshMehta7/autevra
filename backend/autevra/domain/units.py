@@ -1,7 +1,9 @@
 """Units and conversions.
 
-Every quantity belongs to a dimension (length, angle, ratio). Values convert
-through the dimension's base unit: mm for length, deg for angle, % for ratio.
+Every quantity belongs to a dimension. Values convert through the dimension's
+base unit: mm for length, deg for angle, % for ratio, kg for mass, N/mm for
+stiffness and N·s/m for damping. Converting between dimensions is an error, so
+millimetres can never be silently mixed with newtons or kilograms.
 """
 
 from enum import StrEnum
@@ -11,6 +13,9 @@ class Dimension(StrEnum):
     LENGTH = "length"
     ANGLE = "angle"
     RATIO = "ratio"
+    MASS = "mass"
+    STIFFNESS = "stiffness"  # force per length
+    DAMPING = "damping"  # force per velocity
 
 
 class Unit(StrEnum):
@@ -20,6 +25,15 @@ class Unit(StrEnum):
     IN = "in"
     DEG = "deg"
     PERCENT = "%"
+    KG = "kg"
+    LB = "lb"
+    N_PER_MM = "N/mm"
+    N_PER_M = "N/m"
+    KN_PER_M = "kN/m"
+    LBF_PER_IN = "lbf/in"
+    NS_PER_M = "N·s/m"
+    NS_PER_MM = "N·s/mm"
+    KNS_PER_M = "kN·s/m"
 
 
 # unit -> (dimension, factor to the dimension's base unit)
@@ -30,6 +44,15 @@ _UNITS: dict[Unit, tuple[Dimension, float]] = {
     Unit.IN: (Dimension.LENGTH, 25.4),
     Unit.DEG: (Dimension.ANGLE, 1.0),
     Unit.PERCENT: (Dimension.RATIO, 1.0),
+    Unit.KG: (Dimension.MASS, 1.0),
+    Unit.LB: (Dimension.MASS, 0.45359237),
+    Unit.N_PER_MM: (Dimension.STIFFNESS, 1.0),
+    Unit.N_PER_M: (Dimension.STIFFNESS, 1e-3),
+    Unit.KN_PER_M: (Dimension.STIFFNESS, 1.0),
+    Unit.LBF_PER_IN: (Dimension.STIFFNESS, 4.4482216152605 / 25.4),
+    Unit.NS_PER_M: (Dimension.DAMPING, 1.0),
+    Unit.NS_PER_MM: (Dimension.DAMPING, 1000.0),
+    Unit.KNS_PER_M: (Dimension.DAMPING, 1000.0),
 }
 
 # Spellings accepted from people and the parser, mapped to canonical units.
@@ -60,6 +83,29 @@ UNIT_ALIASES: dict[str, Unit] = {
     "%": Unit.PERCENT,
     "percent": Unit.PERCENT,
     "pct": Unit.PERCENT,
+    "kg": Unit.KG,
+    "kgs": Unit.KG,
+    "kilogram": Unit.KG,
+    "kilograms": Unit.KG,
+    "lb": Unit.LB,
+    "lbs": Unit.LB,
+    "pound": Unit.LB,
+    "pounds": Unit.LB,
+    "n/mm": Unit.N_PER_MM,
+    "n/m": Unit.N_PER_M,
+    "kn/m": Unit.KN_PER_M,
+    "lbf/in": Unit.LBF_PER_IN,
+    "lb/in": Unit.LBF_PER_IN,
+    "n·s/m": Unit.NS_PER_M,
+    "ns/m": Unit.NS_PER_M,
+    "n.s/m": Unit.NS_PER_M,
+    "n s/m": Unit.NS_PER_M,
+    "n·s/mm": Unit.NS_PER_MM,
+    "ns/mm": Unit.NS_PER_MM,
+    "n.s/mm": Unit.NS_PER_MM,
+    "kn·s/m": Unit.KNS_PER_M,
+    "kns/m": Unit.KNS_PER_M,
+    "kn.s/m": Unit.KNS_PER_M,
 }
 
 

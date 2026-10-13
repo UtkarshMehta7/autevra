@@ -18,6 +18,8 @@ class Group(StrEnum):
     WHEELS = "wheels"
     STEERING = "steering"
     FRAME = "frame"
+    SUSPENSION = "suspension"
+    MASS = "mass"
 
 
 class ParameterDef(BaseModel):
@@ -329,6 +331,111 @@ _DEFINITIONS: tuple[ParameterDef, ...] = (
     ),
 )
 
+
+# --- Suspension (per axle) ---
+# Starting values of the template, not measurements: with the tyre in series the rates
+# give ride frequencies of about 1.2 Hz (front) and 1.3 Hz (rear); damping is about 25 %
+# (bump) and 50 % (rebound) of critical. Rates and damping are at the wheel: the dampers
+# stand vertically over a beam axle, so the motion ratio is 1 in heave.
+def _axle_suspension(axle: str, rate: float, bump: float, rebound: float, unsprung: float):
+    a, A = axle, axle.capitalize()  # noqa: N806
+    return (
+        _p(
+            id=f"{a}_spring_rate", label=f"{A} spring rate", group=Group.SUSPENSION,
+            unit=Unit.N_PER_MM, default=rate, min=5, max=150, step=0.5,
+            description=f"{A} wheel rate of the coil spring (force per wheel travel).",
+            aliases=(f"{a} spring rate", f"{a} springs", f"{a} spring", f"{a} spring stiffness",
+                     f"{a} wheel rate"),
+        ),
+        _p(
+            id=f"{a}_damping_bump", label=f"{A} bump damping", group=Group.SUSPENSION,
+            unit=Unit.NS_PER_M, default=bump, min=200, max=10000, step=50,
+            description=f"{A} damper coefficient in compression (bump), at the wheel.",
+            aliases=(f"{a} bump damping", f"{a} compression damping", f"{a} bump",
+                     f"{a} compression"),
+        ),
+        _p(
+            id=f"{a}_damping_rebound", label=f"{A} rebound damping", group=Group.SUSPENSION,
+            unit=Unit.NS_PER_M, default=rebound, min=200, max=15000, step=50,
+            description=f"{A} damper coefficient in extension (rebound), at the wheel.",
+            aliases=(f"{a} rebound damping", f"{a} rebound", f"{a} extension damping"),
+        ),
+        _p(
+            id=f"{a}_unsprung_mass", label=f"{A} unsprung mass", group=Group.SUSPENSION,
+            unit=Unit.KG, default=unsprung, min=15, max=150, step=1,
+            description=f"Unsprung mass per {a} corner: wheel, tyre, brake and half the axle.",
+            aliases=(f"{a} unsprung mass", f"{a} unsprung weight"),
+        ),
+        _p(
+            id=f"{a}_bump_travel", label=f"{A} bump travel", group=Group.SUSPENSION,
+            unit=Unit.MM, default=60, min=20, max=200, step=5,
+            description=f"{A} wheel travel in compression from ride height to the bump stop.",
+            aliases=(f"{a} bump travel", f"{a} compression travel", f"{a} jounce travel"),
+        ),
+        _p(
+            id=f"{a}_rebound_travel", label=f"{A} rebound travel", group=Group.SUSPENSION,
+            unit=Unit.MM, default=70, min=20, max=200, step=5,
+            description=f"{A} wheel travel in extension from ride height to full droop.",
+            aliases=(f"{a} rebound travel", f"{a} droop travel", f"{a} droop"),
+        ),
+        _p(
+            id=f"{a}_damper_stroke", label=f"{A} damper stroke", group=Group.SUSPENSION,
+            unit=Unit.MM, default=140, min=60, max=300, step=5,
+            description=f"Total stroke of the {a} dampers (fully compressed to fully extended).",
+            aliases=(f"{a} damper stroke", f"{a} shock stroke", f"{a} shock absorber stroke"),
+        ),
+        _p(
+            id=f"{a}_shock_mount_height", label=f"{A} upper shock mount height",
+            group=Group.SUSPENSION, unit=Unit.MM, default=670, min=400, max=1100, step=5,
+            description=f"Height above the ground of the {a} upper damper mounts on the body.",
+            aliases=(f"{a} shock mount height", f"{a} upper mount height",
+                     f"{a} shock tower height", f"{a} damper mount height"),
+        ),
+    )  # fmt: skip
+
+
+_DEFINITIONS += (
+    *_axle_suspension("front", rate=26, bump=1500, rebound=3000, unsprung=45),
+    *_axle_suspension("rear", rate=24, bump=1300, rebound=2600, unsprung=55),
+    _p(
+        id="tyre_vertical_stiffness", label="Tyre vertical stiffness", group=Group.SUSPENSION,
+        unit=Unit.N_PER_MM, default=200, min=80, max=600, step=5,
+        description="Radial (vertical) stiffness of one tyre.",
+        aliases=("tyre vertical stiffness", "tyre stiffness", "vertical tyre stiffness",
+                 "tyre spring rate", "tyre rate"),
+    ),
+    _p(
+        id="damper_body_diameter", label="Damper body diameter", group=Group.SUSPENSION,
+        unit=Unit.MM, default=50, min=30, max=90, step=1,
+        description="Outer diameter of the damper body tube.",
+        aliases=("damper body diameter", "damper diameter", "shock diameter",
+                 "shock body diameter"),
+    ),
+    _p(
+        id="spring_coil_diameter", label="Spring mean coil diameter", group=Group.SUSPENSION,
+        unit=Unit.MM, default=100, min=60, max=200, step=1,
+        description="Mean diameter of the coil springs (the wire diameter follows from the rate).",
+        aliases=("spring coil diameter", "coil diameter", "spring diameter",
+                 "mean coil diameter"),
+    ),
+    # --- Mass ---
+    _p(
+        id="vehicle_mass", label="Vehicle mass", group=Group.MASS,
+        unit=Unit.KG, default=1600, min=600, max=4000, step=10,
+        description="Total vehicle mass in the test condition (kerb mass plus load).",
+        aliases=("vehicle mass", "kerb mass", "curb mass", "kerb weight", "curb weight",
+                 "vehicle weight", "car weight", "mass", "weight"),
+        increase_words=("heavier",), decrease_words=("lighter",),
+    ),
+    _p(
+        id="front_mass_distribution", label="Front mass distribution", group=Group.MASS,
+        unit=Unit.PERCENT, default=55, min=30, max=70, step=1,
+        description="Share of the vehicle mass carried by the front axle.",
+        aliases=("front mass distribution", "front weight distribution", "weight distribution",
+                 "mass distribution", "weight balance", "front weight"),
+    ),
+)  # fmt: skip
+
 REGISTRY: Mapping[str, ParameterDef] = {d.id: d for d in _DEFINITIONS}
 
 # Group aliases: one word that addresses several parameters at once.
@@ -337,7 +444,32 @@ GROUP_ALIASES: Mapping[str, tuple[str, ...]] = {
     "track width": ("track_front", "track_rear"),
     "wheel track": ("track_front", "track_rear"),
     "overhangs": ("front_overhang", "rear_overhang"),
-}
+    "spring rate": ("front_spring_rate", "rear_spring_rate"),
+    "spring rates": ("front_spring_rate", "rear_spring_rate"),
+    "springs": ("front_spring_rate", "rear_spring_rate"),
+    "spring stiffness": ("front_spring_rate", "rear_spring_rate"),
+    "wheel rate": ("front_spring_rate", "rear_spring_rate"),
+    "bump damping": ("front_damping_bump", "rear_damping_bump"),
+    "compression damping": ("front_damping_bump", "rear_damping_bump"),
+    "rebound damping": ("front_damping_rebound", "rear_damping_rebound"),
+    "unsprung mass": ("front_unsprung_mass", "rear_unsprung_mass"),
+    "bump travel": ("front_bump_travel", "rear_bump_travel"),
+    "rebound travel": ("front_rebound_travel", "rear_rebound_travel"),
+    "damper stroke": ("front_damper_stroke", "rear_damper_stroke"),
+    **{
+        alias: ("front_damping_bump", "front_damping_rebound", "rear_damping_bump",
+                "rear_damping_rebound")
+        for alias in ("damping", "dampers", "damper damping", "shock absorbers",
+                      "shock absorber damping", "shock damping", "shocks", "damper")
+    },
+    **{
+        f"{axle} {alias}": (f"{axle}_damping_bump", f"{axle}_damping_rebound")
+        for axle in ("front", "rear")
+        for alias in ("damping", "dampers", "damper", "damper damping", "shocks",
+                      "shock absorbers", "shock absorber", "shock absorber damping",
+                      "shock damping")
+    },
+}  # fmt: skip
 
 
 def get(parameter_id: str) -> ParameterDef:

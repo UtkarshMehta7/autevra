@@ -38,6 +38,7 @@ class Reason(StrEnum):
     MISSING_AMOUNT = "missing_amount"
     INVALID = "invalid"
     UNMODELLED = "unmodelled"
+    AMBIGUOUS = "ambiguous"  # names a modelled system but not which quantity
 
 
 @dataclass

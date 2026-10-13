@@ -45,12 +45,12 @@ ALIASES_BY_LENGTH: list[str] = sorted(ALIASES, key=len, reverse=True)
 INCREASE_VERBS = frozenset({
     "increase", "increased", "raise", "extend", "lengthen", "widen", "grow", "enlarge",
     "stretch", "lift", "boost", "add", "bigger", "larger", "longer", "wider", "taller",
-    "higher", "more", "up", "upsize",
+    "higher", "more", "up", "upsize", "stiffer", "stiffen", "firmer", "harder", "heavier",
 })  # fmt: skip
 DECREASE_VERBS = frozenset({
     "decrease", "decreased", "reduce", "lower", "shorten", "narrow", "shrink", "cut",
     "drop", "trim", "smaller", "shorter", "narrower", "less", "down", "lessen",
-    "downsize",
+    "downsize", "softer", "soften", "lighter",
 })  # fmt: skip
 SET_VERBS = frozenset({"set", "change", "make", "use", "fit", "put", "give", "adjust"})
 

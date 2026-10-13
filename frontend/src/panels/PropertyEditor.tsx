@@ -16,6 +16,8 @@ const GROUPS: [ParameterDef["group"], string][] = [
   ["wheels", "Wheels & tyres"],
   ["steering", "Steering"],
   ["frame", "Chassis frame"],
+  ["suspension", "Suspension"],
+  ["mass", "Mass"],
 ];
 
 function ParameterInput({ def, value, onSet }: {

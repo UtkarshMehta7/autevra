@@ -30,16 +30,23 @@ def test_parser_clarifications_are_final(text: str) -> None:
 def test_softer_suspension_asks_which_quantity() -> None:
     llm = FakeLLM()
     result = interpret("make the suspension softer", V, llm)
-    assert result.kind is Kind.CLARIFICATION and result.reason is Reason.UNMODELLED
+    assert result.kind is Kind.CLARIFICATION and result.reason is Reason.AMBIGUOUS
     assert result.question is not None
-    for word in ("spring rate", "compression damping", "rebound damping"):
+    for word in ("spring rate", "compression", "rebound damping"):
         assert word in result.question
+    assert result.suggestions == [
+        "reduce the spring rate by 10%",
+        "reduce the bump damping by 10%",
+        "reduce the rebound damping by 10%",
+    ]
+    for suggestion in result.suggestions:  # every suggestion is itself a valid command
+        assert interpret(suggestion, V, llm).kind is Kind.COMMAND
     assert llm.calls == []
 
 
 @pytest.mark.parametrize(
     "text",
-    ["increase the engine power by 20 kW", "fit bigger brakes", "paint it red", "make it lighter"],
+    ["increase the engine power by 20 kW", "fit bigger brakes", "paint it red"],
 )
 def test_unmodelled_concepts_are_reported_not_guessed(text: str) -> None:
     result = interpret(text, V, FakeLLM())
@@ -212,6 +219,8 @@ def test_bare_amounts_are_absolute(text: str, answer: dict, expected: tuple) -> 
         ("shrink the hubs spacing by 10 percent", 0.9, True),
         ("double the hubs gap", 2.0, True),
         ("slide the cabin 100 mm forward", 0.1, False),  # invented factor
+        ("grow the hubs spacing by 10 percent", 10, False),  # "10 percent" is not "x 10"
+        ("scale the hubs spacing by 1.5", 1.5, True),
     ],
 )
 def test_scale_factors_must_follow_from_the_text(text: str, factor: float, ok: bool) -> None:

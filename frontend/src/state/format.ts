@@ -10,6 +10,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   chassis: "Chassis",
   axle: "Axles",
   wheel: "Wheels",
+  suspension: "Suspension",
 };
 
 /** Parts grouped by category, in a stable display order. */
