@@ -136,6 +136,22 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-14: hosted demo live
+
+- Live: <https://autevra.netlify.app> (Netlify) with the API at <https://autevra.onrender.com> (Render free web service, Docker) and Postgres on Neon. Both hosts deploy `main` on merge.
+- Checked on the live services: backend health, CORS for the Netlify origin, projects, domains, parameters and LLM status (off) over the API; the Netlify bundle targets the Render API.
+- Fixes found while deploying:
+  - `AUTEVRA_CORS_ORIGINS` accepts one URL, a comma-separated list or JSON; a plain URL had crashed startup.
+  - The Netlify build sets `VITE_API_URL`; without it the site fetched `index.html` from `/api` and showed a JSON parse error.
+  - A non-JSON answer is now reported as a wrong API address.
+  - The "make dev" hint appears only on localhost.
+- Hugging Face Docker Spaces now require a paid plan, so Render's free instance hosts the backend; CI runs a full visitor session under its 512 MB limit on every pull request.
+
+**Known limitations**
+- No accounts or per-visitor workspaces: every visitor shares the projects. Next milestone.
+- Free tiers: the backend sleeps after 15 minutes idle (about a minute to wake) and has 0.1 CPU, so studies are slow.
+- Not yet exercised by hand on the live site: creating a project and working in the studio.
+
 ### 2026-10-14: deployment readiness
 
 - Postgres: `psycopg[binary]` 3.3.6 (arm64 and x86_64 wheels); `postgres://` and `postgresql://` URLs are rewritten for the driver; pooled connections are pre-pinged (Neon closes idle ones); `%` in URLs is escaped for Alembic.
