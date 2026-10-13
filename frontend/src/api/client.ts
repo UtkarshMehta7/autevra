@@ -1,5 +1,12 @@
 import type {
   Command,
+  Comparison,
+  ComponentTestStatus,
+  IntegrationReport,
+  RunRecord,
+  RunSummary,
+  TestDefinition,
+  TestRunResponse,
   CommandResult,
   HistoryEntry,
   InstructionResult,
@@ -56,4 +63,13 @@ export const api = {
   model: (id: string, known: Iterable<string>) =>
     request<ModelPayload>(`/projects/${id}/model?known=${encodeURIComponent([...known].join(","))}`),
   stepUrl: (id: string) => `/api/projects/${id}/export.step`,
+  tests: () => request<TestDefinition[]>("/tests"),
+  runTests: (id: string, body: { test_id: string; target: string; scenario_id?: string | null }) =>
+    post<TestRunResponse>(`/projects/${id}/tests/run`, body),
+  runs: (id: string) => request<RunSummary[]>(`/projects/${id}/runs`),
+  run: (id: string, run: string) => request<RunRecord>(`/projects/${id}/runs/${run}`),
+  compare: (id: string, baseline: string, candidate: string) =>
+    request<Comparison>(`/projects/${id}/runs/compare?baseline=${baseline}&candidate=${candidate}`),
+  componentStatus: (id: string) => request<ComponentTestStatus[]>(`/projects/${id}/components/status`),
+  integration: (id: string) => request<IntegrationReport>(`/projects/${id}/integration`),
 };

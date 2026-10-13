@@ -1,24 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
 import type {
-  CommandResult, HistoryEntry, LLMStatus, ModelPayload, ParameterDef, ProjectState,
-  ProjectSummary,
+  CommandResult, Comparison, ComponentTestStatus, HistoryEntry, IntegrationReport, LLMStatus,
+  ModelPayload, ParameterDef, ProjectState, ProjectSummary, RunSummary, TestDefinition,
 } from "./api/types";
 import { AiPanel, type ChatTurn } from "./panels/AiPanel";
 import { ComponentTree } from "./panels/ComponentTree";
 import { HistoryPanel } from "./panels/HistoryPanel";
+import { IntegrationPanel } from "./panels/IntegrationPanel";
 import { PropertyEditor } from "./panels/PropertyEditor";
+import { TestBench } from "./panels/TestBench";
 import { geometryCache, Viewport } from "./viewport/Viewport";
 
 const LAST_PROJECT = "autevra.lastProject";
 
 // Startup runs once per page load (React StrictMode runs effects twice in development).
-let startup: Promise<{ parameters: ParameterDef[]; projects: ProjectSummary[] }> | null = null;
+let startup: Promise<{
+  parameters: ParameterDef[]; projects: ProjectSummary[]; tests: TestDefinition[];
+}> | null = null;
 function loadStartup() {
   startup ??= (async () => {
-    const [catalogue, list] = await Promise.all([api.catalogue(), api.listProjects()]);
+    const [catalogue, list, tests] = await Promise.all([
+      api.catalogue(), api.listProjects(), api.tests()]);
     const projects = list.length > 0 ? list : [await api.createProject("My first vehicle")];
-    return { parameters: catalogue.parameters, projects };
+    return { parameters: catalogue.parameters, projects, tests };
   })();
   startup.catch(() => (startup = null));
   return startup;
@@ -46,6 +51,13 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Connecting…");
   const [llm, setLlm] = useState<LLMStatus | null>(null);
+  const [tests, setTests] = useState<TestDefinition[]>([]);
+  const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [comparisons, setComparisons] = useState<Comparison[]>([]);
+  const [selectedRun, setSelectedRun] = useState<string | null>(null);
+  const [testStatus, setTestStatus] = useState<ComponentTestStatus[]>([]);
+  const [dock, setDock] = useState<"bench" | "integration" | null>("bench");
+  const [integration, setIntegration] = useState<IntegrationReport | null>(null);
   const highlightTimer = useRef<number | undefined>(undefined);
   // Actions run strictly one after another, in the order the user issued them.
   const queue = useRef<Promise<void>>(Promise.resolve());
@@ -53,12 +65,16 @@ export function App() {
 
   const refresh = useCallback(async (id: string) => {
     const started = performance.now();
-    const [state, hist, mdl] = await Promise.all([
-      api.project(id), api.history(id), api.model(id, geometryCache.keys()),
+    const [state, hist, mdl, runList, status] = await Promise.all([
+      api.project(id), api.history(id), api.model(id, geometryCache.keys()), api.runs(id),
+      api.componentStatus(id),
     ]);
     setProject(state);
     setHistory(hist);
     setModel(mdl);
+    setRuns(runList);
+    setTestStatus(status);
+    setIntegration(null); // re-checked on demand: the design may have changed
     setStatus(`Model updated in ${Math.round(performance.now() - started)} ms · ` +
       `${Object.keys(mdl.geometries).length} geometry download(s)`);
   }, []);
@@ -67,6 +83,8 @@ export function App() {
     remember(id);
     setTurns([]);
     setSelected(null);
+    setSelectedRun(null);
+    setComparisons([]);
     await refresh(id);
   }, [refresh]);
 
@@ -80,8 +98,9 @@ export function App() {
   useEffect(() => {
     (async () => {
       try {
-        const { parameters: defs, projects: all } = await loadStartup();
+        const { parameters: defs, projects: all, tests: catalogue } = await loadStartup();
         setParameters(defs);
+        setTests(catalogue);
         setProjects(all);
         const last = recall();
         await open(all.find((p) => p.id === last)?.id ?? all[0].id);
@@ -136,6 +155,11 @@ export function App() {
       try {
         const reply = await api.instruct(project!.id, text);
         setTurns((t) => [...t, { text, reply }]);
+        if (reply.runs?.length) {
+          setComparisons(reply.comparisons ?? []);
+          setSelectedRun(reply.runs[0].id);
+          setDock("bench");
+        }
         return reply.result;
       } catch (e) {
         setTurns((t) => [...t, { text, reply: { kind: "error", message: (e as Error).message } }]);
@@ -165,6 +189,28 @@ export function App() {
       }
     });
   };
+
+  const runTests = (testId: string, target: string, scenarioId: string | null) =>
+    run(async () => {
+      const out = await api.runTests(project!.id, { test_id: testId, target, scenario_id: scenarioId });
+      setComparisons(out.comparisons);
+      setSelectedRun(out.runs[0]?.id ?? null);
+      return null;
+    });
+
+  const checkIntegration = useCallback(() => {
+    if (!project) return;
+    setIntegration(null);
+    api.integration(project.id).then(setIntegration).catch((e) => setError((e as Error).message));
+  }, [project]);
+
+  useEffect(() => {
+    if (dock === "integration" && !integration && !busy) checkIntegration();
+  }, [dock, integration, busy, checkIntegration]);
+
+  const statuses = Object.fromEntries(testStatus.map((s) => [s.component, s.status]));
+  const focusTarget = selected?.match(/_(f|r)[lr]$|^(front|rear)_axle$/)
+    ? (selected.includes("front") || /_f[lr]$/.test(selected) ? "front" : "rear") : null;
 
   const newProject = async () => {
     const name = `Vehicle ${projects.length + 1}`;
@@ -203,14 +249,33 @@ export function App() {
       </header>
       <aside className="left">
         <ComponentTree parts={model?.parts ?? []} selected={selected} highlighted={highlighted}
-          onSelect={setSelected} />
+          statuses={statuses} onSelect={setSelected} />
         <HistoryPanel entries={history.entries} cursor={history.cursor} />
       </aside>
       <main>
         <Viewport model={model} selected={selected} highlighted={highlighted} xray={xray}
           onSelect={setSelected} />
-        <div className="status">{busy ? "Rebuilding…" : status}</div>
+        <div className="status">{busy ? "Working…" : status}</div>
       </main>
+      <section className={`dock${dock ? "" : " closed"}`}>
+        <nav className="tabs">
+          <button className={dock === "bench" ? "active" : ""} onClick={() => setDock("bench")}>
+            Test bench
+          </button>
+          <button className={dock === "integration" ? "active" : ""}
+            onClick={() => setDock("integration")}>Integration</button>
+          <span className="spacer" />
+          <button onClick={() => setDock(dock ? null : "bench")}>{dock ? "Hide" : "Show"}</button>
+        </nav>
+        {project && dock === "bench" && (
+          <TestBench projectId={project.id} definitions={tests} runs={runs}
+            comparisons={comparisons} selected={selectedRun} busy={busy}
+            focusTarget={focusTarget} onSelect={setSelectedRun} onRun={runTests} />
+        )}
+        {project && dock === "integration" && (
+          <IntegrationPanel report={integration} onRefresh={checkIntegration} busy={busy} />
+        )}
+      </section>
       <aside className="right">
         <AiPanel turns={turns} busy={busy} llm={llm} onSend={send} onDecide={decide} />
         {project && (

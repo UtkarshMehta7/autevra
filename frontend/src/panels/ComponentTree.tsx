@@ -1,14 +1,17 @@
-import type { ModelPart } from "../api/types";
+import type { ComponentStatus, ModelPart } from "../api/types";
+import { STATUS_LABELS } from "../state/engineering";
 import { CATEGORY_LABELS, groupParts } from "../state/format";
 
 interface Props {
   parts: ModelPart[];
   selected: string | null;
   highlighted: string[];
+  /** Component test status, for components that have tests. */
+  statuses: Record<string, ComponentStatus>;
   onSelect: (id: string) => void;
 }
 
-export function ComponentTree({ parts, selected, highlighted, onSelect }: Props) {
+export function ComponentTree({ parts, selected, highlighted, statuses, onSelect }: Props) {
   return (
     <section className="panel">
       <h2>Components</h2>
@@ -21,8 +24,9 @@ export function ComponentTree({ parts, selected, highlighted, onSelect }: Props)
               className={`tree-item${p.id === selected ? " selected" : ""}${
                 highlighted.includes(p.id) ? " changed" : ""}`}
               onClick={() => onSelect(p.id)}
-              title={`geometry ${p.geometry}`}
+              title={statuses[p.id] ? STATUS_LABELS[statuses[p.id]] : `geometry ${p.geometry}`}
             >
+              {statuses[p.id] && <span className={`dot ${statuses[p.id]}`} />}
               {p.name}
             </button>
           ))}

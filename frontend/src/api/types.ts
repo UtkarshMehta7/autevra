@@ -65,6 +65,8 @@ export interface HistoryEntry {
 export interface Impact {
   rebuild: string[];
   move: string[];
+  /** "test_id:target" pairs whose results the change makes stale. */
+  retest?: string[];
 }
 
 export interface CommandResult {
@@ -84,7 +86,7 @@ export interface Violation {
 
 export interface InstructionResult {
   kind: "command" | "undo" | "redo" | "query" | "clarification" | "rejected" | "proposal"
-    | "out_of_scope";
+    | "out_of_scope" | "test";
   message: string;
   interpreted_by: "rules" | "llm";
   command: Command | null;
@@ -95,6 +97,8 @@ export interface InstructionResult {
   assumptions: string[];
   violations: Violation[];
   answer: Record<string, number>;
+  runs?: RunSummary[];
+  comparisons?: Comparison[];
 }
 
 export interface GeometryData {
@@ -124,4 +128,141 @@ export interface LLMStatus {
   available: boolean;
   detail: string;
   models: string[];
+}
+
+// --- Engineering: component tests, runs and integration (backend/autevra/engineering) ---
+
+export type RunStatus = "passed_within_model" | "failed" | "no_criteria" | "invalid";
+export type ComponentStatus = RunStatus | "not_tested" | "stale" | "experimentally_validated";
+export type Credibility = "analytical_estimate" | "numerical_simulation" | "experimentally_validated";
+
+export interface Scenario {
+  id: string;
+  label: string;
+  road: string;
+  height_mm: number;
+  length_m: number;
+  speed_kmh: number;
+  duration_s: number;
+  note: string;
+}
+
+export interface MetricInfo { label: string; unit: string; lower_is_better: boolean }
+
+export interface TestDefinition {
+  id: string;
+  name: string;
+  description: string;
+  solver: string;
+  credibility: Credibility;
+  targets: string[];
+  components: Record<string, string[]>;
+  inputs: Record<string, string[]>;
+  scenarios: Scenario[];
+  criteria: { id: string; label: string; metric: string; comparator: string; unit: string;
+    limit: number | null; limit_from: string | null; source: string }[];
+  metrics: Record<string, MetricInfo>;
+  assumptions: string[];
+}
+
+export interface CriterionResult {
+  id: string;
+  label: string;
+  metric: string;
+  comparator: string;
+  limit: number;
+  unit: string;
+  measured: number | null;
+  passed: boolean | null;
+  source: string;
+  limit_parameters: string[];
+  margin: number | null;
+}
+
+export interface RunSummary {
+  id: string;
+  test_id: string;
+  test_name: string;
+  target: string;
+  scenario_id: string;
+  scenario_label: string;
+  status: RunStatus;
+  credibility: Credibility;
+  created_at: string;
+  history_cursor: number;
+  current: boolean;
+  failed: string[];
+  warnings: string[];
+}
+
+export interface RunRecord {
+  id: string;
+  test_id: string;
+  test_name: string;
+  target: string;
+  scenario: Scenario;
+  revision: { values_hash: string; inputs_hash: string; history_cursor: number;
+    entry_id: string | null };
+  inputs: Record<string, { value: number; unit: string; label: string }>;
+  solver: { id: string; version: string; method: string };
+  config: Record<string, unknown>;
+  numerics: Record<string, number | boolean>;
+  metrics: Record<string, MetricInfo & { value: number | null }>;
+  criteria: CriterionResult[];
+  status: RunStatus;
+  credibility: Credibility;
+  assumptions: string[];
+  warnings: string[];
+  trace: Record<string, number[]>;
+  created_at: string;
+}
+
+export interface MetricDelta {
+  metric: string;
+  label: string;
+  unit: string;
+  before: number | null;
+  after: number | null;
+  change: number | null;
+  percent: number | null;
+  verdict: "better" | "worse" | "unchanged" | "n/a";
+}
+
+export interface Comparison {
+  baseline: string;
+  candidate: string;
+  same_test: boolean;
+  changed_inputs: Record<string, { before: number; after: number; unit: string }>;
+  metrics: MetricDelta[];
+  criteria: { id: string; label: string; before: boolean | null; after: boolean | null;
+    measured_before: number | null; measured_after: number | null; limit: number;
+    unit: string }[];
+  summary: string;
+}
+
+export interface TestRunResponse { runs: RunRecord[]; comparisons: Comparison[] }
+
+export interface ComponentTestStatus {
+  component: string;
+  status: ComponentStatus;
+  tests: { test_id: string; test_name: string; target: string; scenario_id: string;
+    scenario_label: string; status: ComponentStatus; run_id: string | null }[];
+}
+
+export interface IntegrationCheck {
+  id: string;
+  kind: string;
+  status: "pass" | "fail" | "warning";
+  message: string;
+  components: string[];
+  parameters: string[];
+  measured: number | null;
+  limit: number | null;
+  unit: string;
+}
+
+export interface IntegrationReport {
+  checks: IntegrationCheck[];
+  counts: Record<string, number>;
+  not_checked: string[];
 }

@@ -23,7 +23,9 @@ button:disabled { opacity: 0.45; }
 
 .app {
   display: grid; height: 100vh;
-  grid-template: "head head head" auto "left main right" 1fr / 240px 1fr 360px;
+  grid-template:
+    "head head head" auto "left main right" minmax(0, 1fr) "left dock right" auto
+    / 240px minmax(0, 1fr) 360px;
 }
 header {
   grid-area: head; display: flex; gap: 8px; align-items: center;
@@ -84,3 +86,55 @@ legend { color: var(--muted); padding: 0; margin-bottom: 4px; }
 .badge { font-size: 10px; border: 1px solid #a77be0; color: #c9a8f5; border-radius: 3px; padding: 0 4px; margin-right: 6px; }
 .decision { margin-top: 6px; display: flex; gap: 6px; color: var(--muted); }
 .decision .confirm { border-color: var(--good); }
+
+.reply.test { border-left-color: var(--accent); }
+
+/* Engineering dock: test bench and integration */
+.dock { grid-area: dock; border-top: 1px solid var(--line); background: var(--panel);
+  height: 46vh; display: flex; flex-direction: column; min-width: 0; }
+.dock.closed { height: auto; }
+.tabs { display: flex; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; background: none; color: var(--muted); }
+.tabs button.active { color: var(--text); box-shadow: inset 0 -2px var(--accent); }
+.bench { display: grid; grid-template-columns: 300px minmax(0, 1fr); flex: 1; min-height: 0; }
+.bench-side { border-right: 1px solid var(--line); padding: 8px; overflow-y: auto; }
+.bench-detail { padding: 8px 12px; overflow-y: auto; }
+.bench-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+button.primary { border-color: var(--accent); background: #24406a; }
+.runs { list-style: none; margin: 6px 0 0; padding: 0; }
+.run-item { width: 100%; text-align: left; border: 0; background: none; padding: 3px 4px; }
+.run-item.selected { background: #2b4366; }
+.run-item small { color: var(--muted); }
+.status-pill { display: inline-block; font-size: 10px; padding: 0 6px; margin-right: 6px;
+  border-radius: 8px; border: 1px solid var(--line); color: var(--muted); }
+.status-pill.passed_within_model, .status-pill.pass { color: var(--good); border-color: var(--good); }
+.status-pill.failed, .status-pill.fail, .status-pill.invalid { color: var(--bad); border-color: var(--bad); }
+.status-pill.stale, .status-pill.warning { color: var(--warn); border-color: var(--warn); }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px;
+  background: var(--muted); }
+.dot.passed_within_model { background: var(--good); }
+.dot.failed, .dot.invalid { background: var(--bad); }
+.dot.stale { background: var(--warn); }
+.run-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 2px; }
+.warnings { color: var(--warn); margin: 4px 0; }
+table { border-collapse: collapse; width: 100%; margin: 6px 0; }
+th { text-align: left; color: var(--muted); font-weight: normal; border-bottom: 1px solid var(--line); }
+td, th { padding: 2px 6px; }
+tr.ok td:last-child { color: var(--good); }
+tr.bad td:last-child { color: var(--bad); }
+tr.better td:last-child { color: var(--good); }
+tr.worse td:last-child { color: var(--bad); }
+.compare-bar { margin: 6px 0; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 8px; }
+.chart { width: 100%; background: #171a1f; border: 1px solid var(--line); border-radius: 6px; }
+.chart .grid { stroke: #2a3039; }
+.chart .limit { stroke: var(--bad); stroke-dasharray: 5 3; }
+.chart .tick { fill: var(--muted); font-size: 9px; }
+.chart .limit-label { fill: var(--bad); }
+.chart-title { fill: var(--text); font-size: 10px; }
+.chart .legend text { font-size: 9px; }
+.integration { padding: 8px 12px; overflow-y: auto; }
+.checks { list-style: none; padding-left: 4px; margin: 4px 0 8px; }
+.checks li { padding: 2px 0; }
+details summary { cursor: pointer; margin: 4px 0; }
+.inputs { columns: 2; }

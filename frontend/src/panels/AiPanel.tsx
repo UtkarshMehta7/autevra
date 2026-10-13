@@ -19,8 +19,9 @@ interface Props {
 
 const EXAMPLES = [
   "increase the wheelbase by 100 mm",
-  "set the rims to 18 inch",
-  "lower the car by 20 mm",
+  "increase the rear shock absorber damping by 10% and test its response",
+  "test the front suspension over a pothole",
+  "make the suspension softer",
   "how long is the car?",
 ];
 
@@ -78,6 +79,8 @@ export function AiPanel({ turns, busy, llm, onSend, onDecide }: Props) {
                 <div className="impact">
                   Rebuilt: {t.reply.result.impact.rebuild.join(", ") || "none"} · Moved:{" "}
                   {t.reply.result.impact.move.join(", ") || "none"}
+                  {(t.reply.result.impact.retest?.length ?? 0) > 0 &&
+                    ` · Tests to rerun: ${t.reply.result.impact.retest!.join(", ")}`}
                 </div>
               )}
               {"suggestions" in t.reply && t.reply.suggestions.length > 0 && (
