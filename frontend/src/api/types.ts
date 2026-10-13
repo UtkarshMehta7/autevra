@@ -86,7 +86,7 @@ export interface Violation {
 
 export interface InstructionResult {
   kind: "command" | "undo" | "redo" | "query" | "clarification" | "rejected" | "proposal"
-    | "out_of_scope" | "test";
+    | "out_of_scope" | "test" | "diagnosis";
   message: string;
   interpreted_by: "rules" | "llm";
   command: Command | null;
@@ -99,6 +99,7 @@ export interface InstructionResult {
   answer: Record<string, number>;
   runs?: RunSummary[];
   comparisons?: Comparison[];
+  diagnosis?: Diagnosis | null;
 }
 
 export interface GeometryData {
@@ -265,4 +266,60 @@ export interface IntegrationReport {
   checks: IntegrationCheck[];
   counts: Record<string, number>;
   not_checked: string[];
+}
+
+export interface Effect {
+  parameter: string;
+  label: string;
+  unit: string;
+  value: number;
+  margin_up: number | null;
+  margin_down: number | null;
+  better_direction: "increase" | "decrease" | null;
+  evidence: "confirmed_in_model" | "possible" | "none";
+  side_effects: string[];
+}
+
+export interface Fix {
+  parameter: string;
+  label: string;
+  operation: string;
+  from_value: number;
+  to_value: number;
+  unit: string;
+  step_percent: number;
+  margin_after: number;
+  breaks: string[];
+  rule_violations: string[];
+  command: Command;
+}
+
+export interface Finding {
+  criterion: string;
+  label: string;
+  status: "failed" | "tightest_margin";
+  measured: number | null;
+  limit: number;
+  unit: string;
+  margin: number | null;
+  limit_source: string;
+  governing_parameter: string | null;
+  effects: Effect[];
+  fixes: Fix[];
+  explanation: string;
+}
+
+export interface Diagnosis {
+  run_id: string;
+  test_id: string;
+  target: string;
+  scenario_id: string;
+  scenario_label: string;
+  design_revision: number;
+  current: boolean;
+  status: string;
+  findings: Finding[];
+  evidence: Record<string, unknown>;
+  recommendation: string;
+  caveats: string[];
 }

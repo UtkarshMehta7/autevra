@@ -9,6 +9,7 @@ from autevra.domain.commands import SetParameters
 from autevra.domain.design import HistoryEntry
 from autevra.domain.parameters import ParameterDef
 from autevra.domain.rules import Violation
+from autevra.engineering.diagnosis import Diagnosis
 from autevra.engineering.testing import Comparison, RunRecord, RunStatus
 
 
@@ -87,6 +88,7 @@ InstructionKind = Literal[
     "proposal",
     "out_of_scope",
     "test",
+    "diagnosis",
 ]
 
 
@@ -104,6 +106,7 @@ class InstructionResult(BaseModel):
     answer: dict[str, float] = {}
     runs: list["RunSummary"] = []
     comparisons: list[Comparison] = []
+    diagnosis: Diagnosis | None = None
 
 
 class HistoryOut(BaseModel):

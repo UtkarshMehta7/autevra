@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
-import type { Comparison, RunRecord, RunSummary, TestDefinition } from "../api/types";
+import type { Command, Comparison, Diagnosis, RunRecord, RunSummary, TestDefinition } from "../api/types";
 import { CREDIBILITY_LABELS, fmt, STATUS_LABELS, STATUS_SHORT } from "../state/engineering";
+import { DiagnosisView } from "./DiagnosisView";
 import { LineChart, type Series } from "./LineChart";
 
 interface Props {
@@ -15,6 +16,9 @@ interface Props {
   focusTarget: string | null;
   onSelect: (runId: string) => void;
   onRun: (testId: string, target: string, scenarioId: string | null) => void;
+  onApply: (command: Command) => void;
+  /** A diagnosis already computed (e.g. by an instruction) for the selected run. */
+  diagnosis: Diagnosis | null;
 }
 
 const BLUE = "#4f8fe6", GREY = "#8b96a3", AMBER = "#e0a33a", GREEN = "#5cbf8a";
@@ -50,7 +54,18 @@ function TraceCharts({ run, baseline }: { run: RunRecord; baseline: RunRecord | 
 
 export function TestBench({
   projectId, definitions, runs, comparisons, selected, busy, focusTarget, onSelect, onRun,
+  onApply, diagnosis: given,
 }: Props) {
+  const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
+  const [diagnosing, setDiagnosing] = useState(false);
+  useEffect(() => {
+    setDiagnosis(given && given.run_id === selected ? given : null);
+  }, [given, selected]);
+  const diagnose = () => {
+    if (!selected) return;
+    setDiagnosing(true);
+    api.diagnosis(projectId, selected).then(setDiagnosis).finally(() => setDiagnosing(false));
+  };
   const [testId, setTestId] = useState("quarter_car");
   const [target, setTarget] = useState("rear");
   const [scenario, setScenario] = useState<string>("");
@@ -143,6 +158,13 @@ export function TestBench({
               {" · "}{run.scenario.note}
             </div>
             {run.warnings.length > 0 && <div className="warnings">{run.warnings.join(" · ")}</div>}
+            <div className="bench-controls">
+              <button onClick={diagnose} disabled={diagnosing}>
+                {diagnosing ? "Diagnosing…" : run.status === "failed" ? "Diagnose failure" : "Find tightest margin"}
+              </button>
+              {diagnosis && <button onClick={() => setDiagnosis(null)}>Hide diagnosis</button>}
+            </div>
+            {diagnosis && <DiagnosisView diagnosis={diagnosis} busy={busy} onApply={onApply} />}
             <table className="criteria">
               <thead><tr><th>Criterion</th><th>Measured</th><th>Limit</th><th>Margin</th><th /></tr></thead>
               <tbody>

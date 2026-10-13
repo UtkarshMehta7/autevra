@@ -21,6 +21,7 @@ const EXAMPLES = [
   "increase the wheelbase by 100 mm",
   "increase the rear shock absorber damping by 10% and test its response",
   "test the front suspension over a pothole",
+  "explain why the suspension travel limit was exceeded",
   "make the suspension softer",
   "how long is the car?",
 ];

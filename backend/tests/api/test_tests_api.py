@@ -134,3 +134,22 @@ def test_test_catalogue(client: TestClient) -> None:
     assert set(tests) == {"quarter_car", "ride_modes"}
     assert tests["ride_modes"]["criteria"] == []  # no invented pass/fail limits
     assert "front_damping_bump" in tests["quarter_car"]["inputs"]["front"]
+
+
+def test_diagnose_then_fix_then_retest(client: TestClient, project: str) -> None:
+    _say(client, project, "test the rear over the hump")
+    reply = _say(client, project, "explain why the suspension travel limit was exceeded")
+    assert reply["kind"] == "diagnosis" and reply["diagnosis"]["current"] is True
+    finding = reply["diagnosis"]["findings"][0]
+    assert finding["criterion"] == "bump_travel"
+    fix = next(f for f in finding["fixes"] if not f["rule_violations"] and not f["breaks"])
+    applied = client.post(f"/api/projects/{project}/commands", json={"command": fix["command"]})
+    assert applied.status_code == 200 and applied.json()["changed"] == [fix["parameter"]]
+    retest = _say(client, project, "test the rear over the hump")
+    assert retest["runs"][0]["status"] == "passed_within_model"
+    assert retest["comparisons"][0]["criteria"][0]["before"] is False
+
+
+def test_diagnose_without_failures_asks_for_a_test(client: TestClient, project: str) -> None:
+    reply = _say(client, project, "why did the front test fail?")
+    assert reply["kind"] == "clarification" and "Run a test first" in reply["message"]

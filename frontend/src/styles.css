@@ -138,3 +138,13 @@ tr.worse td:last-child { color: var(--bad); }
 .checks li { padding: 2px 0; }
 details summary { cursor: pointer; margin: 4px 0; }
 .inputs { columns: 2; }
+
+.diagnosis { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; margin: 6px 0; }
+.finding p { margin: 4px 0; }
+td.better { color: var(--good); }
+td.worse { color: var(--bad); }
+tr.governing td:first-child { color: var(--warn); }
+.fixes { padding-left: 16px; }
+.fixes li { margin: 3px 0; }
+.bad-text { color: var(--bad); }
+.reply.diagnosis { border-left-color: var(--warn); }

@@ -2,6 +2,7 @@ import type {
   Command,
   Comparison,
   ComponentTestStatus,
+  Diagnosis,
   IntegrationReport,
   RunRecord,
   RunSummary,
@@ -70,6 +71,7 @@ export const api = {
   run: (id: string, run: string) => request<RunRecord>(`/projects/${id}/runs/${run}`),
   compare: (id: string, baseline: string, candidate: string) =>
     request<Comparison>(`/projects/${id}/runs/compare?baseline=${baseline}&candidate=${candidate}`),
+  diagnosis: (id: string, run: string) => request<Diagnosis>(`/projects/${id}/runs/${run}/diagnosis`),
   componentStatus: (id: string) => request<ComponentTestStatus[]>(`/projects/${id}/components/status`),
   integration: (id: string) => request<IntegrationReport>(`/projects/${id}/integration`),
 };

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
 import type {
-  CommandResult, Comparison, ComponentTestStatus, HistoryEntry, IntegrationReport, LLMStatus,
+  Command, CommandResult, Comparison, Diagnosis, ComponentTestStatus, HistoryEntry, IntegrationReport, LLMStatus,
   ModelPayload, ParameterDef, ProjectState, ProjectSummary, RunSummary, TestDefinition,
 } from "./api/types";
 import { AiPanel, type ChatTurn } from "./panels/AiPanel";
@@ -58,6 +58,7 @@ export function App() {
   const [testStatus, setTestStatus] = useState<ComponentTestStatus[]>([]);
   const [dock, setDock] = useState<"bench" | "integration" | null>("bench");
   const [integration, setIntegration] = useState<IntegrationReport | null>(null);
+  const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const highlightTimer = useRef<number | undefined>(undefined);
   // Actions run strictly one after another, in the order the user issued them.
   const queue = useRef<Promise<void>>(Promise.resolve());
@@ -158,6 +159,7 @@ export function App() {
         if (reply.runs?.length) {
           setComparisons(reply.comparisons ?? []);
           setSelectedRun(reply.runs[0].id);
+          setDiagnosis(reply.diagnosis ?? null);
           setDock("bench");
         }
         return reply.result;
@@ -197,6 +199,9 @@ export function App() {
       setSelectedRun(out.runs[0]?.id ?? null);
       return null;
     });
+
+  // A diagnosis fix goes through the same validated command path as any edit.
+  const applyFix = (command: Command) => run(() => api.command(project!.id, command));
 
   const checkIntegration = useCallback(() => {
     if (!project) return;
@@ -270,7 +275,8 @@ export function App() {
         {project && dock === "bench" && (
           <TestBench projectId={project.id} definitions={tests} runs={runs}
             comparisons={comparisons} selected={selectedRun} busy={busy}
-            focusTarget={focusTarget} onSelect={setSelectedRun} onRun={runTests} />
+            focusTarget={focusTarget} onSelect={setSelectedRun} onRun={runTests}
+            onApply={applyFix} diagnosis={diagnosis} />
         )}
         {project && dock === "integration" && (
           <IntegrationPanel report={integration} onRefresh={checkIntegration} busy={busy} />

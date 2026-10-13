@@ -11,6 +11,7 @@ from autevra.domain import parameters
 from autevra.domain.commands import CommandError
 from autevra.domain.design import CommandRejectedError
 from autevra.engineering import testing as tst
+from autevra.engineering.diagnosis import Diagnosis
 from autevra.storage.repository import ProjectNotFoundError
 from autevra.storage.runs import RunNotFoundError
 
@@ -200,6 +201,11 @@ def compare_runs(
     project_id: str, baseline: str, candidate: str, ws: WorkspaceDep
 ) -> tst.Comparison:
     return ws.compare_runs(project_id, baseline, candidate)
+
+
+@router.get("/projects/{project_id}/runs/{run_id}/diagnosis", response_model=Diagnosis)
+def diagnose_run(project_id: str, run_id: str, ws: WorkspaceDep) -> Diagnosis:
+    return ws.diagnose(project_id, run_id)
 
 
 @router.get("/projects/{project_id}/runs/{run_id}", response_model=tst.RunRecord)

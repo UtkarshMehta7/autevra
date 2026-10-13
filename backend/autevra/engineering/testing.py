@@ -476,6 +476,30 @@ def run_test(
     )
 
 
+def quick_evaluate(
+    test_id: str,
+    target: str,
+    scenario_id: str,
+    values: Values,
+    requirements: Iterable[Requirement] = (),
+) -> tuple[dict[str, float | None], list[CriterionResult]]:
+    """Metrics and criteria without a stored record or the half-step convergence rerun.
+
+    For perturbation studies (diagnosis, optimisation) around designs whose numerics a full
+    run has checked; anything presented as a result is re-run with ``run_test``.
+    """
+    definition = DEFINITIONS[test_id]
+    scenario = definition.scenario(scenario_id)
+    if test_id == "quarter_car":
+        config = qc.Config(duration=scenario.duration_s, check_convergence=False, trace_points=2)
+        metrics = qc.simulate(
+            quarter_car_params(values, target), scenario.road_si(), config
+        ).metrics
+    else:
+        metrics = definition.run(values, target, scenario)[0]
+    return metrics, evaluate(definition, target, scenario, values, metrics, requirements)
+
+
 def tests_affected(changed: Iterable[str]) -> list[tuple[str, str]]:
     """(test, target) pairs whose results a change to these parameters makes stale."""
     changed = set(changed)

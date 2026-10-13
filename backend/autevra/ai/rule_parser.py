@@ -28,6 +28,7 @@ class Kind(StrEnum):
     PROPOSAL = "proposal"  # LLM-derived command: must be confirmed before it is applied
     OUT_OF_SCOPE = "out_of_scope"
     TEST = "test"  # run component tests (no design change)
+    DIAGNOSE = "diagnose"  # explain the latest failed test
 
 
 class Reason(StrEnum):
@@ -49,6 +50,7 @@ class TestRequest:
     test_id: str = "quarter_car"
     target: str | None = None
     scenario_id: str | None = None  # None: every scenario
+    focus: str | None = None  # diagnosis: "travel" or "contact" failures first
 
 
 @dataclass
@@ -84,6 +86,12 @@ _TEST_WORDS = re.compile(
 )
 
 
+_DIAGNOSE = re.compile(
+    r"^(?:please )?(?:diagnose|explain|why)\b.*\b(fail|failed|fails|failure|exceed|exceeded|"
+    r"exceeds|limit|test|lift|lifted|diagnos)|^diagnose\b"
+)
+
+
 def _test_request(text: str) -> TestRequest:
     words = set(_words(text))
     test_id = "ride_modes" if re.search(r"ride modes?|natural frequenc|modal", text) else None
@@ -96,7 +104,14 @@ def _test_request(text: str) -> TestRequest:
         scenario = "step_25"
     front, rear = "front" in words, "rear" in words or "back" in words
     target = "front" if front and not rear else "rear" if rear and not front else None
-    return TestRequest(test_id or "quarter_car", target, None if test_id else scenario)
+    focus = (
+        "travel"
+        if "travel" in words
+        else "contact"
+        if words & {"contact", "lift", "lifted", "grip"}
+        else None
+    )
+    return TestRequest(test_id or "quarter_car", target, None if test_id else scenario, focus)
 
 
 def _split_test_tail(t: str) -> tuple[str, TestRequest | None]:
@@ -348,6 +363,8 @@ def parse(text: str) -> Interpretation:
         return Interpretation(Kind.UNDO)
     if t in lx.REDO_PHRASES:
         return Interpretation(Kind.REDO)
+    if _DIAGNOSE.search(t):
+        return Interpretation(Kind.DIAGNOSE, tests=_test_request(t))
     if t.endswith("?") or _QUESTION_START.match(t):
         return _parse_query(t.rstrip("?"))
     if re.match(rf"^(?:please )?{_TEST_VERB}\b", t) and _TEST_WORDS.search(t):

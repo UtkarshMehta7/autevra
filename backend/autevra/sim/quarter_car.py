@@ -19,7 +19,6 @@ Assumptions and limits (reported with every result):
 """
 
 import math
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 
 SOLVER_ID = "autevra.quarter_car"
@@ -94,6 +93,7 @@ class Config:
     duration: float = 3.0  # s
     trace_points: int = 600
     convergence_tolerance: float = 0.005  # relative change of key metrics at dt / 2
+    check_convergence: bool = True  # False only for perturbation studies around a checked run
 
 
 @dataclass(frozen=True)
@@ -124,48 +124,57 @@ def natural_frequencies(p: Params) -> tuple[float, float]:
     return w1 / (2 * math.pi), w2 / (2 * math.pi)
 
 
-def _derivatives(p: Params, road: Callable[[float], float]):  # type: ignore[no-untyped-def]
-    preload_tyre = (p.sprung_mass + p.unsprung_mass) * G
-
-    def f(t: float, y: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
-        zs, vs, zu, vu = y
-        compression, rate = zu - zs, vu - vs
-        c = p.damping_bump if rate > 0 else p.damping_rebound
-        f_susp = p.spring_rate * compression + c * rate  # change from the static preload
-        f_tyre = max(0.0, preload_tyre + p.tyre_stiffness * (road(t) - zu)) - preload_tyre
-        return vs, f_susp / p.sprung_mass, vu, (f_tyre - f_susp) / p.unsprung_mass
-
-    return f, preload_tyre
-
-
 def _integrate(p: Params, road: Road, config: Config, initial: Initial, dt: float) -> dict:
-    f, preload = _derivatives(p, road.displacement)
+    """Classical RK4 with scalar locals (no per-step allocations): ~4x faster than tuples."""
+    ms, mu, k, kt = p.sprung_mass, p.unsprung_mass, p.spring_rate, p.tyre_stiffness
+    cb, cr = p.damping_bump, p.damping_rebound
+    preload = (ms + mu) * G
+    zr_at = road.displacement
+
+    def accel(zs: float, vs: float, zu: float, vu: float, zr: float) -> tuple[float, float]:
+        rate = vu - vs
+        f_susp = k * (zu - zs) + (cb if rate > 0 else cr) * rate
+        f_tyre = preload + kt * (zr - zu)
+        f_tyre = (f_tyre if f_tyre > 0.0 else 0.0) - preload
+        return f_susp / ms, (f_tyre - f_susp) / mu
+
     steps = round(config.duration / dt)
-    y = (initial.body, 0.0, initial.wheel, 0.0)
-    out = {k: [0.0] * (steps + 1) for k in ("t", "road", "body", "wheel", "body_acc", "tyre")}
-
-    def record(i: int, t: float, y: tuple[float, float, float, float]) -> None:
-        d = f(t, y)
-        out["t"][i], out["road"][i] = t, road.displacement(t)
-        out["body"][i], out["wheel"][i] = y[0], y[2]
-        out["body_acc"][i] = d[1]
-        out["tyre"][i] = max(0.0, preload + p.tyre_stiffness * (out["road"][i] - y[2]))
-
-    record(0, 0.0, y)
+    zs, vs, zu, vu = initial.body, 0.0, initial.wheel, 0.0
+    ts, roads, bodies, wheels, accs, tyres = ([0.0] * (steps + 1) for _ in range(6))
+    zr0 = zr_at(0.0)
+    a0 = accel(zs, vs, zu, vu, zr0)[0]
+    roads[0], bodies[0], wheels[0], accs[0] = zr0, zs, zu, a0
+    tyres[0] = max(0.0, preload + kt * (zr0 - zu))
+    h2, h6 = dt / 2.0, dt / 6.0
     for i in range(steps):
         t = i * dt
-        k1 = f(t, y)
-        k2 = f(t + dt / 2, tuple(a + dt / 2 * b for a, b in zip(y, k1, strict=True)))
-        k3 = f(t + dt / 2, tuple(a + dt / 2 * b for a, b in zip(y, k2, strict=True)))
-        k4 = f(t + dt, tuple(a + dt * b for a, b in zip(y, k3, strict=True)))
-        y = tuple(
-            a + dt / 6 * (b1 + 2 * b2 + 2 * b3 + b4)
-            for a, b1, b2, b3, b4 in zip(y, k1, k2, k3, k4, strict=True)
-        )
-        record(i + 1, (i + 1) * dt, y)
-    out["preload"] = preload
-    out["dt"] = dt
-    return out
+        r0, rh, r1 = zr_at(t), zr_at(t + h2), zr_at(t + dt)
+        a1s, a1u = accel(zs, vs, zu, vu, r0)
+        a2s, a2u = accel(zs + h2 * vs, vs + h2 * a1s, zu + h2 * vu, vu + h2 * a1u, rh)
+        v2s, v2u = vs + h2 * a1s, vu + h2 * a1u
+        a3s, a3u = accel(zs + h2 * v2s, vs + h2 * a2s, zu + h2 * v2u, vu + h2 * a2u, rh)
+        v3s, v3u = vs + h2 * a2s, vu + h2 * a2u
+        a4s, a4u = accel(zs + dt * v3s, vs + dt * a3s, zu + dt * v3u, vu + dt * a3u, r1)
+        v4s, v4u = vs + dt * a3s, vu + dt * a3u
+        zs += h6 * (vs + 2 * v2s + 2 * v3s + v4s)
+        zu += h6 * (vu + 2 * v2u + 2 * v3u + v4u)
+        vs += h6 * (a1s + 2 * a2s + 2 * a3s + a4s)
+        vu += h6 * (a1u + 2 * a2u + 2 * a3u + a4u)
+        j = i + 1
+        ts[j], roads[j], bodies[j], wheels[j] = j * dt, r1, zs, zu
+        accs[j] = accel(zs, vs, zu, vu, r1)[0]
+        tyre = preload + kt * (r1 - zu)
+        tyres[j] = tyre if tyre > 0.0 else 0.0
+    return {
+        "t": ts,
+        "road": roads,
+        "body": bodies,
+        "wheel": wheels,
+        "body_acc": accs,
+        "tyre": tyres,
+        "preload": preload,
+        "dt": dt,
+    }
 
 
 def _settling_time(run: dict, road: Road) -> float | None:

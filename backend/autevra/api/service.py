@@ -21,6 +21,7 @@ from autevra.domain import derived, parameters
 from autevra.domain.commands import CommandError, SetParameters, Source
 from autevra.domain.design import ApplyResult, CommandRejectedError, DesignState
 from autevra.domain.rules import validate
+from autevra.engineering import diagnosis as dgn
 from autevra.engineering import integration
 from autevra.engineering import testing as tst
 from autevra.storage.database import Database
@@ -231,6 +232,26 @@ class Workspace:
             case Kind.TEST:
                 assert interpretation.tests is not None
                 return self._instruct_tests(project_id, interpretation.tests)
+            case Kind.DIAGNOSE:
+                request = interpretation.tests or TestRequest()
+                target = request.target
+                run = self.latest_failed_run(project_id, target, request.focus)
+                if run is None:
+                    return schemas.InstructionResult(
+                        kind="clarification",
+                        message="No current test has failed"
+                        + (f" on the {target} corner" if target else "")
+                        + ". Run a test first, for example 'test the rear over the hump'.",
+                        suggestions=["test the rear over the hump", "run a quarter-car test"],
+                    )
+                found = self.diagnose(project_id, run.id)
+                summary = schemas.RunSummary.of(run, True)
+                return schemas.InstructionResult(
+                    kind="diagnosis",
+                    message=" ".join(f.explanation for f in found.findings),
+                    runs=[summary],
+                    diagnosis=found,
+                )
             case Kind.PROPOSAL:
                 # LLM-derived: never applied here, only stored until the user confirms it.
                 assert interpretation.command is not None
@@ -373,6 +394,39 @@ class Workspace:
         with self.db.session() as s:
             ProjectRepository(s).info(project_id)
             return RunRepository(s).get(project_id, run_id)
+
+    def diagnose(self, project_id: str, run_id: str) -> dgn.Diagnosis:
+        with self.db.session() as s:
+            state = ProjectRepository(s).load(project_id)
+            repo = RunRepository(s)
+            run = repo.get(project_id, run_id)
+            reqs = repo.requirements(project_id)
+        # The run's own inputs over the current design: only its inputs affect the test.
+        values = state.values | {p: v["value"] for p, v in run.inputs.items()}
+        definition = tst.DEFINITIONS[run.test_id]
+        scenario = definition.scenario(run.scenario["id"])
+        current = tst.inputs_hash(definition, run.target, scenario, state.values, reqs) == (
+            run.revision.inputs_hash
+        )
+        return dgn.diagnose(run, values, current=current, requirements=reqs)
+
+    def latest_failed_run(
+        self, project_id: str, target: str | None, focus: str | None = None
+    ) -> tst.RunRecord | None:
+        """Most recent failed run on the current design; ``focus`` prefers travel or tyre
+        contact failures."""
+        wanted = {"travel": ("bump_travel", "rebound_travel"), "contact": ("tyre_contact",)}
+        fallback = None
+        for summary in self.list_runs(project_id, None, target, None):
+            if not summary.current or summary.status != tst.RunStatus.FAILED:
+                continue
+            run = self.get_run(project_id, summary.id)
+            if focus is None or any(
+                c.id in wanted[focus] and c.passed is False for c in run.criteria
+            ):
+                return run
+            fallback = fallback or run
+        return fallback
 
     def compare_runs(self, project_id: str, baseline: str, candidate: str) -> tst.Comparison:
         with self.db.session() as s:
