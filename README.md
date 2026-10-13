@@ -12,11 +12,20 @@ becomes a validated engineering operation on parametric geometry.
 > "Explain why the suspension travel limit was exceeded."
 > "Optimise ride comfort on the rear over the hump." / "Fix the rear suspension."
 
+**Live demo:** [autevra.netlify.app](https://autevra.netlify.app) (website, workspace and
+studio) with the engineering backend at
+[autevra.onrender.com](https://autevra.onrender.com/api/health). It runs on free tiers,
+so the first request after a pause takes about a minute, the local LLM is off (the
+deterministic parser still works), and there are no accounts yet: projects are shared by
+every visitor. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 ---
 
 ## Status
 
-**Phases 1–5 are implemented.**
+**Phases 1–9 are implemented**: the five engineering phases below, the website /
+workspace / routed studio, the shared engineering core with the automotive domain module,
+and a hosted demo (Netlify, Render, Neon).
 
 - **Parametric vehicle.** Body with wheel wells and cabin, hollow ladder frame, beam axles, wheels and four coil-over dampers, in real CadQuery/Open CASCADE geometry. It is edited through typed, validated commands from the property editor, the API or plain English, with undo/redo, persistence and STEP export.
 - **Local language model (optional).** A local model proposes changes the deterministic parser cannot resolve, and every proposal needs confirmation.
@@ -48,7 +57,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for progress, known limitations and what 
 | [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) | Environment inspection, verified Apple Silicon compatibility matrix, risks and memory budget |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phased implementation plan and progress log (completed and remaining work) |
 | [docs/MODULES.md](docs/MODULES.md) | How each implemented module works |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Hosted demo: Netlify (frontend), a container host for the API, Neon Postgres |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Hosted demo: Netlify (frontend), Render (API), Neon (Postgres); measured limits and steps |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow, branch and commit conventions |
 
 ## Core capabilities (✅ available, the rest planned)

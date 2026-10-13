@@ -3,6 +3,10 @@
 Autevra is local-first: `make dev` on the Mac is the primary way to run it. This page
 describes a hosted demo of the same code.
 
+**Live since 2026-10-14:** website at <https://autevra.netlify.app>, API at
+<https://autevra.onrender.com> (`/api/health`), database on Neon. Netlify and Render both
+deploy `main` automatically.
+
 ## Shape
 
 | Part | What it is | Host |
@@ -51,7 +55,14 @@ service (512 MB, 0.1 CPU, x86_64) from `render.yaml` and redeploys on every push
    - `AUTEVRA_DATABASE_URL` = the Neon connection string;
    - `AUTEVRA_CORS_ORIGINS` = `["https://<your-site>.netlify.app"]` (if the Netlify site does
      not exist yet, enter `[]` and change it after step 3).
-4. **Apply.** The first image build takes several minutes. The API is then at
+4. **Apply.** The first image build takes several minutes.
+
+   If the service was created as a plain **Web Service** instead of a Blueprint (the live
+   one was), `render.yaml` is not read, so set the same things by hand: **Root Directory**
+   `backend`, **Dockerfile Path** `./Dockerfile`, **Health Check Path** `/api/health`,
+   instance type **Free**, and the four environment variables `AUTEVRA_DATABASE_URL`,
+   `AUTEVRA_CORS_ORIGINS`, `AUTEVRA_LLM_PROVIDER=off`, `AUTEVRA_DATA_DIR=/tmp/autevra`.
+   Without the root directory the build fails with "open Dockerfile: no such file". The API is then at
    `https://autevra-api.onrender.com` (Render adds a suffix if the name is taken; the
    dashboard shows the real address). Check `…/api/health`.
 
