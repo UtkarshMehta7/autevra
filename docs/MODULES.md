@@ -259,6 +259,16 @@ requirements. Stored per project in `specifications`.
 | `POST /projects/{id}/spec/answers`, `/spec/text` | answer one question / fill from free text |
 | `POST /projects/{id}/spec/design`, `/spec/apply` | generated design with impact preview / apply it (409 while conflicts remain) |
 
+## Extensions (`autevra.extensions`)
+
+`Plugin` bundles parameters, derived values, rules, builders, components,
+coincidences, load paths, interface kinds, clearances and tests. `register()`
+validates (clashes, builders, mate interfaces, declared dependencies, default
+design) and adds them to the live registries, rebuilding the dependency graph
+and the parser lexicon; `unregister()` removes them. `load()` reads
+`AUTEVRA_PLUGINS` and the `autevra.plugins` entry points at start-up.
+Guide: [EXTENDING.md](EXTENDING.md).
+
 ## Frontend (`frontend/src`)
 
 - `api/` — typed client mirroring the backend schemas.

@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     llm_model: str = "qwen3:1.7b"
     llm_timeout: float = 60.0
 
+    # Plugins: comma-separated module paths, e.g. "autevra.contrib.brake_discs", plus any
+    # installed package that declares the "autevra.plugins" entry-point group.
+    plugins: str = ""
+    plugin_entry_points: bool = True
+
+    def plugin_modules(self) -> list[str]:
+        return [m.strip() for m in self.plugins.split(",") if m.strip()]
+
     def resolved_database_url(self) -> str:
         if self.database_url:
             return self.database_url

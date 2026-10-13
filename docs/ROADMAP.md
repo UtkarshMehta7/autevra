@@ -93,7 +93,8 @@ specification interview moves to Phase 5.
 ## Phase 8: Electrified powertrain and energy
 
 - [ ] Battery, e-motor, inverter and thermal models; packaging envelopes in CAD
-- [ ] Longitudinal: acceleration 0–100 km/h, braking 100–0 km/h, energy over WLTP-style cycles
+- [x] Longitudinal: acceleration 0–100 km/h, braking 100–0 km/h (dry and wet)
+- [ ] Energy over WLTP-style cycles
 - [ ] Range, charging and thermal-limit tests as first-class component tests
 
 ## Phase 9: Component library and integration depth
@@ -101,7 +102,7 @@ specification interview moves to Phase 5.
 - [ ] Suspension: double wishbone, MacPherson strut (hardpoints as parameters); travel and steering sweep envelopes
 - [ ] Brakes: disc, caliper envelope; steering: rack and pinion, tie rods (Ackermann geometry)
 - [ ] Mass properties from CAD (materials, CoG, inertia)
-- [ ] Plugin SDK and open component schema (components, interfaces, tests)
+- [x] Plugin SDK (components, interfaces, rules, clearances, tests); example brake-disc plugin
 
 ## Phase 10: Interoperability
 
@@ -131,6 +132,22 @@ specification interview moves to Phase 5.
 ---
 
 ## Progress log
+
+### 2026-10-14: longitudinal test, car-shaped body, live simulation, plugin API
+
+**Done**
+- Longitudinal performance test: 0–100 km/h and 100–0 km/h (dry, wet), with:
+  - a traction limit per driven axle with load transfer, for any torque split;
+  - a power limit with a rotating-mass factor, drag and rolling resistance;
+  - braking build-up.
+  
+  Verified against the energy balance, the traction formula and v²/(2μg). The specification's 0–100 target is now a verifiable requirement.
+- New parameters: peak power, front drive share, drivetrain efficiency, drag coefficient, rolling resistance, CG height. Derived frontal area and power-to-weight. Power and dimensionless units.
+- Body: side profile (bumper, nose, hood to the cowl, rear deck) with a rounded plan view and a tapered greenhouse; proportions follow the parameters; valid across random valid designs.
+- Live simulation: tests already run are rerun after every change (`POST /tests/retest`). Runs play back in the 3D view from the solver traces: quarter-car corner motion and longitudinal wheel spin.
+- Spec generation centres the dampers, sizes the arch gap and uses class unsprung masses. Every class passes the step and road hump except the light city car's rear with soft damping (brief lift-off on the kerb step).
+- Plugin API (`autevra.extensions`, entry-point group `autevra.plugins`, `AUTEVRA_PLUGINS`). Example: brake discs with caliper envelopes, a rim-fit rule, exact caliper-to-rim clearance and an analytical disc-heating test. See [EXTENDING.md](EXTENDING.md).
+- 404 backend tests and 13 frontend tests pass.
 
 ### 2026-10-13: Phase 5 complete (specification interview)
 

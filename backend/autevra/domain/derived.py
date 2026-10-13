@@ -333,7 +333,7 @@ _DERIVED: dict[str, tuple[DerivedDef, Callable[[Values], float]]] = {
     ),
 }  # fmt: skip
 
-DERIVED: Mapping[str, DerivedDef] = {k: v[0] for k, v in _DERIVED.items()}
+DERIVED: dict[str, DerivedDef] = {k: v[0] for k, v in _DERIVED.items()}  # extensible
 
 
 def compute(derived_id: str, p: Values) -> float:

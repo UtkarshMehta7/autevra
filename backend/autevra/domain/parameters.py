@@ -4,7 +4,6 @@ The registry is the single list of parameter IDs. The command system, the
 intent parser, the API and (later) the LLM schema are all derived from it.
 """
 
-from collections.abc import Mapping
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -28,7 +27,7 @@ class ParameterDef(BaseModel):
 
     id: str
     label: str
-    group: Group
+    group: Group | str  # plugins may add groups
     unit: Unit
     default: float
     min: float
@@ -483,10 +482,10 @@ _DEFINITIONS += (
     ),
 )  # fmt: skip
 
-REGISTRY: Mapping[str, ParameterDef] = {d.id: d for d in _DEFINITIONS}
+REGISTRY: dict[str, ParameterDef] = {d.id: d for d in _DEFINITIONS}  # extensible
 
 # Group aliases: one word that addresses several parameters at once.
-GROUP_ALIASES: Mapping[str, tuple[str, ...]] = {
+GROUP_ALIASES: dict[str, tuple[str, ...]] = {
     "track": ("track_front", "track_rear"),
     "track width": ("track_front", "track_rear"),
     "wheel track": ("track_front", "track_rear"),
@@ -527,4 +526,4 @@ def get(parameter_id: str) -> ParameterDef:
 
 
 def default_values() -> dict[str, float]:
-    return {d.id: d.default for d in _DEFINITIONS}
+    return {d.id: d.default for d in REGISTRY.values()}

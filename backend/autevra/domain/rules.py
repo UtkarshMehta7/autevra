@@ -349,7 +349,7 @@ def _cg_within_body(p: Values) -> str | None:
     return None
 
 
-RULES: tuple[Rule, ...] = tuple(r for r, _ in _RULES)
+RULES: list[Rule] = [r for r, _ in _RULES]  # extensible
 
 
 def check_bounds(p: Values) -> list[Violation]:

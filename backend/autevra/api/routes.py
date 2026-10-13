@@ -114,6 +114,25 @@ def reject_proposal(project_id: str, proposal_id: str, ws: WorkspaceDep) -> None
     ws.reject(project_id, proposal_id)
 
 
+@router.get("/plugins")
+def plugins() -> list[dict]:
+    """Loaded plugins and what each one adds."""
+    from autevra import extensions
+
+    return [
+        {
+            "name": p.name,
+            "version": p.version,
+            "description": p.description,
+            "parameters": [x.id for x in p.parameters],
+            "components": [c.id for c in p.components],
+            "rules": [r.id for r, _ in p.rules],
+            "tests": [t.id for t in p.tests],
+        }
+        for p in extensions.LOADED.values()
+    ]
+
+
 @router.get("/llm", response_model=schemas.LLMStatusOut)
 def llm_status(ws: WorkspaceDep) -> schemas.LLMStatusOut:
     return ws.llm_status()

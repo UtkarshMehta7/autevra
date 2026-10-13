@@ -3,12 +3,13 @@
 export type Operation = "set" | "increase" | "decrease" | "scale";
 export type Unit =
   | "mm" | "cm" | "m" | "in" | "deg" | "%"
-  | "kg" | "lb" | "N/mm" | "N/m" | "kN/m" | "lbf/in" | "N·s/m" | "N·s/mm" | "kN·s/m";
+  | "kg" | "lb" | "N/mm" | "N/m" | "kN/m" | "lbf/in" | "N·s/m" | "N·s/mm" | "kN·s/m"
+  | "kW" | "hp" | "PS" | "";
 
 export interface ParameterDef {
   id: string;
   label: string;
-  group: "dimensions" | "cabin" | "wheels" | "steering" | "frame" | "suspension" | "mass";
+  group: string; // built-in groups plus any added by plugins
   unit: Unit;
   default: number;
   min: number;

@@ -10,7 +10,7 @@ interface Props {
   onSet: (parameter: string, value: number) => void;
 }
 
-const GROUPS: [ParameterDef["group"], string][] = [
+const GROUPS: [string, string][] = [
   ["dimensions", "Dimensions"],
   ["cabin", "Cabin"],
   ["wheels", "Wheels & tyres"],
@@ -18,6 +18,7 @@ const GROUPS: [ParameterDef["group"], string][] = [
   ["frame", "Chassis frame"],
   ["suspension", "Suspension"],
   ["mass", "Mass"],
+  ["powertrain", "Powertrain & road loads"],
 ];
 
 function ParameterInput({ def, value, onSet }: {
@@ -55,7 +56,10 @@ export function PropertyEditor({ parameters, values, derived, error, onSet }: Pr
     <section className="panel">
       <h2>Parameters</h2>
       {error && <div className="error">{error}</div>}
-      {GROUPS.map(([group, label]) => (
+      {[...GROUPS, ...[...new Set(parameters.map((p) => p.group))]
+        .filter((g) => !GROUPS.some(([k]) => k === g))
+        .map((g) => [g, g.charAt(0).toUpperCase() + g.slice(1)] as [string, string])]
+        .map(([group, label]) => (
         <fieldset key={group}>
           <legend>{label}</legend>
           {parameters.filter((p) => p.group === group).map((def) => (
