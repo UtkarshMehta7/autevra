@@ -124,7 +124,7 @@ Goal: change a **real** CAD parameter of a simple vehicle through natural langua
 - 163 backend tests and 4 frontend tests pass; ruff and TypeScript clean.
 
 **Not verified locally**
-- Docker images: Docker is not installed on the Mac. CI builds them on x86_64; run `make docker` after installing Docker Desktop.
+- Docker images: Docker is not installed on the Mac. CI builds them successfully on x86_64; running the stack (`make docker-up`) is untested until Docker Desktop is installed.
 
 **Remaining / follow-ups**
 - Switch the test client from `httpx` to `httpx2` (Starlette 1.8 deprecation), pending approval.
