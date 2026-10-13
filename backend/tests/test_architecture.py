@@ -6,7 +6,9 @@ from pathlib import Path
 import pytest
 
 PACKAGE = Path(__file__).resolve().parents[1] / "autevra"
-CORE = ("core", "assembly", "cad", "engineering", "storage", "sim")
+CORE = ("core", "assembly", "cad", "engineering", "storage", "sim", "ai")
+# Entry points that load the built-in domains on purpose.
+ENTRY_POINTS = {"ai/evaluate.py"}
 
 
 def _imports(path: Path) -> set[str]:
@@ -28,6 +30,7 @@ def test_core_packages_do_not_import_domains(package: str) -> None:
             i for i in _imports(f) if i.startswith("autevra.domains")
         )
         for f in (PACKAGE / package).rglob("*.py")
+        if str(f.relative_to(PACKAGE)) not in ENTRY_POINTS
     }
     assert {k: v for k, v in offenders.items() if v} == {}
 
@@ -51,3 +54,16 @@ def test_core_registries_start_empty() -> None:
             "len(model.COMPONENTS), len(testing.DEFINITIONS))")  # fmt: skip
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
     assert out.stdout.split() == ["0", "0", "0", "0", "0"]
+
+
+def test_parser_alone_knows_no_vehicle_vocabulary() -> None:
+    """Without a domain loaded, the parser engine understands instruction shapes only."""
+    import subprocess
+    import sys
+
+    code = ("from autevra.ai.rule_parser import parse, normalise; "
+            "print(parse('increase the wheelbase by 100 mm').kind, "
+            "normalise('make the car longer on 18s'), parse('undo').kind)")  # fmt: skip
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.split() == ["clarification", "make", "the", "car", "longer", "on", "18s",
+                                  "undo"]  # fmt: skip

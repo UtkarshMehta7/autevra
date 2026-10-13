@@ -14,7 +14,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from autevra import domains
-from autevra.ai import interpreter
+from autevra.ai import interpreter, rule_parser
 from autevra.ai.llm.clients import DisabledClient, LLMClient
 from autevra.ai.rule_parser import Kind, TestRequest
 from autevra.api import model_service, schemas
@@ -485,7 +485,7 @@ class Workspace:
                 assert interpretation.tests is not None
                 return self._instruct_optimize(project_id, interpretation.tests)
             case Kind.LOOP:
-                request = interpretation.tests or TestRequest()
+                request = interpretation.tests or rule_parser.default_test_request()
                 targets = [request.target] if request.target else ["front", "rear"]
                 loops = [
                     self.engineering_loop(
@@ -502,7 +502,7 @@ class Workspace:
                     kind="loop", message=" ".join(_loop_message(r) for r in loops), loops=loops
                 )
             case Kind.DIAGNOSE:
-                request = interpretation.tests or TestRequest()
+                request = interpretation.tests or rule_parser.default_test_request()
                 target = request.target
                 run = self.latest_failed_run(project_id, target, request.focus)
                 if run is None:

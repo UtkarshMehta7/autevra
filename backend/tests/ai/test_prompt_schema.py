@@ -24,7 +24,7 @@ def test_prompt_lists_every_parameter_with_current_value() -> None:
 
 
 def test_few_shot_examples_match_the_schema() -> None:
-    for example, answer in prompt._EXAMPLES:
+    for example, answer in prompt._examples():
         out = _LLMOutput.model_validate(answer)
         assert all(c.parameter in REGISTRY for c in out.changes), example
         assert all(q in REGISTRY or q in DERIVED for q in out.query), example

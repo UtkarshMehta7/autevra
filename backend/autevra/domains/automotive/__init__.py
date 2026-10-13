@@ -10,7 +10,15 @@ Importing the package registers the domain once (idempotent).
 """
 
 from autevra import extensions
-from autevra.domains.automotive import builders, derived, integration, parameters, rules, vehicle
+from autevra.domains.automotive import (
+    builders,
+    derived,
+    integration,
+    language,
+    parameters,
+    rules,
+    vehicle,
+)
 from autevra.domains.automotive import tests as test_definitions
 
 DOMAIN_ID = "automotive"
@@ -39,6 +47,7 @@ PLUGIN = extensions.Plugin(
     tests=test_definitions.DEFINITIONS,
     integration_checks=(integration.travel_checks,),
     notes=integration.NOT_CHECKED,
+    language=language.LANGUAGE,
 )
 
 

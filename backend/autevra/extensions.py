@@ -20,7 +20,9 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 
+from autevra.ai import language as languages
 from autevra.ai import lexicon
+from autevra.ai.language import Language
 from autevra.assembly import graph
 from autevra.assembly import model as vehicle
 from autevra.assembly.model import Coincidence, ComponentDef
@@ -58,6 +60,7 @@ class Plugin:
     tests: Sequence[TestDefinition] = ()
     integration_checks: Sequence[Callable] = ()  # values -> list of integration Checks
     notes: Sequence[str] = ()  # stated limitations of what is checked
+    language: Language | None = None  # vocabulary for the parser, concepts and prompt
 
 
 LOADED: dict[str, Plugin] = {}
@@ -113,6 +116,8 @@ def register(plugin: Plugin) -> Plugin:
         integration.NOT_CHECKED.extend(plugin.notes)
         for t in plugin.tests:
             testing.DEFINITIONS[t.id] = t
+        if plugin.language is not None:
+            languages.register(plugin.language)
         graph.reindex()
         lexicon.rebuild()
         _verify()
@@ -165,6 +170,8 @@ def unregister(name: str) -> None:
     integration.NOT_CHECKED[:] = [x for x in integration.NOT_CHECKED if x not in plugin.notes]
     for t in plugin.tests:
         testing.DEFINITIONS.pop(t.id, None)
+    if plugin.language is not None:
+        languages.unregister(plugin.language.name)
     graph.reindex()
     lexicon.rebuild()
 
