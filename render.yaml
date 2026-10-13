@@ -1,6 +1,6 @@
 # Render Blueprint for the backend API (optional; see docs/DEPLOYMENT.md).
-# The backend peaks at ~550 MB (CadQuery, OCP and VTK), so the 512 MB plans run out
-# of memory; "standard" (2 GB) is the smallest plan that fits.
+# The backend uses ~300 MiB in the container after a model build (more during studies,
+# not yet measured), so the 512 MB plans are too tight to rely on; "standard" is 2 GB.
 services:
   - type: web
     name: autevra-api

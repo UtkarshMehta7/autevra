@@ -18,8 +18,11 @@ an optimisation study or engineering loop can run for longer than a CDN rewrite 
 
 ### Backend constraints (measured)
 
-- **Memory:** about 470 MB after import (CadQuery, OCP, VTK) and 545 MB after one model
-  build. Plans with 512 MB (Render Free and Starter, Koyeb Free) run out of memory.
+- **Memory:** on the Mac, peak RSS is about 470 MB after import (CadQuery, OCP, VTK) and
+  545 MB after one model build. In the linux/amd64 container (CI, `docker stats`) it is
+  303 MiB after a model build and a STEP export. Optimisation studies and loops hold more,
+  and that has not been measured, so 512 MB plans (Render Free and Starter, Koyeb Free) are
+  too tight to rely on; the free Space has far more.
 - **Architecture:** `cadquery-ocp` 7.9.x has no Linux arm64 wheel, so the image is
   linux/amd64. ARM-only hosts (for example Oracle's free Ampere VMs) cannot run it yet.
 - **Disk:** only regenerable STEP exports are written to `AUTEVRA_DATA_DIR`, so an
