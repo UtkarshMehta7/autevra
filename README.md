@@ -96,8 +96,27 @@ Data (SQLite database and STEP exports) lives in `backend/data/` by default;
 set `AUTEVRA_DATA_DIR` or `AUTEVRA_DATABASE_URL` to change it. The API is
 documented interactively at http://127.0.0.1:8000/docs.
 
-Optional, for Phase 2: `brew install ollama && ollama pull qwen2.5:1.5b`
-(about 1 GB). The app does not need it. Docker Desktop is optional too: daily
+### Optional: local language model
+
+The deterministic parser handles common phrasing with no model at all. For
+other phrasing, Autevra can ask a small local model, which only **proposes**
+a change; you confirm or reject it in the instruction panel.
+
+```bash
+brew install ollama
+ollama serve                 # or: brew services start ollama
+ollama pull qwen3:1.7b       # default model, about 1.4 GB on disk, about 1.6 GB RAM
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `AUTEVRA_LLM_PROVIDER` | `ollama` | `ollama`, `llama_server` or `off` |
+| `AUTEVRA_LLM_URL` | `http://127.0.0.1:11434` | runtime URL (`http://127.0.0.1:8080` for `llama-server`) |
+| `AUTEVRA_LLM_MODEL` | `qwen3:1.7b` | model name |
+
+If the runtime is not running, the app behaves exactly as with the LLM off.
+Measure a model with `cd backend && uv run python -m autevra.ai.evaluate
+--provider ollama --model <name>` (see [eval/README.md](eval/README.md)). Docker Desktop is optional too: daily
 development runs natively, and the backend image targets `linux/amd64` (see
 [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)).
 
@@ -116,13 +135,14 @@ autevra/
 │   ├── migrations/     Alembic
 │   └── tests/
 ├── frontend/           React + TypeScript + Vite + three.js workspace
+├── eval/               instruction → expected outcome evaluation set
 ├── docs/               research, architecture, modules, environment, roadmap
 ├── docker-compose.yml  backend (linux/amd64) + nginx frontend
 └── Makefile            setup, dev, test, lint, docker
 ```
 
-Planned later: `workers/` (Chrono, FEA in separate environments) and `eval/`
-(natural-language → command evaluation sets, Phase 2).
+`eval/` holds the natural-language → command evaluation set. Planned later:
+`workers/` (Chrono, FEA in separate environments).
 
 ## Author
 

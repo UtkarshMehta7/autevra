@@ -38,11 +38,11 @@ Goal: change a **real** CAD parameter of a simple vehicle through natural langua
 
 ## Phase 2: Local LLM integration
 
-- [ ] LLM client interface with Ollama and llama-server backends (JSON-schema-constrained output)
-- [ ] Prompt built from the parameter registry; temperature 0
-- [ ] Escalation policy: parser first, LLM for unresolved text, user confirmation for LLM proposals
-- [ ] Evaluation dataset (`eval/`) and scoring script; pick the model by score vs memory
-- [ ] Graceful behaviour when no model is running
+- [x] LLM client interface with Ollama and llama-server backends (JSON-schema-constrained output)
+- [x] Prompt built from the parameter registry; temperature 0
+- [x] Escalation policy: parser first, LLM for unresolved text, user confirmation for LLM proposals
+- [x] Evaluation dataset (`eval/`) and scoring script; pick the model by score vs memory
+- [x] Graceful behaviour when no model is running
 
 ## Phase 3: Specification interview and conflict detection
 
@@ -110,6 +110,30 @@ Goal: change a **real** CAD parameter of a simple vehicle through natural langua
 ---
 
 ## Progress log
+
+### 2026-10-13: Phase 2 complete (local LLM fallback)
+
+**Done**
+- HTTP client switched from `httpx` to `httpx2` (tests and LLM clients).
+- `ai/llm/`: `OllamaClient` (`/api/chat` with a JSON schema in `format`, thinking off) and `LlamaServerClient` (OpenAI-compatible `response_format`), both at temperature 0 with a fixed seed; `DisabledClient` when `AUTEVRA_LLM_PROVIDER=off`. Only local URLs, `trust_env` off, 2 s connect timeout.
+- Prompt generated from the parameter registry (id, unit, current value, range, meaning, aliases) and the derived values, with five few-shot examples.
+- Escalation policy: deterministic parser → unmodelled automotive concepts (clarify; "make the suspension softer" asks spring rate vs compression vs rebound damping) → automotive scope check → local model → grounding and rule validation → **proposal**. Proposals are never applied until the user confirms them (`POST …/proposals/{id}/confirm`); the service refuses to apply an LLM-sourced command any other way.
+- Grounding: every value must be a number the user wrote (digits or number words); "to N" means set, "by N" means relative with the direction taken from the user's verb; scale factors must come from the text; the user's unit overrides the model's.
+- Parser hardening found by the evaluation: it no longer guesses when a sentence has words it cannot explain ("slide the cabin 100 mm forward" and "drop the window line by 40 mm" were previously misapplied).
+- Evaluation set `eval/instructions.jsonl` (47 items, `rules` and `llm` tiers) and `python -m autevra.ai.evaluate`; the rules tier is 100 % deterministic and checked in CI, and a test ensures the parser never misapplies an `llm`-tier phrase.
+- Model choice by score vs memory: `qwen3:1.7b` (82.6 % on the `llm` tier, 1.6 GB RAM); `qwen3:4b` scored the same with twice the errors, time and memory (table in `ENVIRONMENT.md`).
+- UI: model status badge, proposal card with Confirm / Reject, and the app is fully usable with no model running (status explains how to start Ollama).
+- 229 backend tests and 5 frontend tests pass; ruff and TypeScript clean. Confirm, reject, once-only confirmation and undo of a confirmed proposal checked against the live model through the API.
+
+**Known limitations**
+- Proposals live in memory for 15 minutes and do not survive a backend restart.
+- "push the rear axle back 10 cm" is ambiguous (wheelbase or rear overhang); both models chose the rear overhang. Shown as a proposal, so nothing changes unless confirmed.
+- Small models still confuse related parameters: live, `qwen3:1.7b` read "stretch the gap between front and rear axles by 4 inches" as the rear track. The rule check rejected it (tyres outside the body), but a mapping that happened to pass the rules would reach the user as a wrong proposal; confirmation is the safeguard.
+- The `llm` tier is small (23 items); accuracy figures have wide error bars.
+
+**Next**
+- Phase 3: specification interview and conflict detection.
+- From the engineering brief: the quarter-car model is the first simulator to build (Phase 6 item, with closed-form verification and fidelity labels: estimated / simulated / validated / certified).
 
 ### 2026-10-13: Phase 1 complete (steps 5–9)
 

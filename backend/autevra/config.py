@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # Local LLM fallback (Phase 2). "off" keeps the app fully deterministic.
     llm_provider: str = "ollama"  # ollama | llama_server | off
     llm_url: str = "http://127.0.0.1:11434"
-    llm_model: str = "qwen2.5:1.5b"
+    llm_model: str = "qwen3:1.7b"
     llm_timeout: float = 60.0
 
     def resolved_database_url(self) -> str:

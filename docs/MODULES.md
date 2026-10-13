@@ -183,3 +183,78 @@ and migrations are dialect-neutral (`render_as_batch` for SQLite ALTERs).
 - `App.tsx` — runs all actions through one sequential queue, so instructions
   typed during a rebuild are applied in order; then refetches project,
   history and model.
+
+## Phase 2: local LLM fallback
+
+### `autevra.ai.concepts`
+Automotive concepts that are recognised but not modelled yet (suspension,
+brakes, engine, transmission, steering system, appearance, mass). A request
+about one of them gets a specific, deterministic answer instead of a guess:
+"make the suspension softer" asks whether that means spring rate,
+compression damping or rebound damping, and says which phase makes them
+editable. `is_automotive(text)` is a conservative scope check: text with no
+automotive vocabulary, design verbs or numbers is declined without calling
+any model.
+
+### `autevra.ai.interpreter`
+The single entry point for instruction text. Escalation policy:
+
+1. The rule parser runs first. Its commands, queries and its clarifying
+   questions about derived values or missing amounts are final.
+2. If the parser found no target (`Reason.NO_TARGET`), an unmodelled concept
+   gets its deterministic question, and off-topic text is declined.
+3. Only then is the local LLM asked, with a registry-derived JSON schema.
+4. The answer is validated: Pydantic shape, registry IDs, unit dimensions,
+   positive scale factors, then **grounding** against the user's words:
+   - every value must be a number the user wrote (digits or number words);
+     scale factors must be such a number, follow from a percentage, or come
+     from "double"/"halve";
+   - "to N" makes the operation absolute; "by N" relative, with the direction
+     taken from the user's verb (no verb → ask);
+   - a bare amount without relative wording ("I want 18 inch alloys") is
+     absolute;
+   - the unit written next to the number overrides the model's unit.
+5. A valid result becomes a `PROPOSAL` (never a command). Undo/redo from the
+   model become suggestions. If the model is off, unreachable or returns
+   garbage, the parser's own question is returned with a note.
+
+The parser also refuses to guess on its own: when it would have to guess the
+operation or fall back to a "make it lower" shortcut, every remaining word must
+be understood. "Slide the cabin 100 mm forward" or "drop the window line by
+40 mm" therefore escalate instead of changing the cabin length or the ground
+clearance.
+
+### `autevra.ai.llm`
+- `schema.proposal_schema()` — JSON schema with enums from the registry
+  (`action`, `changes[{parameter, operation, value, unit}]`, `query`,
+  `question`), used for constrained decoding.
+- `prompt.messages(text, values)` — system prompt with the rules, a table of
+  every parameter (unit, current value, range, description, aliases), the
+  derived values, and five few-shot examples; temperature 0.
+- `clients` — `OllamaClient` (`/api/chat` with `format`, `think: false`,
+  retried without `think` for runtimes that reject it), `LlamaServerClient`
+  (`/v1/chat/completions` with `response_format`), `DisabledClient`, and
+  `make_client`. Connect timeout 2 s, so a stopped runtime fails fast.
+
+### `autevra.ai.evaluate`
+Scores interpretation on `eval/instructions.jsonl` (see `eval/README.md`).
+Outcomes: `PASS`; `MISS` (a question, a decline, or a change validation would
+refuse anyway); `WRONG` (a valid-looking wrong change that only the user's
+confirmation would stop, counted as `wrong_but_valid`).
+
+### API additions
+| Method and path | Purpose |
+|---|---|
+| `POST /projects/{id}/instructions` | may now return `kind: "proposal"` (with `proposal_id` and `preview`) or `"out_of_scope"`; `interpreted_by` is `rules` or `llm` |
+| `POST /projects/{id}/proposals/{pid}/confirm` | apply the proposal through the normal validated command path (history source `llm`) |
+| `POST /projects/{id}/proposals/{pid}/reject` | discard it |
+| `GET /llm` | provider, model, availability and installed models |
+
+Proposals live in memory for 15 minutes, can be used once, belong to one
+project, and are re-validated against the design when confirmed. A proposal
+that already breaks a design rule is returned as `rejected` straight away.
+
+### Frontend
+The instruction panel header shows the LLM state (polled every 30 s). LLM
+replies carry an `LLM` badge; proposals show **Confirm** and **Reject**, and
+nothing changes in the model until Confirm.

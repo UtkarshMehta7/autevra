@@ -2,7 +2,7 @@
 
 Usage (from ``backend/``)::
 
-    uv run python -m autevra.ai.evaluate [--provider ollama --model qwen2.5:1.5b]
+    uv run python -m autevra.ai.evaluate [--provider ollama --model qwen3:1.7b]
 """
 
 import argparse
@@ -125,7 +125,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--provider", default="off", help="off | ollama | llama_server")
     parser.add_argument("--url", default="http://127.0.0.1:11434")
-    parser.add_argument("--model", default="qwen2.5:1.5b")
+    parser.add_argument("--model", default="qwen3:1.7b")
     parser.add_argument("--dataset", type=Path, default=DATASET)
     parser.add_argument("--tier", default=None, help="only run this tier")
     parser.add_argument("--json", type=Path, default=None, help="write full results here")

@@ -14,7 +14,7 @@ Run (from `backend/`):
 
 ```bash
 uv run python -m autevra.ai.evaluate                                   # parser only
-uv run python -m autevra.ai.evaluate --provider ollama --model qwen2.5:1.5b
+uv run python -m autevra.ai.evaluate --provider ollama --model qwen3:1.7b
 ```
 
 The `rules` tier is also a unit test (`tests/ai/test_evaluation.py`). Add a
