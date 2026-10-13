@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     database_url: str = ""
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+    # Local LLM fallback (Phase 2). "off" keeps the app fully deterministic.
+    llm_provider: str = "ollama"  # ollama | llama_server | off
+    llm_url: str = "http://127.0.0.1:11434"
+    llm_model: str = "qwen3:1.7b"
+    llm_timeout: float = 60.0
+
     def resolved_database_url(self) -> str:
         if self.database_url:
             return self.database_url

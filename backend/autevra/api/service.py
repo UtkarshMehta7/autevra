@@ -5,17 +5,22 @@ single thread at a time and jobs stay sequential (8 GB memory budget).
 """
 
 import threading
+import time
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
+from uuid import uuid4
 
-from autevra.ai import rule_parser
+from autevra.ai import interpreter
+from autevra.ai.llm.clients import DisabledClient, LLMClient
 from autevra.ai.rule_parser import Kind
 from autevra.api import model_service, schemas
 from autevra.assembly import graph
 from autevra.cad.cache import GeometryCache
 from autevra.domain import derived, parameters
-from autevra.domain.commands import SetParameters
+from autevra.domain.commands import SetParameters, Source
 from autevra.domain.design import ApplyResult, CommandRejectedError, DesignState
+from autevra.domain.rules import validate
 from autevra.storage.database import Database
 from autevra.storage.repository import ProjectInfo, ProjectRepository
 
@@ -74,12 +79,29 @@ def _format(pid: str, values: dict[str, float]) -> str:
     return f"{spec.label}: {derived.compute(pid, values):.1f} {spec.unit}"
 
 
+PROPOSAL_TTL_S = 15 * 60
+
+
+@dataclass(frozen=True)
+class _Proposal:
+    project_id: str
+    command: SetParameters
+    created: float
+
+
+class ProposalNotFoundError(LookupError):
+    pass
+
+
 class Workspace:
-    def __init__(self, db: Database, data_dir: Path) -> None:
+    def __init__(self, db: Database, data_dir: Path, llm: LLMClient | None = None) -> None:
         self.db = db
         self.data_dir = data_dir
+        self.llm: LLMClient = llm or DisabledClient()
         self.cache = GeometryCache()
         self._lock = threading.RLock()
+        # LLM proposals awaiting confirmation; in memory, they expire and do not survive restarts.
+        self._proposals: dict[str, _Proposal] = {}
 
     # --- projects ---
     def create_project(self, name: str) -> schemas.ProjectState:
@@ -138,7 +160,9 @@ class Workspace:
             return _command_result(state, changed, entry)
 
     def instruct(self, project_id: str, text: str) -> schemas.InstructionResult:
-        interpretation = rule_parser.parse(text)
+        values = self.project(project_id).values
+        interpretation = interpreter.interpret(text, values, self.llm)
+        by = interpretation.interpreted_by
         match interpretation.kind:
             case Kind.UNDO | Kind.REDO:
                 redo = interpretation.kind is Kind.REDO
@@ -159,15 +183,29 @@ class Workspace:
                     for pid in interpretation.query
                 }
                 message = "; ".join(_format(pid, values) for pid in interpretation.query)
-                return schemas.InstructionResult(kind="query", message=message, answer=answer)
+                return schemas.InstructionResult(
+                    kind="query", message=message, answer=answer, interpreted_by=by
+                )
             case Kind.CLARIFICATION:
                 return schemas.InstructionResult(
                     kind="clarification",
                     message=interpretation.question or "",
                     suggestions=interpretation.suggestions,
+                    interpreted_by=by,
                 )
+            case Kind.OUT_OF_SCOPE:
+                return schemas.InstructionResult(
+                    kind="out_of_scope", message=interpretation.question or "", interpreted_by=by
+                )
+            case Kind.PROPOSAL:
+                # LLM-derived: never applied here, only stored until the user confirms it.
+                assert interpretation.command is not None
+                return self._propose(project_id, interpretation.command, interpretation.assumptions)
+        # Only commands from the deterministic parser reach this point.
         command = interpretation.command
         assert command is not None
+        if interpretation.kind is not Kind.COMMAND or command.source is Source.LLM:
+            raise RuntimeError("LLM-derived commands must go through confirmation")
         try:
             result = self.apply(project_id, command)
         except CommandRejectedError as exc:
@@ -189,6 +227,72 @@ class Workspace:
             command=command,
             result=result,
             assumptions=interpretation.assumptions,
+        )
+
+    # --- LLM proposals ---
+    def _propose(
+        self, project_id: str, command: SetParameters, assumptions: list[str]
+    ) -> schemas.InstructionResult:
+        state = DesignState.model_validate(
+            {"values": self.project(project_id).values}
+        )  # current values only
+        proposed = state.preview(command)
+        violations = validate(proposed)
+        if violations:
+            return schemas.InstructionResult(
+                kind="rejected",
+                interpreted_by="llm",
+                command=command,
+                violations=violations,
+                assumptions=assumptions,
+                message="The local model suggested a change that breaks a design rule: "
+                + "; ".join(v.message for v in violations),
+            )
+        changed = [c.parameter for c in command.changes]
+        preview = {pid: proposed[pid] for pid in dict.fromkeys(changed)}
+        self._expire_proposals()
+        proposal_id = uuid4().hex
+        self._proposals[proposal_id] = _Proposal(project_id, command, time.monotonic())
+        summary = "; ".join(_format(pid, proposed) for pid in preview)
+        return schemas.InstructionResult(
+            kind="proposal",
+            interpreted_by="llm",
+            command=command,
+            proposal_id=proposal_id,
+            preview=preview,
+            assumptions=assumptions,
+            message=f"Suggested by the local model: {summary}. Confirm to apply it.",
+        )
+
+    def _expire_proposals(self) -> None:
+        now = time.monotonic()
+        for pid in [k for k, p in self._proposals.items() if now - p.created > PROPOSAL_TTL_S]:
+            del self._proposals[pid]
+
+    def _take_proposal(self, project_id: str, proposal_id: str) -> _Proposal:
+        self._expire_proposals()
+        proposal = self._proposals.get(proposal_id)
+        if proposal is None or proposal.project_id != project_id:
+            raise ProposalNotFoundError(proposal_id)
+        del self._proposals[proposal_id]
+        return proposal
+
+    def confirm(self, project_id: str, proposal_id: str) -> schemas.CommandResult:
+        """Apply a confirmed LLM proposal through the normal validated command path."""
+        return self.apply(project_id, self._take_proposal(project_id, proposal_id).command)
+
+    def reject(self, project_id: str, proposal_id: str) -> None:
+        self._take_proposal(project_id, proposal_id)
+
+    def llm_status(self) -> schemas.LLMStatusOut:
+        status = self.llm.status()
+        return schemas.LLMStatusOut(
+            provider=status.provider,
+            model=status.model,
+            url=status.url,
+            available=status.available,
+            detail=status.detail,
+            models=status.models,
         )
 
     # --- geometry ---

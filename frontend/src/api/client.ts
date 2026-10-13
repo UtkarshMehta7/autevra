@@ -3,6 +3,7 @@ import type {
   CommandResult,
   HistoryEntry,
   InstructionResult,
+  LLMStatus,
   ModelPayload,
   ParameterDef,
   DerivedValue,
@@ -44,6 +45,11 @@ export const api = {
   project: (id: string) => request<ProjectState>(`/projects/${id}`),
   command: (id: string, command: Command) => post<CommandResult>(`/projects/${id}/commands`, { command }),
   instruct: (id: string, text: string) => post<InstructionResult>(`/projects/${id}/instructions`, { text }),
+  confirm: (id: string, proposal: string) =>
+    post<CommandResult>(`/projects/${id}/proposals/${proposal}/confirm`),
+  reject: (id: string, proposal: string) =>
+    post<void>(`/projects/${id}/proposals/${proposal}/reject`),
+  llmStatus: () => request<LLMStatus>("/llm"),
   undo: (id: string) => post<CommandResult>(`/projects/${id}/undo`),
   redo: (id: string) => post<CommandResult>(`/projects/${id}/redo`),
   history: (id: string) => request<{ entries: HistoryEntry[]; cursor: number }>(`/projects/${id}/history`),

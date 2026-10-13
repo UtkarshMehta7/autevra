@@ -10,7 +10,7 @@ from autevra.main import create_app
 
 @pytest.fixture
 def client(tmp_path: Path) -> Iterator[TestClient]:
-    settings = Settings(data_dir=tmp_path / "data")
+    settings = Settings(data_dir=tmp_path / "data", llm_provider="off")
     with TestClient(create_app(settings)) as c:
         yield c
 

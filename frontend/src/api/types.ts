@@ -81,10 +81,13 @@ export interface Violation {
 }
 
 export interface InstructionResult {
-  kind: "command" | "undo" | "redo" | "query" | "clarification" | "rejected";
+  kind: "command" | "undo" | "redo" | "query" | "clarification" | "rejected" | "proposal"
+    | "out_of_scope";
   message: string;
-  interpreted_by: "rules";
+  interpreted_by: "rules" | "llm";
   command: Command | null;
+  proposal_id: string | null;
+  preview: Record<string, number>;
   result: CommandResult | null;
   suggestions: string[];
   assumptions: string[];
@@ -110,4 +113,13 @@ export interface ModelPayload {
   units: "mm";
   geometries: Record<string, GeometryData>;
   parts: ModelPart[];
+}
+
+export interface LLMStatus {
+  provider: string;
+  model: string;
+  url: string;
+  available: boolean;
+  detail: string;
+  models: string[];
 }

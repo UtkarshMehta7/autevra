@@ -113,17 +113,21 @@ import), and a filleted box builds in milliseconds.
 | Machine | Apple M2, 8 GB, macOS 27.0 (arm64), ~28 GB free disk |
 | uv / Python | uv 0.12.19; Python 3.12.14 (Homebrew) used by the venv |
 | Node.js / npm | 22.23.2 / 10.9.8 |
-| Docker, Ollama | **not installed**; Docker is only needed for packaging checks, Ollama for Phase 2 |
+| Docker | **not installed**; only needed for packaging checks |
 | `cadquery 2.8.0` + `cadquery-ocp 7.9.3.1.1` | ✅ native arm64 wheels; build, fillet, STEP export and re-import pass |
 | Backend venv size | 1.3 GB (`backend/.venv`) |
 | First test run | ~2.5 min: macOS scans the newly installed native libraries on first load; later runs take ~4 s |
 | FastAPI 0.143, Pydantic 2.14, SQLAlchemy 2.1, Alembic 1.20, Uvicorn 0.54, pytest 9.1, ruff 0.17 | ✅ pure Python or arm64 wheels |
 | `httpx2 2.13.1` (+ `httpcore2`, `truststore`) | ✅ pure-Python wheels; replaces `httpx`, which Starlette 1.8 deprecates for its test client; also the HTTP client for local LLM runtimes |
-
 | `numpy 2.5` | ✅ arm64 wheel (already a CadQuery dependency; now explicit) |
 | Frontend: `react 19.3.0`, `three 0.186.1`, `vite 8.3.4`, `@vitejs/plugin-react 6.1.2`, `typescript 7.0.2`, `vitest 5.0.4` | ✅ installed with npm on arm64 (52 packages, 111 MB `node_modules`); typecheck, tests, build and dev server verified; production bundle 787 kB (211 kB gzip) |
 | Workspace in Chrome (WebGL) | ✅ checked by hand on the Mac |
 | Docker images | not built locally (Docker not installed); ✅ `docker compose build` passes in CI on x86_64 (ubuntu-24.04) |
+| Ollama 0.40.3 | ✅ `brew install ollama` (arm64 bottle); run with `ollama serve` (Metal GPU). Runs `llama-server` internally as the model runner |
+| `qwen2.5:1.5b` (Q4_K_M) | ✅ 986 MB download; runner RSS ≈ 1.0 GB; ≈ 0.9 s per instruction (warm) |
+| `qwen3:1.7b` (Q4_K_M) | ✅ **default**; 1.4 GB download; runner RSS ≈ 1.6 GB; ≈ 1.3 s per instruction (warm); Apache-2.0 |
+| `qwen3:4b` (Q4_K_M) | ✅ 2.5 GB download; runner RSS ≈ 2.8 GB; ≈ 3.2 s per instruction (warm); Apache-2.0 |
+| Model storage | `~/.ollama/models` (outside the repository; never in Docker images) |
 
 Gotcha: if `import autevra` fails in tests after the first `uv sync`, run
 `uv sync --reinstall-package autevra` to rewrite the editable-install `.pth` file.
@@ -132,6 +136,25 @@ Gotcha: current Chrome returns a Promise from `element.scrollTo()`. A React
 effect written as `useEffect(() => el.scrollTo(...))` therefore returns that
 Promise as its "cleanup", which crashes React on unmount. Effects use block
 bodies.
+
+### Local model choice (Phase 2)
+
+Measured on the 23 `llm`-tier items of `eval/instructions.jsonl` (text the
+deterministic parser deliberately leaves unresolved), Ollama 0.40.3 with
+`OLLAMA_FLASH_ATTENTION=1 OLLAMA_KV_CACHE_TYPE=q8_0`, temperature 0, after
+grounding and rule validation:
+
+| Model | Accuracy | Wrong but valid | Mean time | Runner RSS |
+|---|---|---|---|---|
+| `qwen2.5:1.5b` | 65.2 % | 2 | 1.24 s | 1.0 GB |
+| `qwen3:1.7b` | **82.6 %** | 1 | 1.35 s | 1.6 GB |
+| `qwen3:4b` | 82.6 % | 2 | 3.21 s | 2.8 GB |
+
+`qwen3:1.7b` is the default: the same accuracy as the 4B model at under half
+the time and memory, which leaves room for the CAD kernel on 8 GB. Every LLM
+result is a proposal the user must confirm, so a wrong-but-valid answer is
+shown, not applied. Reproduce with
+`uv run python -m autevra.ai.evaluate --provider ollama --model <name> --tier llm`.
 
 ## 4. Apple Silicon compatibility risks
 

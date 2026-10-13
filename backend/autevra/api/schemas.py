@@ -75,14 +75,18 @@ class InstructionRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
 
 
-InstructionKind = Literal["command", "undo", "redo", "query", "clarification", "rejected"]
+InstructionKind = Literal[
+    "command", "undo", "redo", "query", "clarification", "rejected", "proposal", "out_of_scope"
+]
 
 
 class InstructionResult(BaseModel):
     kind: InstructionKind
     message: str
-    interpreted_by: Literal["rules"] = "rules"
+    interpreted_by: Literal["rules", "llm"] = "rules"
     command: SetParameters | None = None
+    proposal_id: str | None = None
+    preview: dict[str, float] = {}
     result: CommandResult | None = None
     suggestions: list[str] = []
     assumptions: list[str] = []
@@ -93,3 +97,12 @@ class InstructionResult(BaseModel):
 class HistoryOut(BaseModel):
     entries: list[HistoryEntry]
     cursor: int
+
+
+class LLMStatusOut(BaseModel):
+    provider: str
+    model: str
+    url: str
+    available: bool
+    detail: str
+    models: list[str]

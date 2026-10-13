@@ -1,7 +1,7 @@
 import pytest
 
 from autevra.ai import lexicon
-from autevra.ai.rule_parser import Kind, normalise, parse
+from autevra.ai.rule_parser import Kind, Reason, normalise, parse
 from autevra.domain.commands import Operation, Source
 from autevra.domain.units import Unit
 
@@ -161,3 +161,18 @@ def test_normalise() -> None:
 def test_aliases_are_unambiguous() -> None:
     # Building the table raises on a conflicting alias; also check lookup order.
     assert lexicon.ALIASES_BY_LENGTH.index("front track") < lexicon.ALIASES_BY_LENGTH.index("track")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "slide the cabin 100 mm forward",  # once misread as "set cabin length to 100 mm"
+        "drop the window line by 40 mm",  # once misread as "lower the car by 40 mm"
+        "push the rear axle back 10 cm",
+        "make the glasshouse 200 mm longer",
+    ],
+)
+def test_unknown_words_prevent_a_guess(text: str) -> None:
+    result = parse(text)
+    assert result.kind is Kind.CLARIFICATION
+    assert result.reason is Reason.NO_TARGET  # escalated to the LLM when one is available

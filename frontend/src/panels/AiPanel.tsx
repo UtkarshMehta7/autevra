@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import type { InstructionResult } from "../api/types";
+import type { InstructionResult, LLMStatus } from "../api/types";
+import { llmLabel } from "../state/llm";
 
 export interface ChatTurn {
   text: string;
   reply: InstructionResult | { kind: "error"; message: string };
+  /** For LLM proposals: what the user decided. */
+  decision?: "confirmed" | "rejected" | "failed";
 }
 
 interface Props {
   turns: ChatTurn[];
   busy: boolean;
+  llm: LLMStatus | null;
   onSend: (text: string) => void;
+  onDecide: (turn: number, confirm: boolean) => void;
 }
 
 const EXAMPLES = [
@@ -19,7 +24,7 @@ const EXAMPLES = [
   "how long is the car?",
 ];
 
-export function AiPanel({ turns, busy, onSend }: Props) {
+export function AiPanel({ turns, busy, llm, onSend, onDecide }: Props) {
   const [text, setText] = useState("");
   const log = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -35,7 +40,7 @@ export function AiPanel({ turns, busy, onSend }: Props) {
 
   return (
     <section className="panel ai">
-      <h2>Instructions <small>deterministic parser · LLM off</small></h2>
+      <h2>Instructions <small title={llm?.detail || llm?.url}>{llmLabel(llm)}</small></h2>
       <div className="chat" ref={log}>
         {turns.length === 0 && (
           <div className="hint">
@@ -49,7 +54,23 @@ export function AiPanel({ turns, busy, onSend }: Props) {
           <div key={i} className="turn">
             <div className="you">{t.text}</div>
             <div className={`reply ${t.reply.kind}`}>
+              {"interpreted_by" in t.reply && t.reply.interpreted_by === "llm" && (
+                <span className="badge" title="Interpreted by the local language model">LLM</span>
+              )}
               {t.reply.message}
+              {t.reply.kind === "proposal" && (
+                t.decision ? (
+                  <div className="decision">
+                    {t.decision === "confirmed" ? "Applied." : t.decision === "rejected"
+                      ? "Discarded." : "Could not be applied (it may have expired)."}
+                  </div>
+                ) : (
+                  <div className="decision">
+                    <button className="confirm" onClick={() => onDecide(i, true)}>Confirm</button>
+                    <button onClick={() => onDecide(i, false)}>Reject</button>
+                  </div>
+                )
+              )}
               {"assumptions" in t.reply && t.reply.assumptions.length > 0 && (
                 <div className="assumptions">Assumed: {t.reply.assumptions.join("; ")}</div>
               )}

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from autevra.api import schemas
-from autevra.api.service import Workspace, _derived
+from autevra.api.service import ProposalNotFoundError, Workspace, _derived
 from autevra.domain import parameters
 from autevra.domain.commands import CommandError
 from autevra.domain.design import CommandRejectedError
@@ -88,6 +88,31 @@ def instruct(
         return schemas.InstructionResult(kind="clarification", message=str(exc))
 
 
+@router.post(
+    "/projects/{project_id}/proposals/{proposal_id}/confirm",
+    response_model=schemas.CommandResult,
+    responses={422: {"model": schemas.Rejection}},
+)
+def confirm_proposal(
+    project_id: str, proposal_id: str, ws: WorkspaceDep
+) -> schemas.CommandResult | JSONResponse:
+    try:
+        return ws.confirm(project_id, proposal_id)
+    except CommandRejectedError as exc:
+        rejection = schemas.Rejection(detail=str(exc), violations=exc.violations)
+        return JSONResponse(status_code=422, content=rejection.model_dump(mode="json"))
+
+
+@router.post("/projects/{project_id}/proposals/{proposal_id}/reject", status_code=204)
+def reject_proposal(project_id: str, proposal_id: str, ws: WorkspaceDep) -> None:
+    ws.reject(project_id, proposal_id)
+
+
+@router.get("/llm", response_model=schemas.LLMStatusOut)
+def llm_status(ws: WorkspaceDep) -> schemas.LLMStatusOut:
+    return ws.llm_status()
+
+
 @router.post("/projects/{project_id}/undo", response_model=schemas.CommandResult)
 def undo(project_id: str, ws: WorkspaceDep) -> schemas.CommandResult:
     return ws.undo(project_id)
@@ -124,4 +149,13 @@ def not_found_handler(_request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": f"project '{exc}' not found"})
 
 
-EXCEPTION_HANDLERS = {ProjectNotFoundError: not_found_handler}
+def proposal_not_found_handler(_request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=404, content={"detail": f"proposal '{exc}' not found or expired"}
+    )
+
+
+EXCEPTION_HANDLERS = {
+    ProjectNotFoundError: not_found_handler,
+    ProposalNotFoundError: proposal_not_found_handler,
+}
