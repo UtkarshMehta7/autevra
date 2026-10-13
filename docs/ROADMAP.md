@@ -133,6 +133,31 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-14: three environments, routed studio and the domain registry
+
+**Done**
+- Routing (`react-router` 8.4): public website at `/`, user workspace at `/app`, engineering studio at `/studio/:projectId/:workspace`. Direct links and refresh work in development (Vite) and in Docker (nginx falls back to `index.html`).
+- The existing studio is preserved intact. Its dock tabs are now nine routed workspaces that share one component, one project state and one mounted viewport:
+  - design, assembly, simulation, AI engineering, optimisation and requirements;
+  - new: systems (assembly tree, interfaces and their users, mates, coincidences, load paths), manufacturing (STEP and ReqIF outputs, the manufacturability rules with live status; drawings, tolerances, CAM marked not available) and digital thread (revisions with the runs made on each).
+- Website pages:
+  - home, platform (and CAD, simulation, autonomous engineering);
+  - domains and per-domain pages read from the live registry;
+  - solutions, pricing (proposed tiers; no payment system, stated), docs, about (no invented history or partners);
+  - contact (stored locally; the reply says no e-mail is sent).
+  - Screenshots are of this build.
+- Workspace pages: dashboard, projects (create, open, rename, duplicate, delete with confirmation), models (templates, tests, plugins), domains (projects only in available domains), simulation history across projects, files (STEP and ReqIF per project; uploads stated as unsupported), settings (local model, plugins; no accounts in this build).
+- Backend:
+  - domain registry: automotive available, with lists computed from the live registries; eight domains roadmap-only;
+  - projects record their domain (additive migration);
+  - project duplication, the system graph, rule status, a cross-project run index and the contact store.
+- The studio code is loaded lazily: the website bundle is 298 kB (93 kB gzip) without three.js.
+- 409 backend tests and 14 frontend tests pass. Every route was checked by hand in Chrome.
+
+**Known limitations**
+- The core still contains the automotive model (parameters, components, tests): the domain registry describes it, but the code is not yet split into a shared core and an automotive module. That is the next milestone.
+- No authentication; the workspace is single-user and local.
+
 ### 2026-10-14: longitudinal test, car-shaped body, live simulation, plugin API
 
 **Done**

@@ -95,7 +95,9 @@ make setup        # backend venv via uv (~1.3 GB, CadQuery + OCCT) and frontend 
 make dev          # backend on http://127.0.0.1:8000, workspace on http://localhost:5173
 ```
 
-Open http://localhost:5173 and try "increase the wheelbase by 100 mm",
+Open http://localhost:5173 for the website, http://localhost:5173/app for the
+workspace (projects, models, simulation history, files) and
+http://localhost:5173/studio for the engineering studio. In the studio, try "increase the wheelbase by 100 mm",
 "set the rims to 18 inch and lower the car by 20 mm", "make it longer",
 "how long is the car?" or "undo". For the engineering workflow, try
 "increase the rear shock absorber damping by 10% and test its response",
