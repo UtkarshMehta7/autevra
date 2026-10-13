@@ -8,6 +8,7 @@ from uuid import uuid4
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from autevra.domain import parameters
 from autevra.domain.design import DesignState, HistoryEntry
 from autevra.storage.models import HistoryRow, ProjectRow
 
@@ -57,8 +58,13 @@ class ProjectRepository:
 
     def load(self, project_id: str) -> DesignState:
         row = self._row(project_id)
+        stored = json.loads(row.values_json)
+        # Projects saved before a parameter existed get its default; retired ids are dropped.
+        values = parameters.default_values() | {
+            k: v for k, v in stored.items() if k in parameters.REGISTRY
+        }
         return DesignState(
-            values=json.loads(row.values_json),
+            values=values,
             history=[HistoryEntry.model_validate_json(h.entry_json) for h in row.history],
             cursor=row.cursor,
         )
