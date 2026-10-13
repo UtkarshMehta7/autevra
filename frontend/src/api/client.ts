@@ -103,7 +103,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const detail = typeof body.detail === "string" ? body.detail : response.statusText;
     throw new ApiError(detail, response.status, body.violations ?? []);
   }
-  return response.status === 204 ? (undefined as T) : response.json();
+  if (response.status === 204) return undefined as T;
+  // A static host answers unknown paths with index.html; say so instead of a JSON parse error.
+  if (!(response.headers.get("content-type") ?? "").includes("json")) {
+    throw new ApiError(`${API} returned a web page instead of data, so the API address is wrong`,
+      response.status);
+  }
+  return response.json();
+}
+
+/** What to try when the backend cannot be reached, depending on where the app runs. */
+export function backendHint(): string {
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(globalThis.location?.hostname ?? "");
+  return local
+    ? 'Start it with "make dev".'
+    : "The hosted backend may be starting after a pause; reload in a minute.";
 }
 
 const post = <T>(path: string, body?: unknown) =>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, useParams } from "react-router";
-import { api } from "../api/client";
+import { api, backendHint } from "../api/client";
 import { recall } from "./lastProject";
 
 /** /studio and /studio/:id: open a project's design workspace (creating one if none exist). */
@@ -22,7 +22,7 @@ export function StudioEntry() {
       }
     })();
   }, [projectId]);
-  if (error) return <div className="notice-page"><h1>Backend unreachable</h1><p>{error}. Start it with <code>make dev</code>.</p></div>;
+  if (error) return <div className="notice-page"><h1>Backend unreachable</h1><p>{error}. {backendHint()}</p></div>;
   if (!target) return <div className="notice-page"><p>Opening the studio…</p></div>;
   return <Navigate to={`/studio/${target}/design`} replace />;
 }

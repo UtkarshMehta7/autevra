@@ -42,3 +42,13 @@ describe("waking a sleeping backend", () => {
     await expect(api.createProject("x")).rejects.toMatchObject({ status: 503 });
   });
 });
+
+describe("wrong API address", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("explains an HTML answer instead of failing to parse it", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response("<!doctype html>", { status: 200, headers: { "content-type": "text/html" } })));
+    await expect(api.domains()).rejects.toThrow("returned a web page instead of data");
+  });
+});
