@@ -29,6 +29,34 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pytest -q
 
+  backend-postgres:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autevra_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      AUTEVRA_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/autevra_test
+    steps:
+      - uses: actions/checkout@v5
+      - name: System libraries for OCP/VTK
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglu1-mesa libxrender1
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: "0.12.19"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --locked
+      - run: uv run pytest -q
+
   frontend:
     runs-on: ubuntu-24.04
     defaults:
@@ -48,7 +76,17 @@ jobs:
 
   docker:
     runs-on: ubuntu-24.04
-    needs: [backend, frontend]
+    needs: [backend, backend-postgres, frontend]
     steps:
       - uses: actions/checkout@v5
       - run: docker compose build
+      - name: Backend image serves on $PORT
+        run: |
+          docker build -t autevra-api backend
+          docker run -d --name api -p 9000:9000 -e PORT=9000 -e AUTEVRA_LLM_PROVIDER=off autevra-api
+          for i in $(seq 1 45); do
+            curl -fsS http://localhost:9000/api/health && exit 0
+            sleep 2
+          done
+          docker logs api
+          exit 1

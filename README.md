@@ -48,6 +48,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for progress, known limitations and what 
 | [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) | Environment inspection, verified Apple Silicon compatibility matrix, risks and memory budget |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phased implementation plan and progress log (completed and remaining work) |
 | [docs/MODULES.md](docs/MODULES.md) | How each implemented module works |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Hosted demo: Netlify (frontend), a container host for the API, Neon Postgres |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow, branch and commit conventions |
 
 ## Core capabilities (✅ available, the rest planned)

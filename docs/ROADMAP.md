@@ -125,13 +125,28 @@ specification interview moves to Phase 5.
 
 ## Phase 14: Cloud deployment
 
-- [ ] PostgreSQL, S3 storage, async workers (SQS + ECS)
+- [x] PostgreSQL support (psycopg 3; suite runs on SQLite and Postgres in CI)
+- [x] Hosted demo shape: static frontend (Netlify), container API (`$PORT`), Neon Postgres ([DEPLOYMENT.md](DEPLOYMENT.md))
+- [ ] Per-visitor workspaces and rate limits for the public demo (next, before sharing widely)
+- [ ] S3 storage, async workers (SQS + ECS)
 - [ ] Image build and push to ECR in CI; ECS task definitions
 - [ ] Authentication and multi-user projects
 
 ---
 
 ## Progress log
+
+### 2026-10-14: deployment readiness
+
+- Postgres: `psycopg[binary]` 3.3.6 (arm64 and x86_64 wheels); `postgres://` and `postgresql://` URLs are rewritten for the driver; pooled connections are pre-pinged (Neon closes idle ones); `%` in URLs is escaped for Alembic.
+- `AUTEVRA_TEST_DATABASE_URL` runs the whole suite against Postgres, each test on an empty schema; a new CI job does this on `postgres:17`. 424 tests pass on SQLite and on local Postgres 17.
+- The backend image listens on `$PORT` with proxy headers; `render.yaml` blueprint; `netlify.toml` (build, SPA fallback, immutable asset caching); the frontend takes `VITE_API_URL` at build time.
+- Measured backend memory: 472 MB after import, 545 MB after a model build, so 512 MB plans are ruled out.
+- Re-measured the `llm` tier: 78.3 % on main and the branch alike (see `ENVIRONMENT.md`).
+
+**Known limitations**
+- No accounts or per-visitor isolation: a hosted instance is a shared demo.
+- Not yet deployed: the hosting accounts (Netlify, Neon, a container host) are the owner's to create.
 
 ### 2026-10-14: shared engineering core and the automotive domain module
 

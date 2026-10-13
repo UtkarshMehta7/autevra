@@ -1,0 +1,21 @@
+# Render Blueprint for the backend API (optional; see docs/DEPLOYMENT.md).
+# The backend peaks at ~550 MB (CadQuery, OCP and VTK), so the 512 MB plans run out
+# of memory; "standard" (2 GB) is the smallest plan that fits.
+services:
+  - type: web
+    name: autevra-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: standard
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: AUTEVRA_DATABASE_URL
+        sync: false # the Neon connection string, entered in the dashboard
+      - key: AUTEVRA_CORS_ORIGINS
+        sync: false # e.g. ["https://autevra.netlify.app"]
+      - key: AUTEVRA_LLM_PROVIDER
+        value: "off"
+      - key: AUTEVRA_DATA_DIR
+        value: /tmp/autevra

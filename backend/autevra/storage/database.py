@@ -15,7 +15,9 @@ MIGRATIONS = Path(__file__).resolve().parents[2] / "migrations"
 def make_engine(url: str) -> Engine:
     if url.startswith("sqlite:///"):
         Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(url)
+    # Hosted Postgres (for example Neon) closes idle connections and may scale to zero, so
+    # check a pooled connection before handing it out.
+    engine = create_engine(url, pool_pre_ping=not url.startswith("sqlite"))
     if engine.dialect.name == "sqlite":
 
         @event.listens_for(engine, "connect")
@@ -31,7 +33,7 @@ def migrate(url: str) -> None:
     """Upgrade the database to the latest Alembic revision."""
     cfg = Config()
     cfg.set_main_option("script_location", str(MIGRATIONS))
-    cfg.set_main_option("sqlalchemy.url", url)
+    cfg.set_main_option("sqlalchemy.url", url.replace("%", "%%"))  # configparser escaping
     command.upgrade(cfg, "head")
 
 

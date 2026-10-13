@@ -28,5 +28,14 @@ class Settings(BaseSettings):
 
     def resolved_database_url(self) -> str:
         if self.database_url:
-            return self.database_url
+            return normalise_database_url(self.database_url)
         return f"sqlite:///{(self.data_dir / 'autevra.db').resolve()}"
+
+
+def normalise_database_url(url: str) -> str:
+    """Hosted Postgres (Neon, Render, Heroku-style) hands out ``postgres://`` or
+    ``postgresql://`` URLs; SQLAlchemy needs the driver named to use psycopg 3."""
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url.removeprefix(prefix)
+    return url

@@ -21,4 +21,6 @@ RUN uv sync --locked --no-dev
 ENV AUTEVRA_DATA_DIR=/data PATH="/app/.venv/bin:$PATH"
 VOLUME /data
 EXPOSE 8000
-CMD ["uvicorn", "--factory", "autevra.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Hosts such as Render, Cloud Run and Hugging Face Spaces set $PORT; locally it is 8000.
+# --proxy-headers: those hosts terminate TLS in front of the container.
+CMD ["sh", "-c", "exec uvicorn --factory autevra.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]

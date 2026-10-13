@@ -119,6 +119,8 @@ import), and a filleted box builds in milliseconds.
 | First test run | ~2.5 min: macOS scans the newly installed native libraries on first load; later runs take ~4 s |
 | FastAPI 0.143, Pydantic 2.14, SQLAlchemy 2.1, Alembic 1.20, Uvicorn 0.54, pytest 9.1, ruff 0.17 | ✅ pure Python or arm64 wheels |
 | `httpx2 2.13.1` (+ `httpcore2`, `truststore`) | ✅ pure-Python wheels; replaces `httpx`, which Starlette 1.8 deprecates for its test client; also the HTTP client for local LLM runtimes |
+| `psycopg[binary] 3.3.6` (2026-10-14) | ✅ `psycopg-binary` has cp312 wheels for macOS arm64 and manylinux x86_64; Postgres driver for hosted deployments (Neon). The full suite passes against Postgres 17 (Homebrew `postgresql@17`) and in CI against the `postgres:17` image |
+| Backend memory | Peak RSS 472 MB after import (CadQuery, OCP, VTK) and 545 MB after one model build (measured on the Mac, 2026-10-14); a host needs at least 1 GB per instance |
 | `numpy 2.5` | ✅ arm64 wheel (already a CadQuery dependency; now explicit) |
 | Frontend: `react 19.3.0`, `three 0.186.1`, `vite 8.3.4`, `@vitejs/plugin-react 6.1.2`, `typescript 7.0.2`, `vitest 5.0.4` | ✅ installed with npm on arm64 (52 packages, 111 MB `node_modules`); typecheck, tests, build and dev server verified; production bundle 787 kB (211 kB gzip) |
 | Workspace in Chrome (WebGL) | ✅ checked by hand on the Mac |

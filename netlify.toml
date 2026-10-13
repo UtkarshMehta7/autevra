@@ -1,0 +1,21 @@
+# Netlify builds and serves the website, workspace and studio (static files).
+# The backend is hosted separately; set VITE_API_URL in the Netlify site's
+# environment to its URL, e.g. https://autevra-api.example.com (see docs/DEPLOYMENT.md).
+[build]
+  base = "frontend"
+  command = "npm ci --no-fund --no-audit && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Client-side routes (/app, /studio/:projectId/:workspace, /platform/...).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
