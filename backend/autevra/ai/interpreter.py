@@ -37,7 +37,8 @@ from autevra.domain.units import parse_unit
 
 OUT_OF_SCOPE_MESSAGE = (
     "Autevra handles automotive design, engineering and testing. I can change the vehicle's "
-    "dimensions, wheels, cabin and chassis, or answer questions about them."
+    "dimensions, wheels, cabin, chassis, suspension and mass, run suspension tests, or answer "
+    "questions about them."
 )
 
 
@@ -99,10 +100,11 @@ def ground(change: Change, text: str) -> Change:
     t = text.lower()
     numbers = _numbers(t)
     if change.operation is Operation.SCALE:
-        factors = set(numbers)
-        if "%" in t or "percent" in t:
-            factors |= {round(1 + n / 100, 6) for n in numbers}
-            factors |= {round(1 - n / 100, 6) for n in numbers}
+        # "10 %" allows 1.1 or 0.9, never a factor of 10.
+        percents = {float(n) for n in re.findall(r"(\d+(?:\.\d+)?)\s*(?:%|percent\b)", t)}
+        factors = numbers - percents
+        factors |= {round(1 + n / 100, 6) for n in percents}
+        factors |= {round(1 - n / 100, 6) for n in percents}
         if re.search(r"\b(double|twice)\b", t):
             factors.add(2.0)
         if re.search(r"\b(halve|half)\b", t):
@@ -229,8 +231,9 @@ def interpret(
     concept = concepts.find(text)
     if concept is not None:
         question, suggestions = concepts.clarification(concept, text)
+        reason = Reason.AMBIGUOUS if concept.modelled else Reason.UNMODELLED
         return Interpretation(
-            Kind.CLARIFICATION, question=question, suggestions=suggestions, reason=Reason.UNMODELLED
+            Kind.CLARIFICATION, question=question, suggestions=suggestions, reason=reason
         )
     if not concepts.is_automotive(text):
         return Interpretation(Kind.OUT_OF_SCOPE, question=OUT_OF_SCOPE_MESSAGE)

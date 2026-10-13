@@ -1,5 +1,17 @@
 import type {
   Command,
+  Comparison,
+  ComponentTestStatus,
+  Diagnosis,
+  IntegrationReport,
+  LoopResult,
+  Study,
+  StudyResult,
+  Variable,
+  RunRecord,
+  RunSummary,
+  TestDefinition,
+  TestRunResponse,
   CommandResult,
   HistoryEntry,
   InstructionResult,
@@ -56,4 +68,25 @@ export const api = {
   model: (id: string, known: Iterable<string>) =>
     request<ModelPayload>(`/projects/${id}/model?known=${encodeURIComponent([...known].join(","))}`),
   stepUrl: (id: string) => `/api/projects/${id}/export.step`,
+  tests: () => request<TestDefinition[]>("/tests"),
+  runTests: (id: string, body: { test_id: string; target: string; scenario_id?: string | null }) =>
+    post<TestRunResponse>(`/projects/${id}/tests/run`, body),
+  runs: (id: string) => request<RunSummary[]>(`/projects/${id}/runs`),
+  run: (id: string, run: string) => request<RunRecord>(`/projects/${id}/runs/${run}`),
+  compare: (id: string, baseline: string, candidate: string) =>
+    request<Comparison>(`/projects/${id}/runs/compare?baseline=${baseline}&candidate=${candidate}`),
+  diagnosis: (id: string, run: string) => request<Diagnosis>(`/projects/${id}/runs/${run}/diagnosis`),
+  componentStatus: (id: string) => request<ComponentTestStatus[]>(`/projects/${id}/components/status`),
+  optimize: (id: string, study: Study) => post<StudyResult>(`/projects/${id}/optimize`, study),
+  loop: (id: string, goal: { target: string; scenarios: string[] | null;
+    objective: { metric: string; sense: string } | null }) => post<LoopResult>(`/projects/${id}/loop`, goal),
+  studies: (id: string) => request<StudyResult[]>(`/projects/${id}/studies`),
+  loops: (id: string) => request<LoopResult[]>(`/projects/${id}/loops`),
+  acceptStudy: (id: string, study: string) => post<CommandResult>(`/projects/${id}/studies/${study}/accept`),
+  rejectStudy: (id: string, study: string) => post<void>(`/projects/${id}/studies/${study}/reject`),
+  chooseCandidate: (id: string, study: string, index: number) =>
+    post<StudyResult>(`/projects/${id}/studies/${study}/choose/${index}`),
+  optimizeDefaults: (target: string) =>
+    request<{ variables: Variable[] }>(`/optimize/defaults?target=${target}`),
+  integration: (id: string) => request<IntegrationReport>(`/projects/${id}/integration`),
 };

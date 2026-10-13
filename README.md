@@ -8,20 +8,29 @@ It is not an image generator and not a generic chatbot: every instruction
 becomes a validated engineering operation on parametric geometry.
 
 > "Increase the wheelbase by 100 mm."
-> "Set the rims to 18 inch and check the front wheels still clear the frame at full lock."
-> "Run an emergency stop from 100 km/h and tell me if it stops within 40 m."
+> "Increase the rear shock absorber damping by 10% and test its response."
+> "Explain why the suspension travel limit was exceeded."
+> "Optimise ride comfort on the rear over the hump." / "Fix the rear suspension."
 
 ---
 
 ## Status
 
-**Phase 1 (foundation prototype) is implemented.** A parametric vehicle
-(body with wheel wells and cabin, hollow ladder frame, axles, wheels) is
-edited through typed, validated commands from the property editor, the API or
-plain-English instructions, with undo/redo, persistence and STEP export.
-"Increase the wheelbase by 100 mm" moves the rear axle and wheels back,
-lengthens the body and frame, and is reflected in the STEP file; undo restores
-it. See [docs/ROADMAP.md](docs/ROADMAP.md) for progress and what is next.
+**Phases 1–3 are implemented.**
+
+- **Parametric vehicle.** Body with wheel wells and cabin, hollow ladder frame, beam axles, wheels and four coil-over dampers, in real CadQuery/Open CASCADE geometry. It is edited through typed, validated commands from the property editor, the API or plain English, with undo/redo, persistence and STEP export.
+- **Local language model (optional).** A local model proposes changes the deterministic parser cannot resolve, and every proposal needs confirmation.
+- **Engineering workflow.** One complete loop on the suspension:
+  - edit a spring rate or damper coefficient;
+  - see which tests that makes stale;
+  - run the verified quarter-car test bench (step, road hump, pothole);
+  - compare with the previous revision;
+  - diagnose a failure from measured sensitivities;
+  - optimise within bounds, or let the engineering loop fix and retest.
+  
+  Nothing changes until you accept, and every result says whether it is an analytical estimate or a numerical simulation. Nothing is presented as validated without test data.
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for progress, known limitations and what is next.
 
 | Document | Contents |
 |---|---|
@@ -32,15 +41,15 @@ it. See [docs/ROADMAP.md](docs/ROADMAP.md) for progress and what is next.
 | [docs/MODULES.md](docs/MODULES.md) | How each implemented module works |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow, branch and commit conventions |
 
-## Core capabilities (planned)
+## Core capabilities (✅ available, the rest planned)
 
-1. **Automotive AI, fully local**: a deterministic automotive command parser plus an optional small quantised LLM (Ollama or llama.cpp). No hosted AI APIs.
+1. ✅ **Automotive AI, fully local**: a deterministic automotive command parser plus an optional small quantised LLM (Ollama or llama.cpp). No hosted AI APIs.
 2. **Specification interview**: adaptive questions on vehicle type, powertrain, power, torque, dimensions, drivetrain, materials, suspension, budget and use, with conflict detection.
-3. **Real parametric CAD**: B-rep geometry on Open CASCADE (via CadQuery), exportable to STEP.
-4. **Natural-language editing**: instructions become validated commands with feature history, undo and redo.
-5. **Component integration**: a connected assembly with interfaces, coordinate frames, dependencies and clearance checks; only affected components are rebuilt.
-6. **Engineering simulation**: acceleration, braking, cornering, steering, suspension, potholes, powertrain, tyres; later structural, thermal, fatigue, aero and crash.
-7. **Simulation automation**: describe a test in words, run it, compare against requirements, get suggested design changes, with results clearly labelled `estimate`, `verified` or `validated`.
+3. ✅ **Real parametric CAD**: B-rep geometry on Open CASCADE (via CadQuery), exportable to STEP.
+4. ✅ **Natural-language editing**: instructions become validated commands with feature history, undo and redo.
+5. ✅ **Component integration**: a connected assembly with interfaces, coordinate frames, dependencies and clearance checks; only affected components are rebuilt.
+6. **Engineering simulation**: ✅ quarter-car ride (step, hump, pothole) with verified numerics; next half-car and full vehicle, braking, cornering, powertrain and tyres; later structural, thermal, fatigue, aero and crash.
+7. ✅ **Simulation automation**: describe a test in words, run it, compare against requirements, diagnose failures, optimise and iterate, with results labelled as analytical estimate, numerical simulation or experimentally validated.
 8. **3D workspace**: viewport, component tree, property editor, AI panel, spec forms, simulation controls, telemetry and reports.
 
 ## Principles
@@ -79,7 +88,11 @@ make dev          # backend on http://127.0.0.1:8000, workspace on http://localh
 
 Open http://localhost:5173 and try "increase the wheelbase by 100 mm",
 "set the rims to 18 inch and lower the car by 20 mm", "make it longer",
-"how long is the car?" or "undo". The first start after installing can take a
+"how long is the car?" or "undo". For the engineering workflow, try
+"increase the rear shock absorber damping by 10% and test its response",
+"explain why the suspension travel limit was exceeded", "fix the rear
+suspension", or use the Test bench, Integration and Optimise & loop tabs under
+the viewport. The first start after installing can take a
 minute or two while macOS scans the new native libraries; later starts take seconds.
 
 | Command | What it does |

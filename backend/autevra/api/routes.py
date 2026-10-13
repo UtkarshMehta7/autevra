@@ -10,7 +10,12 @@ from autevra.api.service import ProposalNotFoundError, Workspace, _derived
 from autevra.domain import parameters
 from autevra.domain.commands import CommandError
 from autevra.domain.design import CommandRejectedError
+from autevra.engineering import loop as eloop
+from autevra.engineering import optimize as opt
+from autevra.engineering import testing as tst
+from autevra.engineering.diagnosis import Diagnosis
 from autevra.storage.repository import ProjectNotFoundError
+from autevra.storage.runs import RunNotFoundError
 
 router = APIRouter(prefix="/api")
 
@@ -145,6 +150,180 @@ def export_step(project_id: str, ws: WorkspaceDep) -> FileResponse:
     return FileResponse(path, media_type="application/step", filename=f"{safe}.step")
 
 
+@router.get("/tests", response_model=list[schemas.TestDefinitionOut])
+def test_catalogue() -> list[schemas.TestDefinitionOut]:
+    return [
+        schemas.TestDefinitionOut(
+            id=t.id,
+            name=t.name,
+            description=t.description,
+            solver=t.solver,
+            credibility=t.credibility.value,
+            targets=list(t.targets),
+            components={k: list(v) for k, v in t.components.items()},
+            inputs={target: list(t.inputs(target)) for target in t.targets},
+            scenarios=[schemas.ScenarioOut(**sc.__dict__) for sc in t.scenarios],
+            criteria=[schemas.CriterionOut(**c.__dict__) for c in t.criteria],
+            metrics={
+                k: {"label": m[0], "unit": m[1], "lower_is_better": m[2]}
+                for k, m in t.metrics.items()
+            },
+            assumptions=list(t.assumptions),
+        )  # fmt: skip
+        for t in tst.DEFINITIONS.values()
+    ]
+
+
+@router.post("/projects/{project_id}/tests/run", response_model=schemas.TestRunResponse)
+def run_tests(
+    project_id: str, body: schemas.TestRunRequest, ws: WorkspaceDep
+) -> schemas.TestRunResponse:
+    definition = tst.DEFINITIONS.get(body.test_id)
+    if definition is None or body.target not in (*definition.targets, "all"):
+        raise HTTPException(status_code=422, detail="unknown test or target")
+    if body.scenario_id and body.scenario_id not in {sc.id for sc in definition.scenarios}:
+        raise HTTPException(status_code=422, detail=f"unknown scenario '{body.scenario_id}'")
+    targets = list(definition.targets) if body.target == "all" else [body.target]
+    return ws.run_tests(project_id, body.test_id, targets, body.scenario_id)
+
+
+@router.get("/projects/{project_id}/runs", response_model=list[schemas.RunSummary])
+def list_runs(
+    project_id: str,
+    ws: WorkspaceDep,
+    test_id: str | None = None,
+    target: str | None = None,
+    scenario_id: str | None = None,
+) -> list[schemas.RunSummary]:
+    return ws.list_runs(project_id, test_id, target, scenario_id)
+
+
+@router.get("/projects/{project_id}/runs/compare", response_model=tst.Comparison)
+def compare_runs(
+    project_id: str, baseline: str, candidate: str, ws: WorkspaceDep
+) -> tst.Comparison:
+    return ws.compare_runs(project_id, baseline, candidate)
+
+
+@router.get("/projects/{project_id}/runs/{run_id}/diagnosis", response_model=Diagnosis)
+def diagnose_run(project_id: str, run_id: str, ws: WorkspaceDep) -> Diagnosis:
+    return ws.diagnose(project_id, run_id)
+
+
+@router.get("/projects/{project_id}/runs/{run_id}", response_model=tst.RunRecord)
+def get_run(project_id: str, run_id: str, ws: WorkspaceDep) -> tst.RunRecord:
+    return ws.get_run(project_id, run_id)
+
+
+@router.get(
+    "/projects/{project_id}/components/status", response_model=list[schemas.ComponentTestStatus]
+)
+def component_status(project_id: str, ws: WorkspaceDep) -> list[schemas.ComponentTestStatus]:
+    return ws.component_status(project_id)
+
+
+@router.get("/projects/{project_id}/requirements", response_model=list[schemas.RequirementOut])
+def list_requirements(project_id: str, ws: WorkspaceDep) -> list[schemas.RequirementOut]:
+    return ws.requirements(project_id)
+
+
+@router.post(
+    "/projects/{project_id}/requirements", response_model=schemas.RequirementOut, status_code=201
+)
+def add_requirement(
+    project_id: str, body: schemas.RequirementIn, ws: WorkspaceDep
+) -> schemas.RequirementOut:
+    try:
+        return ws.add_requirement(project_id, body)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.delete("/projects/{project_id}/requirements/{requirement_id}", status_code=204)
+def delete_requirement(project_id: str, requirement_id: str, ws: WorkspaceDep) -> None:
+    ws.delete_requirement(project_id, requirement_id)
+
+
+@router.get("/projects/{project_id}/integration", response_model=schemas.IntegrationOut)
+def integration_report(project_id: str, ws: WorkspaceDep) -> schemas.IntegrationOut:
+    return ws.integration(project_id)
+
+
+@router.post("/projects/{project_id}/optimize", response_model=opt.StudyResult)
+def optimize(project_id: str, body: opt.Study, ws: WorkspaceDep) -> opt.StudyResult:
+    try:
+        return ws.optimize(project_id, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.post("/projects/{project_id}/loop", response_model=eloop.LoopResult)
+def engineering_loop(project_id: str, body: eloop.Goal, ws: WorkspaceDep) -> eloop.LoopResult:
+    try:
+        return ws.engineering_loop(project_id, body)
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.get("/optimize/defaults")
+def optimize_defaults(target: str = "rear", test_id: str = "quarter_car") -> dict:
+    values = parameters.default_values()
+    return {"variables": [v.model_dump() for v in opt.default_variables(test_id, target, values)]}
+
+
+@router.get("/projects/{project_id}/loops", response_model=list[eloop.LoopResult])
+def list_loops(project_id: str, ws: WorkspaceDep) -> list[eloop.LoopResult]:
+    return ws.loops(project_id)
+
+
+@router.get("/projects/{project_id}/studies", response_model=list[opt.StudyResult])
+def list_studies(project_id: str, ws: WorkspaceDep) -> list[opt.StudyResult]:
+    return ws.studies(project_id)
+
+
+@router.post(
+    "/projects/{project_id}/studies/{study_id}/accept",
+    response_model=schemas.CommandResult,
+    responses={422: {"model": schemas.Rejection}},
+)
+def accept_study(
+    project_id: str, study_id: str, ws: WorkspaceDep
+) -> schemas.CommandResult | JSONResponse:
+    try:
+        result = ws.decide_study(project_id, study_id, accept=True)
+    except CommandRejectedError as exc:
+        rejection = schemas.Rejection(detail=str(exc), violations=exc.violations)
+        return JSONResponse(status_code=422, content=rejection.model_dump(mode="json"))
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    assert result is not None
+    return result
+
+
+@router.post(
+    "/projects/{project_id}/studies/{study_id}/choose/{index}", response_model=opt.StudyResult
+)
+def choose_candidate(
+    project_id: str, study_id: str, index: int, ws: WorkspaceDep
+) -> opt.StudyResult:
+    try:
+        return ws.choose_candidate(project_id, study_id, index)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+@router.post("/projects/{project_id}/studies/{study_id}/reject", status_code=204)
+def reject_study(project_id: str, study_id: str, ws: WorkspaceDep) -> None:
+    try:
+        ws.decide_study(project_id, study_id, accept=False)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+def run_not_found_handler(_request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": f"'{exc}' not found"})
+
+
 def not_found_handler(_request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": f"project '{exc}' not found"})
 
@@ -158,4 +337,5 @@ def proposal_not_found_handler(_request: Request, exc: Exception) -> JSONRespons
 EXCEPTION_HANDLERS = {
     ProjectNotFoundError: not_found_handler,
     ProposalNotFoundError: proposal_not_found_handler,
+    RunNotFoundError: run_not_found_handler,
 }

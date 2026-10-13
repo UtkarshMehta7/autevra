@@ -27,6 +27,10 @@ class Kind(StrEnum):
     CLARIFICATION = "clarification"
     PROPOSAL = "proposal"  # LLM-derived command: must be confirmed before it is applied
     OUT_OF_SCOPE = "out_of_scope"
+    TEST = "test"  # run component tests (no design change)
+    DIAGNOSE = "diagnose"  # explain the latest failed test
+    OPTIMIZE = "optimize"  # bounded optimisation of a solver metric under the test criteria
+    LOOP = "loop"  # engineering loop: diagnose and fix until the tests pass
 
 
 class Reason(StrEnum):
@@ -38,6 +42,20 @@ class Reason(StrEnum):
     MISSING_AMOUNT = "missing_amount"
     INVALID = "invalid"
     UNMODELLED = "unmodelled"
+    AMBIGUOUS = "ambiguous"  # names a modelled system but not which quantity
+
+
+@dataclass(frozen=True)
+class TestRequest:
+    """Which tests to run. ``target`` None: both axles (or those a change affects)."""
+
+    test_id: str = "quarter_car"
+    target: str | None = None
+    scenario_id: str | None = None  # None: every scenario
+    focus: str | None = None  # diagnosis: "travel" or "contact" failures first
+    objective: str | None = None  # optimisation metric
+    sense: str = "minimize"
+    unmodelled: tuple[str, ...] = ()  # constraints named by the user that no model checks
 
 
 @dataclass
@@ -50,6 +68,7 @@ class Interpretation:
     assumptions: list[str] = field(default_factory=list)
     reason: Reason | None = None
     interpreted_by: str = "rules"
+    tests: TestRequest | None = None  # run after the command, or on its own for Kind.TEST
 
 
 _NUMBER = r"(-?\d+(?:\.\d+)?)"
@@ -60,6 +79,83 @@ _UNIT = (
 QUANTITY = re.compile(_NUMBER + r"\s*" + _UNIT + r"?(?![a-z0-9])")
 _SPLIT = re.compile(r"\s*(?:,|;|\band then\b|\bthen\b|\band also\b|\balso\b|\band\b)\s*")
 _QUESTION_START = re.compile(r"^(what|what's|whats|how|show|tell|give me|list|which)\b")
+
+
+_TEST_VERB = r"(?:re-?test|test|simulate|run|do|perform)"
+_TEST_TAIL = re.compile(
+    r"(?:\s*,\s*|\s+)(?:and\s+)?(?:then\s+)?(?:re-?test|test|simulate)\b(?P<rest>[^,;]*)$"
+)
+_TEST_WORDS = re.compile(
+    r"\b(test|tests|simulate|simulation|quarter[- ]car|pothole|hump|speed bump|ride modes?|"
+    r"natural frequenc(?:y|ies)|modal)\b"
+)
+
+
+_COMFORT = r"\bcomfort|comfortable|comfier|plusher|smoother|ride quality|better ride"
+_GRIP = r"\bgrip|road holding|roadholding|tyre contact|keep the tyres? on"
+_OBJECTIVES = (  # phrase -> (metric, sense)
+    (_COMFORT, "rms_body_acceleration", "minimize"),
+    (r"\bsettl", "settling_time", "minimize"),
+    (_GRIP, "min_tyre_load_ratio", "maximize"),
+    (r"\bharsh|peak acceleration|jolt", "peak_body_acceleration", "minimize"),
+)
+_OPTIMIZE = re.compile(
+    r"\b(optimi[sz]e|optimi[sz]ation|improve|maximi[sz]e|minimi[sz]e|"
+    r"more comfortable|comfier|plusher|smoother)\b"
+)
+_LOOP = re.compile(
+    r"^(?:please )?(?:fix|repair|sort out)\b.*\b(suspension|tests?|corner|"
+    r"failures?)\b|^(?:please )?(?:make|get)\b.*\bpass(?:ing)?\b"
+)
+_UNMODELLED_LIMITS = {
+    "roll": "body roll",
+    "pitch": "pitch",
+    "dive": "brake dive",
+    "squat": "squat",
+    "noise": "noise",
+}
+_DIAGNOSE = re.compile(
+    r"^(?:please )?(?:diagnose|explain|why)\b.*\b(fail|failed|fails|failure|exceed|exceeded|"
+    r"exceeds|limit|test|lift|lifted|diagnos)|^diagnose\b"
+)
+
+
+def _objective(text: str) -> tuple[str, str] | None:
+    for pattern, metric, sense in _OBJECTIVES:
+        if re.search(pattern, text):
+            return metric, sense
+    return None
+
+
+def _test_request(text: str) -> TestRequest:
+    words = set(_words(text))
+    test_id = "ride_modes" if re.search(r"ride modes?|natural frequenc|modal", text) else None
+    scenario = None
+    if re.search(r"\bpotholes?\b", text):
+        scenario = "pothole_50"
+    elif re.search(r"\b(hump|speed bump|bump)\b", text):
+        scenario = "hump_75"
+    elif re.search(r"\b(step|kerb|curb)\b", text):
+        scenario = "step_25"
+    front, rear = "front" in words, "rear" in words or "back" in words
+    target = "front" if front and not rear else "rear" if rear and not front else None
+    focus = (
+        "travel"
+        if "travel" in words
+        else "contact"
+        if words & {"contact", "lift", "lifted", "grip"}
+        else None
+    )
+    return TestRequest(test_id or "quarter_car", target, None if test_id else scenario, focus)
+
+
+def _split_test_tail(t: str) -> tuple[str, TestRequest | None]:
+    """'increase the rear damping by 10% and test its response' -> (command text, request)."""
+    match = _TEST_TAIL.search(t)
+    if match is None or match.start() == 0:
+        return t, None
+    request = _test_request(match.group("rest"))
+    return t[: match.start()].strip(), request
 
 
 def normalise(text: str) -> str:
@@ -302,8 +398,22 @@ def parse(text: str) -> Interpretation:
         return Interpretation(Kind.UNDO)
     if t in lx.REDO_PHRASES:
         return Interpretation(Kind.REDO)
+    if _DIAGNOSE.search(t):
+        return Interpretation(Kind.DIAGNOSE, tests=_test_request(t))
+    if _OPTIMIZE.search(t) and (objective := _objective(t)) is not None:
+        request = _test_request(t)
+        words = set(_words(t))
+        unmodelled = tuple(v for k, v in _UNMODELLED_LIMITS.items() if k in words)
+        return Interpretation(Kind.OPTIMIZE, tests=TestRequest(
+            request.test_id, request.target, request.scenario_id, None, *objective, unmodelled
+        ))  # fmt: skip
+    if _LOOP.search(t) and not _find_target(t.replace("suspension", "")):
+        return Interpretation(Kind.LOOP, tests=_test_request(t))
     if t.endswith("?") or _QUESTION_START.match(t):
         return _parse_query(t.rstrip("?"))
+    if re.match(rf"^(?:please )?{_TEST_VERB}\b", t) and _TEST_WORDS.search(t):
+        return Interpretation(Kind.TEST, tests=_test_request(t))
+    t, tests = _split_test_tail(t)
 
     clauses = [c for c in _SPLIT.split(t) if c]
     changes: list[Change] = []
@@ -323,4 +433,4 @@ def parse(text: str) -> Interpretation:
         assumptions.extend(parsed.assumptions)
         previous = parsed.changes[-1].operation
     command = SetParameters(changes=tuple(changes), source=Source.RULES, instruction=text)
-    return Interpretation(Kind.COMMAND, command=command, assumptions=assumptions)
+    return Interpretation(Kind.COMMAND, command=command, assumptions=assumptions, tests=tests)

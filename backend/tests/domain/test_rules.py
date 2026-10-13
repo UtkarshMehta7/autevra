@@ -46,8 +46,25 @@ def _violated(changes: dict[str, float]) -> set[str]:
         ({"overall_height": 1150, "beltline_height": 960}, "cabin_has_height"),
         ({"beltline_height": 700, "ground_clearance": 350, "rail_height": 250}, "body_has_depth"),
         ({"rail_spacing": 1300}, "frame_clears_tyres"),
+        ({"front_shock_mount_height": 1000, "beltline_height": 1300, "overall_height": 1800},
+         "front_damper_fits_mounts"),
+        ({"rear_shock_mount_height": 560}, "rear_damper_fits_mounts"),
+        ({"front_bump_travel": 100}, "front_stroke_covers_travel"),
+        ({"rear_rebound_travel": 100}, "rear_stroke_covers_travel"),
+        ({"beltline_height": 700}, "front_shock_mount_inside_body"),
+        ({"beltline_height": 700}, "rear_shock_mount_inside_body"),
+        ({"rail_spacing": 1260}, "front_springs_clear_tyres"),
+        ({"rail_spacing": 1260}, "rear_springs_clear_tyres"),
+        ({"front_spring_rate": 5}, "front_spring_index"),
+        ({"rear_spring_rate": 5}, "rear_spring_index"),
+        ({"front_spring_rate": 150, "spring_coil_diameter": 200}, "front_spring_clears_coil_bind"),
+        ({"rear_spring_rate": 150, "spring_coil_diameter": 200}, "rear_spring_clears_coil_bind"),
+        ({"vehicle_mass": 600, "front_mass_distribution": 30, "front_unsprung_mass": 150},
+         "front_positive_sprung_mass"),
+        ({"vehicle_mass": 600, "front_mass_distribution": 70, "rear_unsprung_mass": 150},
+         "rear_positive_sprung_mass"),
     ],
-)
+)  # fmt: skip
 def test_rule_detects_violation(changes: dict[str, float], rule: str) -> None:
     assert rule in _violated(changes)
 
@@ -65,7 +82,14 @@ def test_every_rule_has_a_violation_test() -> None:
         "rail_wall_fits_section",
         "frame_clears_tyres",
         "arches_do_not_overlap",
-    }
+        *(
+            f"{axle}_{rule}"
+            for axle in ("front", "rear")
+            for rule in ("damper_fits_mounts", "stroke_covers_travel", "shock_mount_inside_body",
+                         "springs_clear_tyres", "spring_index", "spring_clears_coil_bind",
+                         "positive_sprung_mass")
+        ),
+    }  # fmt: skip
     assert {r.id for r in RULES} == tested
 
 

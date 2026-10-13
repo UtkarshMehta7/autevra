@@ -1,4 +1,4 @@
-"""The Phase 1 vehicle: component definitions, interfaces and mates.
+"""The vehicle assembly: component definitions, interfaces, mates and coincidences.
 
 Each component declares the parameters its geometry depends on (``geometry``)
 and, per interface, the parameters that interface frame depends on (``frames``). Input and
@@ -114,11 +114,63 @@ def _vehicle_interfaces(p: Values) -> dict[str, Matrix]:
 def _axle_interfaces(track_param: str) -> Callable[[Values], dict[str, Matrix]]:
     def interfaces(p: Values) -> dict[str, Matrix]:
         half = p[track_param] / 2.0
+        shock_y = p["rail_spacing"] / 2.0  # dampers stand over the frame rail lines
         return {
             "centre": tf.identity(),
             "hub_left": tf.translation(0.0, half, 0.0),
             # Right hub faces outward along -Y: the wheel is turned 180 degrees about Z.
             "hub_right": tf.compose(tf.translation(0.0, -half, 0.0), tf.rotation_z(180.0)),
+            "shock_left": tf.translation(0.0, shock_y, d.AXLE_RADIUS),
+            "shock_right": tf.translation(0.0, -shock_y, d.AXLE_RADIUS),
+        }
+
+    return interfaces
+
+
+SHOCK_TOWERS = {  # body interface -> (axle, side)
+    "shock_tower_fl": ("front", 1.0),
+    "shock_tower_fr": ("front", -1.0),
+    "shock_tower_rl": ("rear", 1.0),
+    "shock_tower_rr": ("rear", -1.0),
+}
+
+
+def _body_interfaces(p: Values) -> dict[str, Matrix]:
+    """Origin plus the upper damper mounts (shock towers) built into the body."""
+    out = {"origin": tf.identity()}
+    for name, (axle, side) in SHOCK_TOWERS.items():
+        x = 0.0 if axle == "front" else -p["wheelbase"]
+        out[name] = tf.translation(
+            x, side * p["rail_spacing"] / 2.0, p[f"{axle}_shock_mount_height"]
+        )
+    return out
+
+
+def _damper_geometry(axle: str) -> tuple[str, ...]:
+    return (
+        f"{axle}_shock_mount_height", *TYRE, f"{axle}_damper_stroke", "damper_body_diameter",
+        "spring_coil_diameter", f"{axle}_spring_rate",
+    )  # fmt: skip
+
+
+def _damper_inputs(axle: str) -> Callable[[Values], dict[str, float]]:
+    def inputs(p: Values) -> dict[str, float]:
+        return {
+            "length": d.damper_installed_length(p, axle),
+            "stroke": p[f"{axle}_damper_stroke"],
+            "body_diameter": p["damper_body_diameter"],
+            "coil_diameter": p["spring_coil_diameter"],
+            "wire_diameter": round(d.spring_wire_diameter(p, axle), 3),
+        }
+
+    return inputs
+
+
+def _damper_interfaces(axle: str) -> Callable[[Values], dict[str, Matrix]]:
+    def interfaces(p: Values) -> dict[str, Matrix]:
+        return {
+            "lower_eye": tf.identity(),
+            "upper_eye": tf.translation(0.0, 0.0, d.damper_installed_length(p, axle)),
         }
 
     return interfaces
@@ -132,6 +184,20 @@ _BODY_COLOR = (0.62, 0.70, 0.80)
 _FRAME_COLOR = (0.30, 0.32, 0.36)
 _AXLE_COLOR = (0.45, 0.45, 0.48)
 _WHEEL_COLOR = (0.12, 0.12, 0.13)
+_DAMPER_COLOR = (0.85, 0.55, 0.12)
+
+
+@dataclass(frozen=True)
+class Coincidence:
+    """Two interfaces that must coincide in world space (a closed loop the mates do not set).
+
+    The dampers are placed by their lower eye; their upper eye must meet the body's shock
+    tower. ``integration.check`` verifies it for every design.
+    """
+
+    a: tuple[str, str]  # (component, interface)
+    b: tuple[str, str]
+    tolerance: float = 0.01  # mm
 
 
 def _wheel(cid: str, name: str, axle: str, side: str) -> ComponentDef:
@@ -143,11 +209,22 @@ def _wheel(cid: str, name: str, axle: str, side: str) -> ComponentDef:
     )  # fmt: skip
 
 
+def _damper(cid: str, name: str, axle: str, side: str) -> ComponentDef:
+    upper = (f"{axle}_shock_mount_height", *TYRE)
+    return ComponentDef(
+        id=cid, name=name, category="suspension", builder="damper",
+        geometry=_damper_geometry(axle), inputs=_damper_inputs(axle),
+        frames={"lower_eye": (), "upper_eye": upper}, interfaces=_damper_interfaces(axle),
+        mate=Mate(f"{axle}_axle", f"shock_{side}", "lower_eye"), color=_DAMPER_COLOR,
+    )  # fmt: skip
+
+
 def _axle(cid: str, name: str, track: str, mount: str) -> ComponentDef:
     return ComponentDef(
         id=cid, name=name, category="axle", builder="axle",
         geometry=(track,), inputs=lambda p: {"track": p[track]},
-        frames={"centre": (), "hub_left": (track,), "hub_right": (track,)},
+        frames={"centre": (), "hub_left": (track,), "hub_right": (track,),
+                "shock_left": ("rail_spacing",), "shock_right": ("rail_spacing",)},
         interfaces=_axle_interfaces(track),
         mate=Mate("vehicle", mount, "centre"), color=_AXLE_COLOR,
     )  # fmt: skip
@@ -163,7 +240,10 @@ COMPONENTS: tuple[ComponentDef, ...] = (
     ComponentDef(
         id="body", name="Body", category="body", builder="body",
         geometry=BODY_GEOMETRY, inputs=_body_inputs,
-        frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
+        frames={"origin": (),
+                **{name: ("wheelbase", "rail_spacing", f"{axle}_shock_mount_height")
+                   for name, (axle, _) in SHOCK_TOWERS.items()}},
+        interfaces=_body_interfaces,
         mate=Mate("vehicle", "origin", "origin"), color=_BODY_COLOR,
     ),
     ComponentDef(
@@ -178,6 +258,21 @@ COMPONENTS: tuple[ComponentDef, ...] = (
     _wheel("wheel_fr", "Wheel front right", "front_axle", "right"),
     _wheel("wheel_rl", "Wheel rear left", "rear_axle", "left"),
     _wheel("wheel_rr", "Wheel rear right", "rear_axle", "right"),
+    _damper("damper_fl", "Damper front left", "front", "left"),
+    _damper("damper_fr", "Damper front right", "front", "right"),
+    _damper("damper_rl", "Damper rear left", "rear", "left"),
+    _damper("damper_rr", "Damper rear right", "rear", "right"),
 )  # fmt: skip
 
 BY_ID: Mapping[str, ComponentDef] = {c.id: c for c in COMPONENTS}
+
+COINCIDENCES: tuple[Coincidence, ...] = tuple(
+    Coincidence((f"damper_{tower[-2:]}", "upper_eye"), ("body", tower)) for tower in SHOCK_TOWERS
+)
+
+# Vertical load paths from the road to the body. Each consecutive pair must be joined by a
+# mate or a coincidence; ``integration.check`` verifies this against the definitions above.
+LOAD_PATHS: tuple[tuple[str, ...], ...] = tuple(
+    (f"wheel_{c}", f"{'front' if c[0] == 'f' else 'rear'}_axle", f"damper_{c}", "body")
+    for c in ("fl", "fr", "rl", "rr")
+)

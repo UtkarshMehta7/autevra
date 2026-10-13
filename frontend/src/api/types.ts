@@ -1,12 +1,14 @@
 // Mirrors backend/autevra/api/schemas.py.
 
 export type Operation = "set" | "increase" | "decrease" | "scale";
-export type Unit = "mm" | "cm" | "m" | "in" | "deg" | "%";
+export type Unit =
+  | "mm" | "cm" | "m" | "in" | "deg" | "%"
+  | "kg" | "lb" | "N/mm" | "N/m" | "kN/m" | "lbf/in" | "N·s/m" | "N·s/mm" | "kN·s/m";
 
 export interface ParameterDef {
   id: string;
   label: string;
-  group: "dimensions" | "cabin" | "wheels" | "steering" | "frame";
+  group: "dimensions" | "cabin" | "wheels" | "steering" | "frame" | "suspension" | "mass";
   unit: Unit;
   default: number;
   min: number;
@@ -63,6 +65,8 @@ export interface HistoryEntry {
 export interface Impact {
   rebuild: string[];
   move: string[];
+  /** "test_id:target" pairs whose results the change makes stale. */
+  retest?: string[];
 }
 
 export interface CommandResult {
@@ -82,7 +86,7 @@ export interface Violation {
 
 export interface InstructionResult {
   kind: "command" | "undo" | "redo" | "query" | "clarification" | "rejected" | "proposal"
-    | "out_of_scope";
+    | "out_of_scope" | "test" | "diagnosis" | "optimization" | "loop";
   message: string;
   interpreted_by: "rules" | "llm";
   command: Command | null;
@@ -93,6 +97,11 @@ export interface InstructionResult {
   assumptions: string[];
   violations: Violation[];
   answer: Record<string, number>;
+  runs?: RunSummary[];
+  comparisons?: Comparison[];
+  diagnosis?: Diagnosis | null;
+  studies?: StudyResult[];
+  loops?: LoopResult[];
 }
 
 export interface GeometryData {
@@ -122,4 +131,255 @@ export interface LLMStatus {
   available: boolean;
   detail: string;
   models: string[];
+}
+
+// --- Engineering: component tests, runs and integration (backend/autevra/engineering) ---
+
+export type RunStatus = "passed_within_model" | "failed" | "no_criteria" | "invalid";
+export type ComponentStatus = RunStatus | "not_tested" | "stale" | "experimentally_validated";
+export type Credibility = "analytical_estimate" | "numerical_simulation" | "experimentally_validated";
+
+export interface Scenario {
+  id: string;
+  label: string;
+  road: string;
+  height_mm: number;
+  length_m: number;
+  speed_kmh: number;
+  duration_s: number;
+  note: string;
+}
+
+export interface MetricInfo { label: string; unit: string; lower_is_better: boolean }
+
+export interface TestDefinition {
+  id: string;
+  name: string;
+  description: string;
+  solver: string;
+  credibility: Credibility;
+  targets: string[];
+  components: Record<string, string[]>;
+  inputs: Record<string, string[]>;
+  scenarios: Scenario[];
+  criteria: { id: string; label: string; metric: string; comparator: string; unit: string;
+    limit: number | null; limit_from: string | null; source: string }[];
+  metrics: Record<string, MetricInfo>;
+  assumptions: string[];
+}
+
+export interface CriterionResult {
+  id: string;
+  label: string;
+  metric: string;
+  comparator: string;
+  limit: number;
+  unit: string;
+  measured: number | null;
+  passed: boolean | null;
+  source: string;
+  limit_parameters: string[];
+  margin: number | null;
+}
+
+export interface RunSummary {
+  id: string;
+  test_id: string;
+  test_name: string;
+  target: string;
+  scenario_id: string;
+  scenario_label: string;
+  status: RunStatus;
+  credibility: Credibility;
+  created_at: string;
+  history_cursor: number;
+  current: boolean;
+  failed: string[];
+  warnings: string[];
+}
+
+export interface RunRecord {
+  id: string;
+  test_id: string;
+  test_name: string;
+  target: string;
+  scenario: Scenario;
+  revision: { values_hash: string; inputs_hash: string; history_cursor: number;
+    entry_id: string | null };
+  inputs: Record<string, { value: number; unit: string; label: string }>;
+  solver: { id: string; version: string; method: string };
+  config: Record<string, unknown>;
+  numerics: Record<string, number | boolean>;
+  metrics: Record<string, MetricInfo & { value: number | null }>;
+  criteria: CriterionResult[];
+  status: RunStatus;
+  credibility: Credibility;
+  assumptions: string[];
+  warnings: string[];
+  trace: Record<string, number[]>;
+  created_at: string;
+}
+
+export interface MetricDelta {
+  metric: string;
+  label: string;
+  unit: string;
+  before: number | null;
+  after: number | null;
+  change: number | null;
+  percent: number | null;
+  verdict: "better" | "worse" | "unchanged" | "n/a";
+}
+
+export interface Comparison {
+  baseline: string;
+  candidate: string;
+  same_test: boolean;
+  changed_inputs: Record<string, { before: number; after: number; unit: string }>;
+  metrics: MetricDelta[];
+  criteria: { id: string; label: string; before: boolean | null; after: boolean | null;
+    measured_before: number | null; measured_after: number | null; limit: number;
+    unit: string }[];
+  summary: string;
+}
+
+export interface TestRunResponse { runs: RunRecord[]; comparisons: Comparison[] }
+
+export interface ComponentTestStatus {
+  component: string;
+  status: ComponentStatus;
+  tests: { test_id: string; test_name: string; target: string; scenario_id: string;
+    scenario_label: string; status: ComponentStatus; run_id: string | null }[];
+}
+
+export interface IntegrationCheck {
+  id: string;
+  kind: string;
+  status: "pass" | "fail" | "warning";
+  message: string;
+  components: string[];
+  parameters: string[];
+  measured: number | null;
+  limit: number | null;
+  unit: string;
+}
+
+export interface IntegrationReport {
+  checks: IntegrationCheck[];
+  counts: Record<string, number>;
+  not_checked: string[];
+}
+
+export interface Effect {
+  parameter: string;
+  label: string;
+  unit: string;
+  value: number;
+  margin_up: number | null;
+  margin_down: number | null;
+  better_direction: "increase" | "decrease" | null;
+  evidence: "confirmed_in_model" | "possible" | "none";
+  side_effects: string[];
+}
+
+export interface Fix {
+  parameter: string;
+  label: string;
+  operation: string;
+  from_value: number;
+  to_value: number;
+  unit: string;
+  step_percent: number;
+  margin_after: number;
+  breaks: string[];
+  rule_violations: string[];
+  command: Command;
+}
+
+export interface Finding {
+  criterion: string;
+  label: string;
+  status: "failed" | "tightest_margin";
+  measured: number | null;
+  limit: number;
+  unit: string;
+  margin: number | null;
+  limit_source: string;
+  governing_parameter: string | null;
+  effects: Effect[];
+  fixes: Fix[];
+  explanation: string;
+}
+
+export interface Diagnosis {
+  run_id: string;
+  test_id: string;
+  target: string;
+  scenario_id: string;
+  scenario_label: string;
+  design_revision: number;
+  current: boolean;
+  status: string;
+  findings: Finding[];
+  evidence: Record<string, unknown>;
+  recommendation: string;
+  caveats: string[];
+}
+
+export interface Variable { parameter: string; lower: number; upper: number }
+export interface Objective { metric: string; sense: "minimize" | "maximize" }
+
+export interface Study {
+  test_id: string;
+  target: string;
+  scenarios: string[];
+  objectives: Objective[];
+  variables: Variable[];
+  budget: number;
+  seed?: number;
+}
+
+export interface Candidate {
+  index: number;
+  phase: "baseline" | "sample" | "refine";
+  values: Record<string, number>;
+  rule_violations: string[];
+  simulated: boolean;
+  feasible: boolean;
+  objectives: Record<string, number>;
+  failed: string[];
+}
+
+export interface StudyResult {
+  id: string;
+  created_at: string;
+  study: Study;
+  method: string;
+  baseline: Candidate;
+  candidates: Candidate[];
+  best: Candidate | null;
+  pareto: number[];
+  verified: { scenario: string; status: string; converged: boolean;
+    metrics: Record<string, number> }[];
+  improvement: Record<string, number>;
+  command: Command | null;
+  evaluations: number;
+  status: "proposed" | "accepted" | "rejected" | "no_feasible_design";
+  blocking: string | null;
+  notes: string[];
+}
+
+export interface LoopResult {
+  id: string;
+  created_at: string;
+  goal: { test_id: string; target: string; scenarios: string[] | null;
+    objective: Objective | null; max_iterations: number };
+  iterations: { index: number; changes: Record<string, { from: number; to: number; unit: string }>;
+    runs: { scenario: string; status: string; converged: boolean; failed: string[] }[];
+    diagnosis: string | null; decision: string }[];
+  outcome: "all_pass" | "needs_decision" | "iteration_limit" | "already_passing";
+  optimization: StudyResult | null;
+  command: Command | null;
+  status: "proposed" | "accepted" | "rejected" | "nothing_to_apply";
+  notes: string[];
 }

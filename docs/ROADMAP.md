@@ -44,64 +44,85 @@ Goal: change a **real** CAD parameter of a simple vehicle through natural langua
 - [x] Evaluation dataset (`eval/`) and scoring script; pick the model by score vs memory
 - [x] Graceful behaviour when no model is running
 
-## Phase 3: Specification interview and conflict detection
+## Phase 3: Suspension, test bench and the engineering loop ✅
+
+Goal: one complete, verifiable engineering workflow on a real, editable component (the first
+milestone of the engineering brief). Order changed from the earlier plan on request: the
+specification interview moves to Phase 5.
+
+- [x] Suspension and mass as parameters with mass, stiffness and damping units
+- [x] Coil-over dampers in the CAD assembly; spring wire diameter follows the rate
+- [x] Whole-vehicle integration checks: interfaces, connectivity, closed mounts, load paths, travel limits, exact OCCT clearances
+- [x] Quarter-car solver behind a solver interface, verified against closed-form results
+- [x] Component test framework: definitions, criteria, credibility labels, stored runs with design revisions, staleness, user requirements
+- [x] Evidence-based diagnosis from measured sensitivities, with rule-checked fixes
+- [x] Bounded, seeded optimisation (single objective or Pareto) on the real solver, approval required
+- [x] Engineering loop: test → diagnose → fix → retest, bounded and traceable
+- [x] Test bench, integration and optimisation panels in the workspace
+- [x] **Acceptance:** "Increase the rear shock absorber damping by 10% and test its response" changes the dynamic model only, reruns the rear tests, compares with the previous revision and keeps undo; automated tests cover NL → command → simulation → evaluation → history
+
+## Phase 4: Traceability core
+
+- [ ] Requirements as first-class records linked to parameters, tests, runs and verdicts
+- [ ] Impact report of any change on requirements and evidence (before applying it)
+- [ ] ReqIF import and export
+- [ ] Evidence structure ready for ISO 26262 / ASPICE work products (no compliance claims)
+
+## Phase 5: Specification interview and conflict detection
 
 - [ ] Typed `VehicleSpec` (class, use, powertrain, power, torque, mass, drivetrain, dimensions, materials, suspension, budget)
 - [ ] Adaptive question graph with conditions
 - [ ] Physics-based plausibility and conflict rules (power-to-weight vs acceleration, traction limits, packaging)
-- [ ] Spec → initial parameter set generation
+- [ ] Spec → initial parameter set generation; provisional targets the user approves
 - [ ] Interview UI (forms + chat)
 
-## Phase 4: Integration depth
+## Phase 6: Fidelity ladder and validation
 
-- [ ] Geometric clearance checks (OCCT exact distance on envelopes)
-- [ ] Steering sweep envelope for front wheels; suspension travel envelopes
+- [ ] Half-car (pitch) and 14-DOF vehicle (roll, pitch, heave, four corners)
+- [ ] Magic Formula (Pacejka) tyres; bicycle model for steady-state cornering and step steer
+- [ ] ISO 8608 random road profiles; tyre enveloping for short obstacles
+- [ ] Validation module: import measured data, correlation metrics, then "experimentally validated"
+- [ ] Credibility assessment following NASA-STD-7009A / ASME V&V 40 ideas
+- [ ] Project Chrono adapter after a license, arm64 and memory evaluation (conda worker, separate process)
+
+## Phase 7: Uncertainty and robustness
+
+- [ ] Sensitivities on every key result (generalising the diagnosis perturbations)
+- [ ] Monte Carlo over tolerances, mass and load variation; confidence bands in reports
+
+## Phase 8: Electrified powertrain and energy
+
+- [ ] Battery, e-motor, inverter and thermal models; packaging envelopes in CAD
+- [ ] Longitudinal: acceleration 0–100 km/h, braking 100–0 km/h, energy over WLTP-style cycles
+- [ ] Range, charging and thermal-limit tests as first-class component tests
+
+## Phase 9: Component library and integration depth
+
+- [ ] Suspension: double wishbone, MacPherson strut (hardpoints as parameters); travel and steering sweep envelopes
+- [ ] Brakes: disc, caliper envelope; steering: rack and pinion, tie rods (Ackermann geometry)
 - [ ] Mass properties from CAD (materials, CoG, inertia)
-- [ ] Impact report for each command: affected components, changed interfaces, failed checks
+- [ ] Plugin SDK and open component schema (components, interfaces, tests)
 
-## Phase 5: Component library expansion
+## Phase 10: Interoperability
 
-- [ ] Suspension: double wishbone, MacPherson strut (hardpoints as parameters)
-- [ ] Shock absorber / spring (geometry + damping and spring-rate parameters)
-- [ ] Brakes: disc, caliper envelope
-- [ ] Steering: rack and pinion, tie rods (Ackermann geometry)
-- [ ] Powertrain: engine block envelope, piston, connecting rod, crankshaft; gearbox envelope
-- [ ] NL editing for component-level parameters ("redesign the shock absorber for softer damping")
+- [ ] STEP AP242 with PMI; FMI 3.0 / SSP co-simulation; SysML v2 export; OpenSCENARIO / OpenDRIVE scenarios
 
-## Phase 6: Simulation v1 (custom, verified models)
+## Phase 11: Lifecycle, cost and regulation
 
-- [ ] Job queue (sequential) and telemetry storage
-- [ ] Longitudinal: acceleration 0–100 km/h, emergency braking 100–0 km/h
-- [ ] Quarter-car / half-car: potholes, bumps, ISO 8608 roads
-- [ ] Bicycle model with Pacejka tyres: steady-state cornering, step steer
-- [ ] Powertrain: torque map, gears, final drive
-- [ ] Verification tests against closed-form results; fidelity labels
-- [ ] Telemetry charts and result reports in the UI
+- [ ] Mass, cost and ISO 14040-style carbon estimates per design variant
+- [ ] Checkable UNECE clauses as rules, reported as model-level consistency (never homologation)
 
-## Phase 7: Natural-language simulation automation
+## Phase 12: Design branches and signed results
 
-- [ ] NL → `ScenarioSpec` → run → compare with requirements
-- [ ] Rule-based engineering suggestions turned into proposed CAD commands
+- [ ] Branchable, content-addressed design history (diff, merge, revert); reproducible signed results
+- [ ] Surrogate models trained only on Autevra's own verified runs, always re-verified by a solver
 
-## Phase 8: High-fidelity multibody (Project Chrono)
+## Phase 13: Structural, thermal, fatigue, aero and crash (offline or cloud)
 
-- [ ] Conda-based Chrono worker (separate environment)
-- [ ] Map Autevra design → Chrono::Vehicle templates
-- [ ] Cross-check against the Phase 6 models
+- [ ] gmsh meshing; static/modal FEA (CalculiX or FEniCSx/scikit-fem); lumped then 3D thermal; fatigue (rainflow, S-N, Miner)
+- [ ] Drag from frontal area and Cd, then coarse CFD (OpenFOAM); lumped crash, then OpenRadioss
 
-## Phase 9: Structural, thermal and fatigue
-
-- [ ] gmsh meshing of components
-- [ ] Static/modal FEA (CalculiX or FEniCSx/scikit-fem) for frame rails and suspension arms
-- [ ] Lumped thermal models (brakes), then 3D thermal
-- [ ] Fatigue from simulated load histories (rainflow + S-N + Miner)
-
-## Phase 10: Aerodynamics and crash
-
-- [ ] Drag estimate from CAD frontal area and Cd, then coarse CFD (OpenFOAM, offline/cloud)
-- [ ] Lumped crash model, then OpenRadioss (offline/cloud)
-
-## Phase 11: Cloud deployment
+## Phase 14: Cloud deployment
 
 - [ ] PostgreSQL, S3 storage, async workers (SQS + ECS)
 - [ ] Image build and push to ECR in CI; ECS task definitions
@@ -110,6 +131,33 @@ Goal: change a **real** CAD parameter of a simple vehicle through natural langua
 ---
 
 ## Progress log
+
+### 2026-10-13: Phase 3 complete (suspension, test bench, diagnosis, optimisation, loop)
+
+**Done**
+- Suspension and mass parameters (42 in total) with mass, stiffness and damping units; mixing dimensions is rejected.
+- Derived values: sprung corner mass, ride frequency (spring and tyre in series), damping ratios, spring wire diameter from the rate, damper installed length, usable travel and the limit that governs it.
+- Rules: damper fits its mounts, stroke covers the travel, mounts inside the body, springs clear the tyres, spring index, coil bind, positive sprung mass.
+- CAD: four coil-over dampers (swept helical coil) mated to the axles; their upper eyes must meet the body's shock towers.
+- Integration checks: interfaces and their kinds, connectivity, closed mounts, load paths, travel limits set by packaging, exact OCCT clearances. Default design: 39 pass, 2 warnings (the 35 mm arch gap, not the 60 mm bump stop, limits bump travel).
+- Quarter-car solver: two-rate damper, tyre lift-off, RK4 with a half-step convergence check. Verified to under a micrometre against the exact linear solution and against the characteristic equation; about 40 ms per run.
+- Component tests: quarter-car ride test (25 mm step, 75 mm road hump, 50 mm pothole) and an analytical ride-modes test with no default criteria; each run is stored with solver identity, inputs, design revision, numerics and credibility, and compared with the previous revision.
+- Diagnosis: governing limit, measured effects of every input (±10 % re-simulation), smallest rule-checked fix. Example: rear hump bump travel 42.7 mm against 35 mm; the arch governs; +30 % arch clearance fixes it in the model, confirmed by a full rerun.
+- Optimisation: seeded Latin hypercube plus compass search, rule screening before simulation, worst case over scenarios, Pareto set for two objectives, full re-verification, accept or reject. Example: rear RMS body acceleration −22 % with every criterion kept.
+- Engineering loop: test → diagnose → fix → retest; on the default design it fixes the hump and stops at the pothole, which needs an engineering decision.
+- UI: test bench (criteria, solver traces with limits and the previous revision, comparisons, diagnosis with Apply), integration panel, optimisation and loop panel, component test status in the tree. Checked by hand in Chrome.
+- 332 backend tests and 9 frontend tests pass; ruff and TypeScript clean.
+
+**Known limitations**
+- Pothole: the point-contact tyre without enveloping makes short obstacles severe; the tyre leaves the road for every candidate, so pothole studies are infeasible by design of the model. Tyre enveloping is in Phase 6.
+- Quarter-car only: no roll or pitch, so requests mentioning roll report it as not checked.
+- Spring-rate changes assume the ride height is kept (preload or free length adjusted); static sag is not modelled.
+- Spring stress is not checked yet: the allowable stress depends on material and presetting data to be sourced.
+- The body is a solid envelope; parts inside it are not clearance-checked against it.
+- LLM proposals do not trigger tests; ask for the test after confirming.
+
+**Next**
+- Phase 4: traceability core (requirements linked to parameters, tests, runs and verdicts; ReqIF).
 
 ### 2026-10-13: Phase 2 complete (local LLM fallback)
 

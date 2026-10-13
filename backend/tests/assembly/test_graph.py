@@ -35,20 +35,22 @@ def test_wheelbase_moves_only_the_rear_axle_group() -> None:
     before = graph.place_all(p)
     after = graph.place_all(p | {"wheelbase": 2800})
     moved = {c for c in before if not np.allclose(before[c], after[c])}
-    assert moved == {"rear_axle", "wheel_rl", "wheel_rr"}
-    delta = after["wheel_rl"][:3, 3] - before["wheel_rl"][:3, 3]
-    assert delta == pytest.approx([-100, 0, 0])
+    assert moved == {"rear_axle", "wheel_rl", "wheel_rr", "damper_rl", "damper_rr"}
+    for cid in ("wheel_rl", "damper_rr"):
+        assert after[cid][:3, 3] - before[cid][:3, 3] == pytest.approx([-100, 0, 0])
 
 
 def test_impact_of_wheelbase() -> None:
     impact = graph.impact(["wheelbase"])
     assert impact.rebuild == {"body", "frame"}
-    assert impact.move == {"rear_axle", "wheel_rl", "wheel_rr"}
+    assert impact.move == {"rear_axle", "wheel_rl", "wheel_rr", "damper_rl", "damper_rr"}
 
 
 def test_impact_of_rim_rebuilds_wheels_and_body_and_moves_axles() -> None:
     impact = graph.impact(["rim_diameter"])
-    assert impact.rebuild == {"body", "wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr"}
+    wheels = {"wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr"}
+    dampers = {"damper_fl", "damper_fr", "damper_rl", "damper_rr"}
+    assert impact.rebuild == {"body"} | wheels | dampers  # dampers: length between mounts
     assert {"front_axle", "rear_axle"} <= impact.move
 
 
@@ -58,14 +60,26 @@ def test_impact_of_front_track() -> None:
     assert impact.move == {"wheel_fl", "wheel_fr"}
 
 
-def test_frame_spacing_touches_only_the_frame() -> None:
-    assert graph.impact(["rail_spacing"]).affected == {"frame"}
+def test_frame_spacing_rebuilds_the_frame_and_moves_the_dampers() -> None:
+    impact = graph.impact(["rail_spacing"])
+    assert impact.rebuild == {"frame"}
+    assert impact.move == {"damper_fl", "damper_fr", "damper_rl", "damper_rr"}
+
+
+# Parameters with no geometry: suspension dynamics and mass feed the simulation model
+# (tests/engineering checks that each one is a test input); steering lock is for the
+# later steering sweep.
+NO_GEOMETRY = {
+    "max_steer_angle", "vehicle_mass", "front_mass_distribution", "tyre_vertical_stiffness",
+    *(f"{a}_{n}" for a in ("front", "rear")
+      for n in ("damping_bump", "damping_rebound", "unsprung_mass", "bump_travel",
+                "rebound_travel")),
+}  # fmt: skip
 
 
 def test_every_parameter_affects_some_component() -> None:
-    unused = [pid for pid in REGISTRY if not graph.impact([pid]).affected]
-    # Steering lock is used by the Phase 4 steering sweep, not by Phase 1 geometry.
-    assert unused == ["max_steer_angle"]
+    unused = {pid for pid in REGISTRY if not graph.impact([pid]).affected}
+    assert unused == NO_GEOMETRY
 
 
 def test_declared_dependencies_are_complete() -> None:
@@ -95,3 +109,22 @@ def test_mates_reference_existing_interfaces() -> None:
 def test_inverse_round_trip() -> None:
     m = tf.compose(tf.translation(10, -20, 30), tf.rotation_z(33))
     assert tf.compose(m, tf.inverse(m)) == pytest.approx(np.eye(4))
+
+
+def test_dampers_stand_on_the_axle_under_the_shock_towers() -> None:
+    p = default_values()
+    world = graph.place_all(p)
+    lower = np.asarray(world["damper_rl"])[:3, 3]
+    assert lower == pytest.approx(
+        [-p["wheelbase"], p["rail_spacing"] / 2, d.lower_shock_mount_height(p)]
+    )
+
+
+def test_damping_changes_no_geometry_but_spring_rate_rebuilds_its_axle_dampers() -> None:
+    assert graph.impact(["rear_damping_bump"]).affected == frozenset()
+    assert graph.impact(["rear_spring_rate"]).rebuild == {"damper_rl", "damper_rr"}
+
+
+def test_wheel_size_rebuilds_dampers_and_moves_them() -> None:
+    impact = graph.impact(["rim_diameter"])
+    assert {"damper_fl", "damper_fr", "damper_rl", "damper_rr"} <= impact.rebuild

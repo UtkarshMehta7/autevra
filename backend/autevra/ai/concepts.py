@@ -1,9 +1,10 @@
-"""Automotive concepts that Autevra recognises but does not model yet.
+"""Automotive concepts behind vague or out-of-model requests.
 
-These turn vague or out-of-model requests into honest, specific questions
-instead of guesses: "make the suspension softer" could mean spring rate,
-compression damping or rebound damping, and none of them is a parameter yet.
-The scope check keeps the assistant on automotive design and engineering.
+These turn such requests into honest, specific questions instead of guesses.
+"Make the suspension softer" names a modelled system but not a quantity: it
+could mean spring rate, bump (compression) damping or rebound damping.
+"Fit bigger brakes" names a system that is not modelled yet. The scope check
+keeps the assistant on automotive design and engineering.
 """
 
 import re
@@ -18,6 +19,7 @@ class Concept:
     words: tuple[str, ...]
     meanings: tuple[str, ...]  # the engineering quantities the words can refer to
     phase: str  # roadmap phase where it becomes editable
+    modelled: bool = False  # True: editable parameters exist, the request is just ambiguous
 
 
 CONCEPTS: tuple[Concept, ...] = (
@@ -35,14 +37,16 @@ CONCEPTS: tuple[Concept, ...] = (
             "shocks",
             "shock absorber",
             "coilover",
+            "coilovers",
         ),
         (
             "spring rate (N/mm)",
-            "compression damping (N·s/m)",
+            "bump (compression) damping (N·s/m)",
             "rebound damping (N·s/m)",
-            "ride height (ground clearance, editable now)",
+            "ride height (ground clearance)",
         ),
-        "Phase 5 (suspension and shock absorbers)",
+        "now",
+        modelled=True,
     ),
     Concept(
         "brakes",
@@ -107,12 +111,6 @@ CONCEPTS: tuple[Concept, ...] = (
         ),
         ("material appearance",),
         "later (appearance is kept separate from engineering geometry)",
-    ),
-    Concept(
-        "mass",
-        ("mass", "weight", "heavier", "lighter", "kg", "kilograms"),
-        ("target mass", "material density"),
-        "Phase 3 (target mass) and Phase 4 (mass properties from CAD)",
     ),
 )
 
@@ -211,13 +209,25 @@ def find(text: str) -> Concept | None:
 def clarification(concept: Concept, text: str) -> tuple[str, list[str]]:
     words = _words(text)
     if concept.id == "suspension" and words & SOFTER:
+        softer = bool(words & {"softer", "soft", "comfier", "plusher"})
+        verb = "reduce" if softer else "increase"
         question = (
-            "The suspension is not modelled as editable parameters yet "
-            f"({concept.phase}). 'Softer' or 'stiffer' could mean the spring rate, the "
-            "compression damping or the rebound damping. Which one do you mean? Today I can "
-            "change the ride height."
+            f"'{'Softer' if softer else 'Stiffer'}' could mean the spring rate, the bump "
+            "(compression) damping or the rebound damping, front, rear or both. Which one do "
+            "you mean, and by how much?"
         )
-        return question, ["lower the car by 20 mm", "raise the ride height by 20 mm"]
+        return question, [
+            f"{verb} the spring rate by 10%",
+            f"{verb} the bump damping by 10%",
+            f"{verb} the rebound damping by 10%",
+        ]
+    if concept.modelled:
+        meanings = ", ".join(concept.meanings)
+        return (
+            f"Which {concept.id.replace('_', ' ')} quantity should change: {meanings}? "
+            "Say front, rear or both, and the amount.",
+            [],
+        )
     meanings = ", ".join(concept.meanings)
     question = (
         f"That refers to {concept.id.replace('_', ' ')} ({meanings}), which is not an "

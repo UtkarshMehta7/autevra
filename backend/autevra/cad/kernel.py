@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import cadquery as cq
+from OCP.BRepExtrema import BRepExtrema_DistShapeShape
 from OCP.gp import gp_Trsf
 
 Shape = cq.Shape
@@ -17,6 +18,7 @@ Matrix = Sequence[Sequence[float]]  # 4 x 4, row-major, translation in the last 
 
 _Y = cq.Vector(0, 1, 0)
 _X = cq.Vector(1, 0, 0)
+_Z = cq.Vector(0, 0, 1)
 
 
 class KernelError(RuntimeError):
@@ -35,6 +37,32 @@ def cylinder_y(radius: float, y: tuple[float, float], x: float = 0.0, z: float =
 
 def cylinder_x(radius: float, x: tuple[float, float], y: float = 0.0, z: float = 0.0) -> Shape:
     return cq.Solid.makeCylinder(radius, x[1] - x[0], pnt=cq.Vector(x[0], y, z), dir=_X)
+
+
+def cylinder_z(radius: float, z: tuple[float, float], x: float = 0.0, y: float = 0.0) -> Shape:
+    return cq.Solid.makeCylinder(radius, z[1] - z[0], pnt=cq.Vector(x, y, z[0]), dir=_Z)
+
+
+def ring_z(outer: float, inner: float, z: tuple[float, float]) -> Shape:
+    """Hollow cylinder (annulus) on the Z axis."""
+    return cut(cylinder_z(outer, z), cylinder_z(inner, (z[0] - 1, z[1] + 1)))
+
+
+def ring_x(outer: float, inner: float, x: tuple[float, float], z: float = 0.0) -> Shape:
+    """Hollow cylinder on an axis parallel to X at height ``z``."""
+    return cut(cylinder_x(outer, x, z=z), cylinder_x(inner, (x[0] - 1, x[1] + 1), z=z))
+
+
+def helical_coil(radius: float, height: float, turns: float, wire: float, z0: float) -> Shape:
+    """Round wire swept along a helix about Z, from ``z0`` to ``z0 + height``."""
+    if height / turns <= wire:
+        raise KernelError("coil pitch is not larger than the wire diameter (coils overlap)")
+    path = cq.Wire.makeHelix(height / turns, height, radius, center=cq.Vector(0, 0, z0))
+    profile = cq.Wire.makeCircle(wire / 2.0, cq.Vector(radius, 0, z0), _Y)
+    coil = cq.Solid.sweep(profile, [], path, isFrenet=True)
+    if not coil.isValid():
+        raise KernelError("kernel produced an invalid coil")
+    return coil
 
 
 def ring_y(outer: float, inner: float, y: tuple[float, float]) -> Shape:
@@ -140,6 +168,26 @@ def location(matrix: Matrix) -> cq.Location:
         m[2][0], m[2][1], m[2][2], m[2][3],
     )  # fmt: skip
     return cq.Location(t)
+
+
+def min_distance(a: Shape, a_matrix: Matrix, b: Shape, b_matrix: Matrix) -> float:
+    """Exact minimum distance between two placed shapes (OCCT BRepExtrema), mm.
+
+    Overlapping solids give 0, including one solid fully inside the other.
+    """
+    placed_a, placed_b = a.moved(location(a_matrix)), b.moved(location(b_matrix))
+    dist = BRepExtrema_DistShapeShape(placed_a.wrapped, placed_b.wrapped)
+    if not dist.IsDone():
+        raise KernelError("distance computation failed")
+    # Boundaries apart: still overlapping if one solid contains the other.
+    if dist.Value() > 1e-9 and (_contains(placed_a, placed_b) or _contains(placed_b, placed_a)):
+        return 0.0
+    return dist.Value()
+
+
+def _contains(outer: Shape, inner: Shape) -> bool:
+    point = inner.Vertices()[0].Center() if inner.Vertices() else inner.Center()
+    return outer.isInside(point)
 
 
 @dataclass(frozen=True)

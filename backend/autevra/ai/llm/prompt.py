@@ -56,7 +56,9 @@ def _parameter_table(values: Mapping[str, float]) -> str:
 def _derived_table(values: Mapping[str, float]) -> str:
     lines = ["Read-only derived values (query only): id | label | current"]
     for spec in derived.DERIVED.values():
-        lines.append(f"{spec.id} | {spec.label} | {derived.compute(spec.id, values):.1f} mm")
+        value = derived.compute(spec.id, values)
+        shown = f"{value:.1f}" if abs(value) >= 10 else f"{value:.3f}"
+        lines.append(f"{spec.id} | {spec.label} | {shown} {spec.unit}".rstrip())
     return "\n".join(lines)
 
 
