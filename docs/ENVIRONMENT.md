@@ -155,6 +155,14 @@ grounding and rule validation:
 | `qwen3:1.7b` | **82.6 %** | 1 | 1.35 s | 1.6 GB |
 | `qwen3:4b` | 82.6 % | 2 | 3.21 s | 2.8 GB |
 
+Re-measured 2026-10-14 (same model, same prompt text, main and the
+phase-8 branch alike): `qwen3:1.7b` scores **78.3 %**. The one item that changed,
+"stretch the distance between the front and back wheels by 100 mm", gets the same
+wrong proposal as before (a track change instead of the wheelbase), but it is now
+rejected by the `tyres_within_body` rule added with the car-shaped body, so it
+counts as a miss instead of a pass by luck. The figures in the table are the
+original Phase 2 measurements.
+
 `qwen3:1.7b` is the default: the same accuracy as the 4B model at under half
 the time and memory, which leaves room for the CAD kernel on 8 GB. Every LLM
 result is a proposal the user must confirm, so a wrong-but-valid answer is

@@ -386,8 +386,10 @@ OUT_OF_SCOPE = (
     "questions about them."
 )
 PROMPT_INTRO = "You convert automotive design instructions into JSON for the Autevra CAD system."
-PROMPT_NOTES = """Coordinate system: ISO 8855, millimetres. Vehicle length is derived
-(front_overhang + wheelbase + rear_overhang), so ask which one to change instead of guessing."""
+PROMPT_NOTES = (
+    "Coordinate system: ISO 8855, millimetres. Vehicle length is derived (front_overhang +\n"
+    "wheelbase + rear_overhang), so ask which one to change instead of guessing."
+)
 
 PROMPT_EXAMPLES: list[tuple[str, dict]] = [
     (
@@ -466,5 +468,7 @@ LANGUAGE = Language(
     out_of_scope=OUT_OF_SCOPE,
     prompt_intro=PROMPT_INTRO,
     prompt_notes=PROMPT_NOTES,
+    prompt_subject="vehicle",
+    prompt_scope="automotive design, engineering or testing",
     prompt_examples=tuple(PROMPT_EXAMPLES),
 )

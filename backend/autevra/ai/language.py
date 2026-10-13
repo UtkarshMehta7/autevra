@@ -48,7 +48,9 @@ class Language:
     scope_words: frozenset[str] = frozenset()
     out_of_scope: str = ""
     prompt_intro: str = ""
-    prompt_notes: str = ""
+    prompt_notes: str = ""  # placed before the action list
+    prompt_subject: str = ""  # what a clarify request is about, e.g. "vehicle"
+    prompt_scope: str = ""  # what is in scope, for out_of_scope
     prompt_examples: Sequence[tuple[str, dict]] = ()
 
 
