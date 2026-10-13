@@ -90,3 +90,17 @@ jobs:
           done
           docker logs api
           exit 1
+      - name: Hugging Face Space bundle builds and works as uid 1000
+        run: |
+          deploy/huggingface/build-space.sh "$RUNNER_TEMP/space"
+          docker build -t autevra-space "$RUNNER_TEMP/space"
+          docker run -d --name space -p 8000:8000 autevra-space
+          for i in $(seq 1 45); do curl -fsS http://localhost:8000/api/health && break; sleep 2; done
+          test "$(docker exec space id -u)" = 1000
+          id=$(curl -fsS -X POST -H 'content-type: application/json' -d '{"name":"ci"}' \
+            http://localhost:8000/api/projects | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+          curl -fsS -o /dev/null http://localhost:8000/api/projects/$id/model
+          curl -fsS -o model.step http://localhost:8000/api/projects/$id/export.step
+          head -c 13 model.step | grep -q ISO-10303-21
+          curl -fsS http://localhost:8000/api/llm | grep -q '"provider":"off"'
+          docker stats --no-stream space

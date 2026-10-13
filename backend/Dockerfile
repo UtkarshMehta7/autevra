@@ -18,7 +18,10 @@ COPY migrations ./migrations
 COPY alembic.ini ./
 RUN uv sync --locked --no-dev
 
+# Run as an unprivileged user. Hugging Face Spaces requires uid 1000; it also suits any host.
+RUN useradd --create-home --uid 1000 autevra && mkdir -p /data && chown autevra:autevra /data
 ENV AUTEVRA_DATA_DIR=/data PATH="/app/.venv/bin:$PATH"
+USER autevra
 VOLUME /data
 EXPOSE 8000
 # Hosts such as Render, Cloud Run and Hugging Face Spaces set $PORT; locally it is 8000.
