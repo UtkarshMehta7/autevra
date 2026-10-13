@@ -18,12 +18,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ValidationError
 
-from autevra.ai import concepts, rule_parser
+from autevra.ai import concepts, language, rule_parser
 from autevra.ai import lexicon as lx
 from autevra.ai.llm import prompt, schema
 from autevra.ai.llm.clients import LLMClient, LLMResponseError, LLMUnavailableError
 from autevra.ai.rule_parser import Interpretation, Kind, Reason
-from autevra.domain.commands import (
+from autevra.core.commands import (
     Change,
     CommandError,
     Operation,
@@ -31,15 +31,15 @@ from autevra.domain.commands import (
     Source,
     resolve,
 )
-from autevra.domain.derived import DERIVED
-from autevra.domain.parameters import REGISTRY
-from autevra.domain.units import parse_unit
+from autevra.core.derived import DERIVED
+from autevra.core.parameters import REGISTRY
+from autevra.core.units import parse_unit
 
-OUT_OF_SCOPE_MESSAGE = (
-    "Autevra handles automotive design, engineering and testing. I can change the vehicle's "
-    "dimensions, wheels, cabin, chassis, suspension and mass, run suspension tests, or answer "
-    "questions about them."
-)
+
+def _out_of_scope_message() -> str:
+    return language.first("out_of_scope") or (
+        "That is outside the engineering domains loaded in Autevra."
+    )
 
 
 class _LLMChange(BaseModel):
@@ -163,7 +163,7 @@ def from_llm_output(
     match out.action:
         case "out_of_scope":
             return Interpretation(
-                Kind.OUT_OF_SCOPE, question=OUT_OF_SCOPE_MESSAGE, interpreted_by=by
+                Kind.OUT_OF_SCOPE, question=_out_of_scope_message(), interpreted_by=by
             )
         case "clarify":
             question = out.question.strip() or "Could you say which dimension should change?"
@@ -235,8 +235,8 @@ def interpret(
         return Interpretation(
             Kind.CLARIFICATION, question=question, suggestions=suggestions, reason=reason
         )
-    if not concepts.is_automotive(text):
-        return Interpretation(Kind.OUT_OF_SCOPE, question=OUT_OF_SCOPE_MESSAGE)
+    if not concepts.in_scope(text):
+        return Interpretation(Kind.OUT_OF_SCOPE, question=_out_of_scope_message())
     if llm is None or llm.provider == "off":
         return result
     try:

@@ -12,16 +12,15 @@ dampers) are not checked against it; that is a stated limitation, not a pass.
 """
 
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 
 import numpy as np
 
 from autevra.assembly import graph
-from autevra.assembly.vehicle import BY_ID, COINCIDENCES, COMPONENTS, LOAD_PATHS
+from autevra.assembly.model import BY_ID, COINCIDENCES, COMPONENTS, LOAD_PATHS
 from autevra.cad import kernel
-from autevra.domain import derived as d
 
 Values = Mapping[str, float]
 
@@ -46,10 +45,7 @@ class Check:
 
 
 # Interface kinds that may be mated (parent kind, child kind).
-COMPATIBLE = set({  # extensible
-    ("origin", "origin"), ("axle_mount", "centre"), ("hub", "hub"), ("shock", "lower_eye"),
-    ("shock_tower", "upper_eye"),
-})  # fmt: skip
+COMPATIBLE: set[tuple[str, str]] = {("origin", "origin")}  # extended by domains and plugins
 
 
 def interface_kind(name: str) -> str:
@@ -66,22 +62,10 @@ class Clearance:
     parameters: tuple[str, ...] = ()
 
 
-_TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
-CLEARANCES: list[Clearance] = list(
-    item
-    for c, axle in (("fl", "front"), ("fr", "front"), ("rl", "rear"), ("rr", "rear"))
-    for item in (
-        Clearance(f"wheel_{c}", "body", 5.0, "tyre must not touch the body at ride height",
-                  ("arch_clearance", *_TYRE)),
-        Clearance(f"wheel_{c}", "frame", 30.0, "frame rail clearance to the tyre",
-                  ("rail_spacing", "rail_width", f"track_{axle}", "tyre_width")),
-        Clearance(f"wheel_{c}", f"damper_{c}", 20.0, "coil-over clearance to the tyre",
-                  ("spring_coil_diameter", f"{axle}_spring_rate", "rail_spacing",
-                   f"track_{axle}", "tyre_width")),
-        Clearance(f"damper_{c}", "frame", 5.0, "coil-over clearance to the frame",
-                  ("rail_spacing", "rail_height", "ground_clearance")),
-    )
-)  # fmt: skip
+# Registries (filled by domain modules and plugins).
+CLEARANCES: list[Clearance] = []
+DOMAIN_CHECKS: list[Callable[[Values], list[Check]]] = []
+NOT_CHECKED: list[str] = []  # stated limitations of the checks
 
 
 def _world_point(world: Mapping[str, np.ndarray], values: Values, cid: str, iface: str):
@@ -158,33 +142,9 @@ def structural_checks(values: Values) -> list[Check]:
     return out
 
 
-def travel_checks(values: Values) -> list[Check]:
-    """Warnings when the packaging, not the suspension, sets the usable wheel travel."""
-    out = []
-    for a in d.AXLES:
-        limits = d.travel_limits(values, a)
-        for kinds, label, name in (
-            (d.BUMP_LIMITS, "bump", "bump_stop"), (d.REBOUND_LIMITS, "rebound", "droop")
-        ):  # fmt: skip
-            governing = min(kinds, key=lambda k: limits[k][0])
-            value, param = limits[governing]
-            design = limits[name][0]
-            if governing == name:
-                message = f"{a} {label} travel {value:.1f} mm is set by the suspension"
-                out.append(Check(
-                    f"travel:{a}_{label}", "travel", Status.PASS, message,
-                    parameters=(param,), measured=round(value, 3), unit="mm",
-                ))  # fmt: skip
-                continue
-            out.append(Check(
-                f"travel:{a}_{label}", "travel", Status.WARNING,
-                f"{a} {label} travel is limited to {value:.1f} mm by the "
-                f"{governing.replace('_', ' ')} ({param}), below the {design:.0f} mm "
-                f"{name.replace('_', ' ')} travel",
-                parameters=(param, limits[name][1]), measured=round(value, 3), limit=design,
-                unit="mm",
-            ))  # fmt: skip
-    return out
+def domain_checks(values: Values) -> list[Check]:
+    """Checks contributed by domain modules and plugins (for example wheel travel)."""
+    return [c for check in DOMAIN_CHECKS for c in check(values)]
 
 
 @dataclass
@@ -222,11 +182,3 @@ def clearance_checks(model, cache: ClearanceCache | None = None) -> list[Check]:
             (cl.a, cl.b), cl.parameters, round(dist, 3), cl.minimum, "mm",
         ))  # fmt: skip
     return out
-
-
-NOT_CHECKED = (
-    "Parts packaged inside the body envelope (axles, dampers) are not checked against the body: "
-    "the body is a solid envelope, not a shell.",
-    "Clearances are static (ride height, straight ahead); wheel travel and steering sweeps are "
-    "covered by the suspension tests and a later steering sweep check.",
-)

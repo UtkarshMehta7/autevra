@@ -1,1 +1,1 @@
-"""Language understanding. Depends only on ``autevra.domain``; produces commands, never geometry."""
+"""Language understanding. Depends only on ``autevra.core``; produces commands, never geometry."""

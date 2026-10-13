@@ -8,7 +8,7 @@ import pytest
 from autevra.api.model_service import build_model, export_step, mesh_payload
 from autevra.cad import kernel
 from autevra.cad.cache import GeometryCache
-from autevra.domain.parameters import default_values
+from autevra.core.parameters import default_values
 
 pytestmark = pytest.mark.cad
 

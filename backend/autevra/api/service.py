@@ -14,22 +14,22 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from autevra import domains
-from autevra.ai import interpreter
+from autevra.ai import interpreter, rule_parser
 from autevra.ai.llm.clients import DisabledClient, LLMClient
 from autevra.ai.rule_parser import Kind, TestRequest
 from autevra.api import model_service, schemas
 from autevra.assembly import graph
 from autevra.cad.cache import GeometryCache
-from autevra.domain import derived, parameters
-from autevra.domain.commands import Change, CommandError, Operation, SetParameters, Source
-from autevra.domain.design import ApplyResult, CommandRejectedError, DesignState
-from autevra.domain.rules import validate
+from autevra.core import derived, parameters
+from autevra.core.commands import Change, CommandError, Operation, SetParameters, Source
+from autevra.core.design import ApplyResult, CommandRejectedError, DesignState
+from autevra.core.rules import validate
+from autevra.domains.automotive import spec as vspec
 from autevra.engineering import diagnosis as dgn
 from autevra.engineering import integration, reqif
 from autevra.engineering import loop as eloop
 from autevra.engineering import optimize as opt
 from autevra.engineering import requirements as rqm
-from autevra.engineering import spec as vspec
 from autevra.engineering import testing as tst
 from autevra.engineering import trace as tracing
 from autevra.storage.database import Database
@@ -90,6 +90,11 @@ def _command_result(state: DesignState, changed: Iterable[str], entry) -> schema
         can_undo=state.can_undo,
         can_redo=state.can_redo,
     )
+
+
+def _load_spec(repo: SpecRepository, project_id: str) -> vspec.VehicleSpec:
+    raw = repo.load_json(project_id)
+    return vspec.VehicleSpec() if raw is None else vspec.VehicleSpec.model_validate_json(raw)
 
 
 def _entry_id(state: DesignState, cursor: int) -> str | None:
@@ -199,11 +204,11 @@ class Workspace:
             for record in runs.requirement_records(project_id):
                 runs.add_requirement(copy.id, record.model_copy(update={"id": uuid4().hex[:12]}))
             specs = SpecRepository(s)
-            specs.save(copy.id, specs.load(project_id))
+            specs.save_json(copy.id, _load_spec(specs, project_id).model_dump_json())
             return _state(copy, repo.load(copy.id))
 
     def system_graph(self, project_id: str) -> schemas.SystemGraph:
-        from autevra.assembly.vehicle import BY_ID, COINCIDENCES, COMPONENTS, LOAD_PATHS
+        from autevra.assembly.model import BY_ID, COINCIDENCES, COMPONENTS, LOAD_PATHS
 
         values = self.project(project_id).values
         used: dict[tuple[str, str], list[str]] = {}
@@ -264,7 +269,7 @@ class Workspace:
         return schemas.SystemGraph(nodes=nodes, edges=edges)
 
     def rule_status(self, project_id: str) -> list[schemas.RuleStatus]:
-        from autevra.domain.rules import _RULES
+        from autevra.core.rules import _RULES
 
         values = self.project(project_id).values
         return [
@@ -480,7 +485,7 @@ class Workspace:
                 assert interpretation.tests is not None
                 return self._instruct_optimize(project_id, interpretation.tests)
             case Kind.LOOP:
-                request = interpretation.tests or TestRequest()
+                request = interpretation.tests or rule_parser.default_test_request()
                 targets = [request.target] if request.target else ["front", "rear"]
                 loops = [
                     self.engineering_loop(
@@ -497,7 +502,7 @@ class Workspace:
                     kind="loop", message=" ".join(_loop_message(r) for r in loops), loops=loops
                 )
             case Kind.DIAGNOSE:
-                request = interpretation.tests or TestRequest()
+                request = interpretation.tests or rule_parser.default_test_request()
                 target = request.target
                 run = self.latest_failed_run(project_id, target, request.focus)
                 if run is None:
@@ -1085,7 +1090,7 @@ class Workspace:
     def spec(self, project_id: str) -> schemas.SpecState:
         with self.db.session() as s:
             ProjectRepository(s).info(project_id)
-            return self._spec_state(SpecRepository(s).load(project_id))
+            return self._spec_state(_load_spec(SpecRepository(s), project_id))
 
     def spec_answer(
         self, project_id: str, question: str, value: str | float | None
@@ -1093,11 +1098,11 @@ class Workspace:
         with self.db.session() as s:
             ProjectRepository(s).info(project_id)
             repo = SpecRepository(s)
-            spec = repo.load(project_id)
+            spec = _load_spec(repo, project_id)
             error = vspec.answer(spec, question, value)
             if error:
                 raise CommandError(error)
-            repo.save(project_id, spec)
+            repo.save_json(project_id, spec.model_dump_json())
             return self._spec_state(spec)
 
     def spec_text(self, project_id: str, text: str) -> tuple[schemas.SpecState, list[str]]:
@@ -1105,24 +1110,24 @@ class Workspace:
         with self.db.session() as s:
             ProjectRepository(s).info(project_id)
             repo = SpecRepository(s)
-            spec = repo.load(project_id)
+            spec = _load_spec(repo, project_id)
             accepted = []
             for key, value in found.items():
                 if vspec.answer(spec, key, value) is None:
                     accepted.append(key)
-            repo.save(project_id, spec)
+            repo.save_json(project_id, spec.model_dump_json())
             return self._spec_state(spec), accepted
 
     def spec_reset(self, project_id: str) -> schemas.SpecState:
         with self.db.session() as s:
             ProjectRepository(s).info(project_id)
-            SpecRepository(s).save(project_id, vspec.VehicleSpec())
+            SpecRepository(s).save_json(project_id, vspec.VehicleSpec().model_dump_json())
             return self._spec_state(vspec.VehicleSpec())
 
     def spec_design(self, project_id: str) -> schemas.SpecDesign:
         state = self.project(project_id)
         with self.db.session() as s:
-            spec = SpecRepository(s).load(project_id)
+            spec = _load_spec(SpecRepository(s), project_id)
         if not spec.get("vehicle_class"):
             raise CommandError("answer at least the vehicle class first")
         generated = vspec.generate(spec)
@@ -1176,7 +1181,7 @@ class Workspace:
             model = model_service.build_model(values, self.cache)
             checks = (
                 integration.structural_checks(values)
-                + integration.travel_checks(values)
+                + integration.domain_checks(values)
                 + integration.clearance_checks(model, self._clearances)
             )
         counts: dict[str, int] = {}

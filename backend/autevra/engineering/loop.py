@@ -15,8 +15,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from autevra.domain.commands import Change, Operation, SetParameters, Source
-from autevra.domain.parameters import REGISTRY
+from autevra.core.commands import Change, Operation, SetParameters, Source
+from autevra.core.parameters import REGISTRY
 from autevra.engineering import diagnosis as dg
 from autevra.engineering import optimize as opt
 from autevra.engineering import testing as tst

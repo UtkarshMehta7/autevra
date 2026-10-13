@@ -1,14 +1,10 @@
-"""Parameter registry: every editable design parameter, its unit and bounds.
-
-The registry is the single list of parameter IDs. The command system, the
-intent parser, the API and (later) the LLM schema are all derived from it.
-"""
+"""Automotive parameters: dimensions, cabin, wheels, steering, frame, suspension, mass,
+powertrain. ``DEFINITIONS`` and ``GROUP_ALIASES`` are registered by the automotive domain."""
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from autevra.domain.units import Unit
+from autevra.core.parameters import ParameterDef
+from autevra.core.units import Unit
 
 
 class Group(StrEnum):
@@ -22,28 +18,11 @@ class Group(StrEnum):
     POWERTRAIN = "powertrain"
 
 
-class ParameterDef(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    label: str
-    group: Group | str  # plugins may add groups
-    unit: Unit
-    default: float
-    min: float
-    max: float
-    step: float = 1.0
-    description: str = ""
-    aliases: tuple[str, ...] = Field(default=())
-    increase_words: tuple[str, ...] = Field(default=())
-    decrease_words: tuple[str, ...] = Field(default=())
-
-
 def _p(**kwargs: object) -> ParameterDef:
     return ParameterDef.model_validate(kwargs)
 
 
-_DEFINITIONS: tuple[ParameterDef, ...] = (
+DEFINITIONS: tuple[ParameterDef, ...] = (
     # --- Dimensions ---
     _p(
         id="wheelbase",
@@ -394,7 +373,7 @@ def _axle_suspension(axle: str, rate: float, bump: float, rebound: float, unspru
     )  # fmt: skip
 
 
-_DEFINITIONS += (
+DEFINITIONS += (
     *_axle_suspension("front", rate=26, bump=1500, rebound=3000, unsprung=45),
     *_axle_suspension("rear", rate=24, bump=1300, rebound=2600, unsprung=55),
     _p(
@@ -437,7 +416,7 @@ _DEFINITIONS += (
 )  # fmt: skip
 
 # --- Powertrain and road loads (used by the longitudinal test) ---
-_DEFINITIONS += (
+DEFINITIONS += (
     _p(
         id="peak_power", label="Peak power", group=Group.POWERTRAIN,
         unit=Unit.KW, default=150, min=20, max=1000, step=5,
@@ -482,8 +461,6 @@ _DEFINITIONS += (
     ),
 )  # fmt: skip
 
-REGISTRY: dict[str, ParameterDef] = {d.id: d for d in _DEFINITIONS}  # extensible
-
 # Group aliases: one word that addresses several parameters at once.
 GROUP_ALIASES: dict[str, tuple[str, ...]] = {
     "track": ("track_front", "track_rear"),
@@ -516,14 +493,3 @@ GROUP_ALIASES: dict[str, tuple[str, ...]] = {
                       "shock damping")
     },
 }  # fmt: skip
-
-
-def get(parameter_id: str) -> ParameterDef:
-    try:
-        return REGISTRY[parameter_id]
-    except KeyError:
-        raise KeyError(f"unknown parameter '{parameter_id}'") from None
-
-
-def default_values() -> dict[str, float]:
-    return {d.id: d.default for d in REGISTRY.values()}

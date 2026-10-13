@@ -1,46 +1,25 @@
-"""Cross-parameter rules: physical and packaging consistency checks.
+"""Automotive cross-parameter rules: physical and packaging consistency checks.
 
 Bounds on single parameters live in the registry. These rules relate several
-parameters. Geometric checks that need real CAD (e.g. the steered tyre
-sweeping past the frame) come in Phase 4; ``frame_clears_tyres`` is the
-static, straight-ahead version.
+parameters; ``DEFINITIONS`` is registered by the automotive domain module.
 """
 
 from collections.abc import Callable
 
-from pydantic import BaseModel, ConfigDict
-
-from autevra.domain import derived as d
-from autevra.domain.derived import Values
-from autevra.domain.parameters import REGISTRY
-
-
-class Violation(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    rule: str
-    message: str
-    parameters: tuple[str, ...]
-
-
-class Rule(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    description: str
-    parameters: tuple[str, ...]
-
+from autevra.core.derived import Values
+from autevra.core.rules import Rule
+from autevra.domains.automotive import derived as d
 
 _RuleFn = Callable[[Values], str | None]
-_RULES: list[tuple[Rule, _RuleFn]] = []
+DEFINITIONS: list[tuple[Rule, _RuleFn]] = []
 
 
 def _rule(rule_id: str, description: str, *parameters: str) -> Callable[[_RuleFn], _RuleFn]:
-    def register(fn: _RuleFn) -> _RuleFn:
-        _RULES.append((Rule(id=rule_id, description=description, parameters=parameters), fn))
+    def collect(fn: _RuleFn) -> _RuleFn:
+        DEFINITIONS.append((Rule(id=rule_id, description=description, parameters=parameters), fn))
         return fn
 
-    return register
+    return collect
 
 
 def _mm(x: float) -> str:
@@ -347,41 +326,3 @@ def _cg_within_body(p: Values) -> str | None:
             f"{_mm(lo)}–{_mm(hi)} (ground clearance to half the overall height)"
         )
     return None
-
-
-RULES: list[Rule] = [r for r, _ in _RULES]  # extensible
-
-
-def check_bounds(p: Values) -> list[Violation]:
-    out = []
-    for pid, value in p.items():
-        spec = REGISTRY[pid]
-        if not spec.min <= value <= spec.max:
-            out.append(
-                Violation(
-                    rule="bounds",
-                    message=(
-                        f"{spec.label} {value:g} {spec.unit} is outside "
-                        f"{spec.min:g}–{spec.max:g} {spec.unit}"
-                    ),
-                    parameters=(pid,),
-                )
-            )
-    return out
-
-
-def check_rules(p: Values) -> list[Violation]:
-    out = []
-    for rule, fn in _RULES:
-        message = fn(p)
-        if message is not None:
-            out.append(Violation(rule=rule.id, message=message, parameters=rule.parameters))
-    return out
-
-
-def validate(p: Values) -> list[Violation]:
-    """All violations for a complete parameter set: bounds first, then rules."""
-    missing = set(REGISTRY) - set(p)
-    if missing:
-        raise KeyError(f"missing parameters: {sorted(missing)}")
-    return check_bounds(p) + check_rules(p)

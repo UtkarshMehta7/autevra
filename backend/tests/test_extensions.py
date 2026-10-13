@@ -8,9 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from autevra import extensions
-from autevra.assembly.vehicle import BY_ID, ComponentDef, Mate
+from autevra.assembly.model import BY_ID, ComponentDef, Mate
 from autevra.contrib import brake_discs
-from autevra.domain import parameters, rules
+from autevra.core import parameters, rules
 from autevra.engineering import testing
 
 pytestmark = pytest.mark.cad

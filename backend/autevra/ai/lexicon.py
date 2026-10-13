@@ -3,8 +3,9 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from autevra.domain.derived import DERIVED
-from autevra.domain.parameters import GROUP_ALIASES, REGISTRY
+from autevra.ai import language
+from autevra.core.derived import DERIVED
+from autevra.core.parameters import GROUP_ALIASES, REGISTRY
 
 
 class TargetKind(StrEnum):
@@ -50,6 +51,8 @@ def rebuild() -> None:
     ALIASES_BY_LENGTH[:] = sorted(ALIASES, key=len, reverse=True)
     COMPARATIVES.clear()
     COMPARATIVES.update(_comparatives())
+    ADJECTIVES.clear()
+    ADJECTIVES.update(language.merged("adjectives"))
 
 
 INCREASE_VERBS = frozenset({
@@ -65,7 +68,8 @@ DECREASE_VERBS = frozenset({
 SET_VERBS = frozenset({"set", "change", "make", "use", "fit", "put", "give", "adjust"})
 
 
-# Comparative words with no explicit parameter ("make it wider").
+# Comparative words with no explicit parameter ("make it wider"): parameters' own increase
+# and decrease words plus the languages' comparatives.
 def _comparatives() -> dict[str, tuple[str, bool]]:
     out: dict[str, tuple[str, bool]] = {}  # word -> (target id, is_increase)
     for spec in REGISTRY.values():
@@ -73,25 +77,15 @@ def _comparatives() -> dict[str, tuple[str, bool]]:
             out[w] = (spec.id, True)
         for w in spec.decrease_words:
             out[w] = (spec.id, False)
-    return out | _FIXED_COMPARATIVES
+    return out | language.merged("comparatives")
 
 
-_FIXED_COMPARATIVES: dict[str, tuple[str, bool]] = {
-    "longer": ("overall_length", True),
-    "lengthen": ("overall_length", True),
-    "shorter": ("overall_length", False),
-    "shorten": ("overall_length", False),
-    "higher": ("ground_clearance", True),
-}
 COMPARATIVES: dict[str, tuple[str, bool]] = _comparatives()
 
 # Plain adjectives used with an absolute value ("make it 1.9 m wide").
-ADJECTIVES: dict[str, str] = {
-    "wide": "body_width",
-    "tall": "overall_height",
-    "high": "overall_height",
-    "long": "overall_length",
-}
+# Plain adjectives used with an absolute value ("make it 1.9 m wide"), from the languages.
+ADJECTIVES: dict[str, str] = {}
+
 
 UNDO_PHRASES = frozenset(
     {

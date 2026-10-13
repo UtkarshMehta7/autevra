@@ -1,8 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from autevra.domain.commands import Change, Operation, SetParameters
-from autevra.domain.parameters import default_values
+from autevra.core.commands import Change, Operation, SetParameters
+from autevra.core.parameters import default_values
 from autevra.engineering import reqif, trace
 from autevra.engineering import requirements as rq
 from autevra.engineering import testing as tst

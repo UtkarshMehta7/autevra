@@ -10,9 +10,9 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from autevra.domain import parameters
-from autevra.domain.commands import SetParameters, resolve
-from autevra.domain.rules import Violation, validate
+from autevra.core import parameters
+from autevra.core.commands import SetParameters, resolve
+from autevra.core.rules import Violation, validate
 
 
 class ValueChange(BaseModel):

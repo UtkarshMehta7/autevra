@@ -11,12 +11,13 @@ import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from autevra.ai import language
 from autevra.ai import lexicon as lx
 from autevra.ai.lexicon import Target, TargetKind
-from autevra.domain.commands import Change, Operation, SetParameters, Source
-from autevra.domain.derived import DERIVED
-from autevra.domain.parameters import REGISTRY
-from autevra.domain.units import Unit, parse_unit
+from autevra.core.commands import Change, Operation, SetParameters, Source
+from autevra.core.derived import DERIVED
+from autevra.core.parameters import REGISTRY
+from autevra.core.units import Unit, parse_unit
 
 
 class Kind(StrEnum):
@@ -53,7 +54,7 @@ class Reason(StrEnum):
 class TestRequest:
     """Which tests to run. ``target`` None: both axles (or those a change affects)."""
 
-    test_id: str = "quarter_car"
+    test_id: str = ""  # "" = the language's default test
     target: str | None = None
     scenario_id: str | None = None  # None: every scenario
     focus: str | None = None  # diagnosis: "travel" or "contact" failures first
@@ -92,50 +93,38 @@ _TEST_VERB = r"(?:re-?test|test|simulate|run|do|perform)"
 _TEST_TAIL = re.compile(
     r"(?:\s*,\s*|\s+)(?:and\s+)?(?:then\s+)?(?:re-?test|test|simulate)\b(?P<rest>[^,;]*)$"
 )
-_TEST_WORDS = re.compile(
-    r"\b(test|tests|simulate|simulation|quarter[- ]car|pothole|hump|speed bump|ride modes?|"
-    r"acceleration|braking|stopping|0-100|"
-    r"natural frequenc(?:y|ies)|modal)\b"
-)
 
 
-_COMFORT = r"\bcomfort|comfortable|comfier|plusher|smoother|ride quality|better ride"
-_GRIP = r"\bgrip|road holding|roadholding|tyre contact|keep the tyres? on"
-_OBJECTIVES = (  # phrase -> (metric, sense)
-    (_COMFORT, "rms_body_acceleration", "minimize"),
-    (r"\bsettl", "settling_time", "minimize"),
-    (_GRIP, "min_tyre_load_ratio", "maximize"),
-    (r"\bharsh|peak acceleration|jolt", "peak_body_acceleration", "minimize"),
-)
-_OPTIMIZE = re.compile(
-    r"\b(optimi[sz]e|optimi[sz]ation|improve|maximi[sz]e|minimi[sz]e|"
-    r"more comfortable|comfier|plusher|smoother)\b"
-)
-_LOOP = re.compile(
-    r"^(?:please )?(?:fix|repair|sort out)\b.*\b(suspension|tests?|corner|"
-    r"failures?)\b|^(?:please )?(?:make|get)\b.*\bpass(?:ing)?\b"
-)
-_UNMODELLED_LIMITS = {
-    "roll": "body roll",
-    "pitch": "pitch",
-    "dive": "brake dive",
-    "squat": "squat",
-    "noise": "noise",
-}
-_DIAGNOSE = re.compile(
-    r"^(?:please )?(?:diagnose|explain|why)\b.*\b(fail|failed|fails|failure|exceed|exceeded|"
-    r"exceeds|limit|test|lift|lifted|diagnos)|^diagnose\b"
-)
+def _test_words() -> re.Pattern[str]:
+    extra = language.alternation("test_words")
+    return re.compile(
+        r"\b(test|tests|simulate|simulation" + (f"|{extra}" if extra else "") + r")\b"
+    )
+
+
+def _optimize_words() -> re.Pattern[str]:
+    extra = language.alternation("optimise_words")
+    return re.compile(r"\b(optimi[sz]e|optimi[sz]ation|improve|maximi[sz]e|minimi[sz]e"
+                      + (f"|{extra}" if extra else "") + r")\b")  # fmt: skip
+
+
+def _loop_words() -> re.Pattern[str]:
+    extra = language.alternation("loop_words")
+    return re.compile(r"^(?:please )?(?:fix|repair|sort out)\b.*\b(tests?|failures?"
+                      + (f"|{extra}" if extra else "")
+                      + r")\b|^(?:please )?(?:make|get)\b.*\bpass(?:ing)?\b")  # fmt: skip
+
+
+def _diagnose_words() -> re.Pattern[str]:
+    extra = language.alternation("diagnose_words")
+    return re.compile(r"^(?:please )?(?:diagnose|explain|why)\b.*\b(fail|failed|fails|failure|"
+                      r"exceed|exceeded|exceeds|limit|test|diagnos" + (f"|{extra}" if extra else "")
+                      + r")|^diagnose\b")  # fmt: skip
 
 
 _PREVIEW = re.compile(
     r"^(?:what if|what happens if|what would happen if|preview|show the impact of|"
     r"impact of)\s+(?:i|we|you)?\s*(?P<rest>.+?)\??$"
-)
-_SPEC = re.compile(
-    r"^(?:i want|i'd like|i would like|i need|we need|we want|design|build|create|make me|"
-    r"give me)\s+(?:a|an|me a|me an)\s+.*\b(car|city ?car|hatch(?:back)?|sedan|saloon|suv|"
-    r"crossover|pick-?up|truck|sports ?car|coupe|roadster|van|minivan|mpv|vehicle|ev)\b"
 )
 _VERIFY = re.compile(r"^(?:please )?(?:verify|check|re-?check)\b.*\brequirements?\b")
 _REQUIRE = re.compile(
@@ -148,33 +137,6 @@ _AT_LEAST = (
 )
 _AT_MOST = (
     r"(?:at most|no more than|not more than|a maximum of|maximum|below|under|less than|within|<=|<)"
-)
-_LONGITUDINAL_METRICS = {  # requirement phrase -> longitudinal metric
-    "0-100 time": "accel_time",
-    "0 to 100 time": "accel_time",
-    "0-100": "accel_time",
-    "acceleration time": "accel_time",
-    "stopping distance": "stopping_distance",
-    "braking distance": "stopping_distance",
-}
-_METRICS = {  # requirement phrase -> quarter-car metric
-    "peak body acceleration": "peak_body_acceleration",
-    "rms body acceleration": "rms_body_acceleration",
-    "body settling time": "settling_time",
-    "settling time": "settling_time",
-    "bump travel": "max_bump_travel",
-    "compression travel": "max_bump_travel",
-    "rebound travel": "max_rebound_travel",
-    "body displacement": "peak_body_displacement",
-    "overshoot": "step_overshoot",
-    "time off the road": "lift_off_time",
-    "lift-off time": "lift_off_time",
-    "lift off time": "lift_off_time",
-    "minimum tyre load": "min_tyre_load_ratio",
-    "tyre load": "min_tyre_load_ratio",
-}
-_TEST_CONTEXT = re.compile(
-    r"\b(test|tests|scenario|hump|pothole|step|bump test|quarter[- ]car|over the)\b"
 )
 
 
@@ -204,54 +166,14 @@ def _parse_requirement(text: str) -> Interpretation:
             question="What limit should the requirement have?",
         )
     value, unit = quantity
-    long_phrase = next(
-        (ph for ph in sorted(_LONGITUDINAL_METRICS, key=len, reverse=True) if ph in text), None
-    )
-    if long_phrase is not None:
-        metric = _LONGITUDINAL_METRICS[long_phrase]
-        stand_in = " stopping " if metric == "stopping_distance" else " 0-100 "
-        request = _test_request(text.replace(long_phrase, stand_in))
-        return Interpretation(
-            Kind.REQUIREMENT,
-            requirement={
-                "kind": "performance",
-                "test_id": "longitudinal",
-                "metric": metric,
-                "target": "vehicle",
-                "scenario_id": request.scenario_id or "*",
-                "comparator": comparator,
-                "limit": value,
-                "unit": "",
-            },
-        )
-    phrase = next((ph for ph in sorted(_METRICS, key=len, reverse=True) if ph in text), None)
-    metric = _METRICS[phrase] if phrase else None
-    # The metric's own words ("bump travel") must not pick a scenario ("bump" -> hump).
-    request = _test_request(text.replace(phrase, " ") if phrase else text)
-    if metric is not None and (_TEST_CONTEXT.search(text) or _find_target(text) is None):
-        return Interpretation(
-            Kind.REQUIREMENT,
-            requirement={
-                "kind": "performance",
-                "test_id": "quarter_car",
-                "metric": metric,
-                "target": request.target or "*",
-                "scenario_id": request.scenario_id or "*",
-                "comparator": comparator,
-                "limit": value,
-                "unit": "",
-            },
-        )
-    if re.search(r"\bbody acceleration\b", text):
-        return Interpretation(
-            Kind.CLARIFICATION,
-            reason=Reason.INVALID,
-            question="Peak or RMS body acceleration?",
-            suggestions=[
-                f"require the peak body acceleration to be at most {value:g} m/s²",
-                f"require the rms body acceleration to be at most {value:g} m/s²",
-            ],
-        )
+    hook = language.first("requirement_metric")
+    found = hook(text, value) if hook else None
+    if isinstance(found, Interpretation):
+        return found
+    if found is not None:
+        fields = dict(found) | {"comparator": comparator, "limit": value, "unit": ""}
+        return Interpretation(Kind.REQUIREMENT, requirement=fields)
+    request = _test_request(text)
     target = _find_target(text)
     if target is None:
         question = f"Which quantity is the requirement about in '{text}'?"
@@ -261,10 +183,11 @@ def _parse_requirement(text: str) -> Interpretation:
         if request.target:
             ids = tuple(i for i in ids if i.startswith(request.target)) or ids
         if len(ids) > 1:
+            names = ", ".join(REGISTRY[i].label.lower() for i in ids)
             return Interpretation(
                 Kind.CLARIFICATION,
                 reason=Reason.INVALID,
-                question=f"'{target.alias}' covers several parameters; say front or rear.",
+                question=f"'{target.alias}' covers several parameters ({names}); name one.",
             )
         target = Target(target.kind, ids, target.alias)
     return Interpretation(
@@ -280,43 +203,21 @@ def _parse_requirement(text: str) -> Interpretation:
 
 
 def _objective(text: str) -> tuple[str, str] | None:
-    for pattern, metric, sense in _OBJECTIVES:
+    for pattern, metric, sense in language.joined("objectives"):
         if re.search(pattern, text):
             return metric, sense
     return None
 
 
-_ACCEL = re.compile(r"\baccelerat|\b0\s*(?:-|to)\s*100\b|\bsprint\b")
-_BRAKE = re.compile(r"\bbrak(?:e|es|ing)\b|\bstopping\b|\bstop from\b")
-
-
 def _test_request(text: str) -> TestRequest:
-    if _ACCEL.search(text):
-        return TestRequest("longitudinal", "vehicle", "accel_0_100")
-    if _BRAKE.search(text):
-        wet = re.search(r"\bwet|rain", text) is not None
-        dry = re.search(r"\bdry\b", text) is not None
-        scenario = "brake_100_0_wet" if wet else "brake_100_0_dry" if dry else None
-        return TestRequest("longitudinal", "vehicle", scenario)
-    words = set(_words(text))
-    test_id = "ride_modes" if re.search(r"ride modes?|natural frequenc|modal", text) else None
-    scenario = None
-    if re.search(r"\bpotholes?\b", text):
-        scenario = "pothole_50"
-    elif re.search(r"\b(hump|speed bump|bump)\b", text):
-        scenario = "hump_75"
-    elif re.search(r"\b(step|kerb|curb)\b", text):
-        scenario = "step_25"
-    front, rear = "front" in words, "rear" in words or "back" in words
-    target = "front" if front and not rear else "rear" if rear and not front else None
-    focus = (
-        "travel"
-        if "travel" in words
-        else "contact"
-        if words & {"contact", "lift", "lifted", "grip"}
-        else None
-    )
-    return TestRequest(test_id or "quarter_car", target, None if test_id else scenario, focus)
+    reader = language.first("test_request")
+    if reader is not None:
+        return reader(text)
+    return TestRequest(language.first("default_test") or "")
+
+
+def default_test_request() -> TestRequest:
+    return TestRequest(language.first("default_test") or "")
 
 
 def _split_test_tail(t: str) -> tuple[str, TestRequest | None]:
@@ -330,16 +231,10 @@ def _split_test_tail(t: str) -> tuple[str, TestRequest | None]:
 
 def normalise(text: str) -> str:
     t = text.strip().lower()
-    t = t.replace("tire", "tyre").replace("”", '"').replace("“", '"').replace("’", "'")
+    t = t.replace("”", '"').replace("“", '"').replace("’", "'")
     t = re.sub(r"(\d)\s*(?:''|inch)\b", r"\1 in", t)
-    t = re.sub(r"(\d+)s\b", r"\1", t)  # "18s" -> "18" (rim sizes)
-    t = re.sub(r"(\d) in (wheels?|alloys?)\b", r"\1 in rims", t)  # "18 inch wheels" = rim size
-    t = re.sub(
-        r"\bfront and rear (track|overhangs?)\b",
-        lambda m: "track" if m.group(1) == "track" else "overhangs",
-        t,
-    )
-    t = re.sub(r"\bthe (car|vehicle)\b", "it", t)
+    for pattern, replacement in language.normalisers():  # domain vocabulary
+        t = re.sub(pattern, replacement, t)
     t = re.sub(r"[!.]+$", "", t)
     return re.sub(r"\s+", " ", t).strip()
 
@@ -407,13 +302,9 @@ class _UnresolvedError(Exception):
 def _derived_clarification(derived_id: str) -> _UnresolvedError:
     spec = DERIVED[derived_id]
     controls = ", ".join(REGISTRY[p].label.lower() for p in spec.controlled_by)
-    examples = {
-        "overall_length": [
-            "increase the wheelbase by 100 mm",
-            "increase the front overhang by 50 mm",
-            "increase the rear overhang by 50 mm",
-        ],
-    }.get(derived_id, [f"increase the {REGISTRY[spec.controlled_by[0]].label.lower()} by 10 mm"])
+    examples = list(language.merged("derived_examples").get(
+        derived_id, [f"increase the {REGISTRY[spec.controlled_by[0]].label.lower()} by 10 mm"]
+    ))  # fmt: skip
     return _UnresolvedError(
         f"{spec.label} is derived from the {controls}. Which of these should change?",
         examples,
@@ -486,21 +377,25 @@ _FILLER = frozenset(
         "pounds",
     }
 )
-_KNOWN = (
-    _FILLER
-    | lx.INCREASE_VERBS
-    | lx.DECREASE_VERBS
-    | lx.SET_VERBS
-    | set(lx.COMPARATIVES)
-    | set(lx.ADJECTIVES)
-)
+
+
+def _known() -> set[str]:
+    return (
+        _FILLER
+        | lx.INCREASE_VERBS
+        | lx.DECREASE_VERBS
+        | lx.SET_VERBS
+        | set(lx.COMPARATIVES)
+        | set(lx.ADJECTIVES)
+    )
 
 
 def _unexplained(clause: str, alias: str | None) -> list[str]:
     """Words the parser cannot account for. Used before any guess: if a clause has words
     we do not understand, guessing could change the wrong parameter."""
     text = clause if alias is None else re.sub(re.escape(alias), " ", clause)
-    return [w for w in _words(text) if w not in _KNOWN]
+    known = _known()
+    return [w for w in _words(text) if w not in known]
 
 
 def _parse_clause(clause: str, previous_op: Operation | None) -> _Clause:
@@ -546,8 +441,11 @@ def _parse_clause(clause: str, previous_op: Operation | None) -> _Clause:
             and target_id not in lx.ADJECTIVES.values()
         ):
             op = Operation.INCREASE if is_increase else Operation.DECREASE
-    elif target.ids == ("roof_length",) and any(w in ("lower", "raise") for w in words):
-        target = Target(TargetKind.PARAMETER, ("overall_height",), "roof")
+    else:
+        hint = language.first("target_hint")
+        ids = hint(words, target.ids) if hint else None
+        if ids:
+            target = Target(TargetKind.PARAMETER, ids, target.alias)
 
     if target.kind is TargetKind.DERIVED:
         raise _derived_clarification(target.ids[0])
@@ -596,12 +494,7 @@ def _parse_query(text: str) -> Interpretation:
     target = _find_target(text)
     if target is None:
         words = _words(text)
-        comparative = {
-            "long": "overall_length",
-            "wide": "body_width",
-            "tall": "overall_height",
-            "high": "overall_height",
-        }
+        comparative = language.merged("query_words")
         hit = next((comparative[w] for w in words if w in comparative), None)
         if hit is not None:
             return Interpretation(Kind.QUERY, query=(hit,))
@@ -627,7 +520,8 @@ def parse(text: str) -> Interpretation:
         return Interpretation(Kind.REDO)
     if _VERIFY.search(t):
         return Interpretation(Kind.VERIFY)
-    if _SPEC.match(t) or t.startswith("spec:") or t.startswith("specification:"):
+    spec_trigger = language.first("spec_trigger")
+    if (spec_trigger and re.match(spec_trigger, t)) or t.startswith(("spec:", "specification:")):
         return Interpretation(Kind.SPEC)
     if (req := _REQUIRE.match(t)) is not None:
         return _parse_requirement(req.group("rest"))
@@ -638,23 +532,24 @@ def parse(text: str) -> Interpretation:
                 Kind.PREVIEW, command=inner.command, assumptions=inner.assumptions
             )
         return inner
-    if _DIAGNOSE.search(t):
+    if _diagnose_words().search(t):
         return Interpretation(Kind.DIAGNOSE, tests=_test_request(t))
-    if _OPTIMIZE.search(t) and (objective := _objective(t)) is not None:
+    if _optimize_words().search(t) and (objective := _objective(t)) is not None:
         request = _test_request(t)
         words = set(_words(t))
-        unmodelled = tuple(v for k, v in _UNMODELLED_LIMITS.items() if k in words)
+        limits = language.merged("unmodelled_limits")
+        unmodelled = tuple(v for k, v in limits.items() if k in words)
         return Interpretation(
             Kind.OPTIMIZE,
             tests=TestRequest(
                 request.test_id, request.target, request.scenario_id, None, *objective, unmodelled
             ),
         )
-    if _LOOP.search(t) and not _find_target(t.replace("suspension", "")):
+    if _loop_words().search(t) and not _find_target(t):
         return Interpretation(Kind.LOOP, tests=_test_request(t))
     if t.endswith("?") or _QUESTION_START.match(t):
         return _parse_query(t.rstrip("?"))
-    if re.match(rf"^(?:please )?{_TEST_VERB}\b", t) and _TEST_WORDS.search(t):
+    if re.match(rf"^(?:please )?{_TEST_VERB}\b", t) and _test_words().search(t):
         return Interpretation(Kind.TEST, tests=_test_request(t))
     t, tests = _split_test_tail(t)
 
@@ -677,3 +572,8 @@ def parse(text: str) -> Interpretation:
         previous = parsed.changes[-1].operation
     command = SetParameters(changes=tuple(changes), source=Source.RULES, instruction=text)
     return Interpretation(Kind.COMMAND, command=command, assumptions=assumptions, tests=tests)
+
+
+# Public helpers for domain languages.
+find_target = _find_target
+words_of = _words

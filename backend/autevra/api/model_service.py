@@ -6,7 +6,7 @@ from pathlib import Path
 
 from autevra.assembly import graph
 from autevra.assembly import transforms as tf
-from autevra.assembly.vehicle import COMPONENTS
+from autevra.assembly.model import COMPONENTS
 from autevra.cad import kernel
 from autevra.cad.cache import GeometryCache
 

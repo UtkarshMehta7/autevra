@@ -4,8 +4,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from autevra.assembly import transforms as tf
+from autevra.assembly.model import BY_ID, COMPONENTS, ComponentDef, Values
 from autevra.assembly.transforms import Matrix
-from autevra.assembly.vehicle import BY_ID, COMPONENTS, ComponentDef, Values
 
 
 def ancestors(component: ComponentDef) -> list[ComponentDef]:

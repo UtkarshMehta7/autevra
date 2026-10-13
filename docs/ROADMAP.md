@@ -133,6 +133,25 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-14: shared engineering core and the automotive domain module
+
+**Done**
+- `autevra.domain` renamed `autevra.core`. The core, assembly, CAD, engineering, AI and storage packages now hold mechanisms and empty registries only.
+- Everything about road vehicles lives in `autevra.domains.automotive`:
+  - parameters, derived physics, rules, builders, the vehicle assembly;
+  - the quarter-car and longitudinal solvers and the test definitions;
+  - clearances, wheel-travel checks, the specification interview;
+  - the language: vocabulary, test and requirement phrases, concepts, prompt framing.
+  
+  It registers itself through the plugin API, like any plugin.
+- New hooks replace every place where generic code special-cased the car: test-definition solver version, quick runs, limit explanations, default optimisation variables and saturation proxies; plugin integration checks, notes and languages.
+- Architecture tests: no core package imports a domain; the core alone registers nothing; the parser alone knows no vehicle words.
+- Behaviour unchanged: 419 backend tests pass (all earlier tests plus the architecture checks), and the live pipeline was spot-checked through the API.
+- Layering documented in [ARCHITECTURE.md](ARCHITECTURE.md) §0.
+
+**Known limitations**
+- Registries are process-wide; per-project domain contexts come with the second domain.
+
 ### 2026-10-14: three environments, routed studio and the domain registry
 
 **Done**
@@ -155,7 +174,7 @@ specification interview moves to Phase 5.
 - 409 backend tests and 14 frontend tests pass. Every route was checked by hand in Chrome.
 
 **Known limitations**
-- The core still contains the automotive model (parameters, components, tests): the domain registry describes it, but the code is not yet split into a shared core and an automotive module. That is the next milestone.
+- ~~The core still contains the automotive model~~: done in the next entry.
 - No authentication; the workspace is single-user and local.
 
 ### 2026-10-14: longitudinal test, car-shaped body, live simulation, plugin API

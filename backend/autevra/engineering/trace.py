@@ -15,10 +15,10 @@ from collections.abc import Iterable, Mapping
 from pydantic import BaseModel
 
 from autevra.assembly import graph
-from autevra.domain import derived as d
-from autevra.domain.commands import SetParameters, resolve
-from autevra.domain.parameters import REGISTRY
-from autevra.domain.rules import Violation, validate
+from autevra.core import derived as d
+from autevra.core.commands import SetParameters, resolve
+from autevra.core.parameters import REGISTRY
+from autevra.core.rules import Violation, validate
 from autevra.engineering import integration
 from autevra.engineering import requirements as rq
 from autevra.engineering import testing as tst
@@ -127,8 +127,8 @@ def preview(
                     key=r.key, title=r.title, before=now.status, after=after, detail=detail
                 )
             )
-    warn_before = {c.message for c in integration.travel_checks(values) if c.status != "pass"}
-    warn_after = {c.message for c in integration.travel_checks(proposed) if c.status != "pass"}
+    warn_before = {c.message for c in integration.domain_checks(values) if c.status != "pass"}
+    warn_after = {c.message for c in integration.domain_checks(proposed) if c.status != "pass"}
     retest = [f"{t}:{target}" for t, target in tst.tests_affected(changed)]
     broken = [c for c in req_changes if c.after == "failed"]
     parts = [

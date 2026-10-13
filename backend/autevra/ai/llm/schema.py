@@ -7,10 +7,10 @@ registry only. Semantic validity is checked afterwards by the interpreter.
 
 from typing import Any
 
-from autevra.domain.commands import Operation
-from autevra.domain.derived import DERIVED
-from autevra.domain.parameters import REGISTRY
-from autevra.domain.units import Unit
+from autevra.core.commands import Operation
+from autevra.core.derived import DERIVED
+from autevra.core.parameters import REGISTRY
+from autevra.core.units import Unit
 
 ACTIONS = ("set_parameters", "query", "undo", "redo", "clarify", "out_of_scope")
 

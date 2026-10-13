@@ -3,9 +3,9 @@ import pytest
 
 from autevra.assembly import graph
 from autevra.assembly import transforms as tf
-from autevra.assembly.vehicle import BY_ID, COMPONENTS, DeclaredView, UndeclaredDependencyError
-from autevra.domain import derived as d
-from autevra.domain.parameters import REGISTRY, default_values
+from autevra.assembly.model import BY_ID, COMPONENTS, DeclaredView, UndeclaredDependencyError
+from autevra.core.parameters import REGISTRY, default_values
+from autevra.domains.automotive import derived as d
 
 
 def _position(world: dict, cid: str) -> tuple[float, float, float]:

@@ -8,8 +8,8 @@ from uuid import uuid4
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from autevra.domain import parameters
-from autevra.domain.design import DesignState, HistoryEntry
+from autevra.core import parameters
+from autevra.core.design import DesignState, HistoryEntry
 from autevra.storage.models import HistoryRow, ProjectRow
 
 

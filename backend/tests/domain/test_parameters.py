@@ -1,6 +1,6 @@
-from autevra.domain import parameters
-from autevra.domain.parameters import GROUP_ALIASES, REGISTRY
-from autevra.domain.rules import validate
+from autevra.core import parameters
+from autevra.core.parameters import GROUP_ALIASES, REGISTRY
+from autevra.core.rules import validate
 
 
 def test_registry_matches_architecture_draft() -> None:

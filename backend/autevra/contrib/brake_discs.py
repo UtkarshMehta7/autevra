@@ -10,14 +10,14 @@ import math
 from collections.abc import Mapping
 
 from autevra.assembly import transforms as tf
-from autevra.assembly.vehicle import ComponentDef, Mate
+from autevra.assembly.model import ComponentDef, Mate
 from autevra.cad import kernel as k
-from autevra.cad.components import RIM_BARREL
-from autevra.domain import derived as d
-from autevra.domain.derived import DerivedDef
-from autevra.domain.parameters import ParameterDef
-from autevra.domain.rules import Rule
-from autevra.domain.units import Unit
+from autevra.core.derived import DerivedDef
+from autevra.core.parameters import ParameterDef
+from autevra.core.rules import Rule
+from autevra.core.units import Unit
+from autevra.domains.automotive import derived as d
+from autevra.domains.automotive.builders import RIM_BARREL
 from autevra.engineering.integration import Clearance
 from autevra.engineering.testing import Credibility, Scenario, TestDefinition
 from autevra.extensions import Plugin
@@ -163,7 +163,7 @@ def _inputs(axle: str) -> tuple[str, ...]:
     )
 
 
-def _run(values: Values, axle: str, scenario: Scenario):  # type: ignore[no-untyped-def]
+def _run(values: Values, axle: str, scenario: Scenario, quick: bool = False):  # type: ignore[no-untyped-def]
     mass = values["vehicle_mass"] + 75.0
     v = scenario.speed_kmh / 3.6
     mu = scenario.friction

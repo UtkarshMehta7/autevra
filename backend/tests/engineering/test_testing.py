@@ -1,4 +1,4 @@
-from autevra.domain.parameters import default_values
+from autevra.core.parameters import default_values
 from autevra.engineering import testing as tst
 from tests.assembly.test_graph import NO_GEOMETRY
 

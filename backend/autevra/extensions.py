@@ -20,14 +20,17 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 
+from autevra.ai import language as languages
 from autevra.ai import lexicon
-from autevra.assembly import graph, vehicle
-from autevra.assembly.vehicle import Coincidence, ComponentDef
+from autevra.ai.language import Language
+from autevra.assembly import graph
+from autevra.assembly import model as vehicle
+from autevra.assembly.model import Coincidence, ComponentDef
 from autevra.cad import cache
-from autevra.domain import derived, parameters, rules
-from autevra.domain.derived import DerivedDef
-from autevra.domain.parameters import ParameterDef
-from autevra.domain.rules import Rule
+from autevra.core import derived, parameters, rules
+from autevra.core.derived import DerivedDef
+from autevra.core.parameters import ParameterDef
+from autevra.core.rules import Rule
 from autevra.engineering import integration, testing
 from autevra.engineering.integration import Clearance
 from autevra.engineering.testing import TestDefinition
@@ -55,6 +58,9 @@ class Plugin:
     compatible_interfaces: Sequence[tuple[str, str]] = ()
     clearances: Sequence[Clearance] = ()
     tests: Sequence[TestDefinition] = ()
+    integration_checks: Sequence[Callable] = ()  # values -> list of integration Checks
+    notes: Sequence[str] = ()  # stated limitations of what is checked
+    language: Language | None = None  # vocabulary for the parser, concepts and prompt
 
 
 LOADED: dict[str, Plugin] = {}
@@ -106,8 +112,12 @@ def register(plugin: Plugin) -> Plugin:
         vehicle.LOAD_PATHS.extend(plugin.load_paths)
         integration.COMPATIBLE.update(plugin.compatible_interfaces)
         integration.CLEARANCES.extend(plugin.clearances)
+        integration.DOMAIN_CHECKS.extend(plugin.integration_checks)
+        integration.NOT_CHECKED.extend(plugin.notes)
         for t in plugin.tests:
             testing.DEFINITIONS[t.id] = t
+        if plugin.language is not None:
+            languages.register(plugin.language)
         graph.reindex()
         lexicon.rebuild()
         _verify()
@@ -119,6 +129,8 @@ def register(plugin: Plugin) -> Plugin:
 
 def _verify() -> None:
     values = parameters.default_values()
+    if not values:
+        return
     for c in vehicle.COMPONENTS:  # raises UndeclaredDependencyError on undeclared reads
         c.resolve_inputs(values)
         c.resolve_interfaces(values)
@@ -152,8 +164,14 @@ def unregister(name: str) -> None:
     vehicle.LOAD_PATHS[:] = [x for x in vehicle.LOAD_PATHS if x not in plugin.load_paths]
     integration.COMPATIBLE.difference_update(plugin.compatible_interfaces)
     integration.CLEARANCES[:] = [x for x in integration.CLEARANCES if x not in plugin.clearances]
+    integration.DOMAIN_CHECKS[:] = [
+        x for x in integration.DOMAIN_CHECKS if x not in plugin.integration_checks
+    ]
+    integration.NOT_CHECKED[:] = [x for x in integration.NOT_CHECKED if x not in plugin.notes]
     for t in plugin.tests:
         testing.DEFINITIONS.pop(t.id, None)
+    if plugin.language is not None:
+        languages.unregister(plugin.language.name)
     graph.reindex()
     lexicon.rebuild()
 

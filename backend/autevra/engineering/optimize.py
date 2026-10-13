@@ -20,9 +20,9 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from autevra.domain.commands import Change, Operation, SetParameters, Source
-from autevra.domain.parameters import REGISTRY
-from autevra.domain.rules import validate
+from autevra.core.commands import Change, Operation, SetParameters, Source
+from autevra.core.parameters import REGISTRY
+from autevra.core.rules import validate
 from autevra.engineering import testing as tst
 
 Values = Mapping[str, float]
@@ -80,17 +80,13 @@ class StudyResult(BaseModel):
     notes: list[str] = []
 
 
-def default_variables(test_id: str, target: str, values: Values, spread: float = 0.3
-                      ) -> list[Variable]:  # fmt: skip
-    """Spring rate and damping of the corner, ±``spread`` around the design, within bounds."""
-    out = []
-    for suffix in ("spring_rate", "damping_bump", "damping_rebound"):
-        pid = f"{target}_{suffix}"
-        spec = REGISTRY[pid]
-        v = values[pid]
-        out.append(Variable(parameter=pid, lower=max(spec.min, v * (1 - spread)),
-                            upper=min(spec.max, v * (1 + spread))))  # fmt: skip
-    return out
+def default_variables(test_id: str, target: str, values: Values) -> list[Variable]:
+    """The test definition's suggested design variables for a target (empty if none)."""
+    definition = tst.DEFINITIONS[test_id]
+    if definition.default_variables is None:
+        return []
+    return [Variable(parameter=p, lower=lo, upper=hi)
+            for p, lo, hi in definition.default_variables(target, values)]  # fmt: skip
 
 
 def _check(study: Study) -> None:

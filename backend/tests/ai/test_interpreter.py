@@ -3,9 +3,9 @@ import pytest
 from autevra.ai.interpreter import interpret
 from autevra.ai.llm.clients import LLMResponseError, LLMUnavailableError
 from autevra.ai.rule_parser import Kind, Reason
-from autevra.domain.commands import Operation, Source
-from autevra.domain.parameters import default_values
-from autevra.domain.units import Unit
+from autevra.core.commands import Operation, Source
+from autevra.core.parameters import default_values
+from autevra.core.units import Unit
 from tests.ai.fakes import FakeLLM, proposal
 
 V = default_values()

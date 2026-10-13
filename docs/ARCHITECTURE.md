@@ -3,6 +3,56 @@
 Status: **proposal**. Nothing here is implemented yet. It will be refined as
 each phase is built and verified.
 
+## 0. Current architecture (as built)
+
+> Sections 1–7 below are the original planning draft and are kept for reference. This
+> section describes the code as it is now.
+
+### Three environments, one model
+
+```
+Website  /            ─┐
+Workspace /app        ─┼─ React + react-router (frontend/src/site, workspace, studio)
+Studio  /studio/:id/:ws┘   one Studio component per project; nine workspaces share its state
+        │ HTTP /api
+FastAPI (autevra.api) ── wires everything; the only layer that may import a domain directly
+```
+
+### Shared core and domain modules
+
+| Layer | Packages | Knows about vehicles? |
+|---|---|---|
+| Core model | `autevra.core` (units, parameter / derived / rule registries, commands, design state) | no |
+| Assembly | `autevra.assembly` (components, mates, coincidences, load paths, dependency graph) | no |
+| Geometry | `autevra.cad` (kernel adapter, geometry cache, builder registry) | no |
+| Engineering | `autevra.engineering` (tests, integration, diagnosis, optimisation, loop, requirements, trace, ReqIF) | no |
+| AI | `autevra.ai` (parser engine, concepts, LLM clients and prompt, language registry) | no |
+| Storage | `autevra.storage` | no |
+| Extension API | `autevra.extensions` (`Plugin`, `register`, `unregister`, entry points) | no |
+| Domain registry | `autevra.domains` (status and capabilities of every domain) | lists them |
+| **Automotive domain** | `autevra.domains.automotive` (parameters, derived physics, rules, builders, vehicle, solvers, tests, integration checks, specification, language) | yes |
+| Plugins | `autevra.contrib.*`, or packages with the `autevra.plugins` entry point | as needed |
+
+`tests/test_architecture.py` enforces the first seven rows: no core package imports a
+domain, and importing the core alone leaves every registry empty (checked in a fresh
+interpreter). The automotive domain registers itself through the same `Plugin` interface
+as third-party plugins, so a new domain is a new package that does the same.
+
+**Domain interface.** A domain module supplies a `Plugin`:
+- parameters, derived values and rules;
+- builders, components, coincidences, load paths, interface kinds and clearances;
+- integration checks and the limitations it states;
+- test definitions, with their solver version, quick runs, limit explanations, default
+  optimisation variables and saturation proxies;
+- a `Language`.
+
+It also supplies an entry in the domain registry.
+
+**Current limit.** Registries are process-wide, so one installation runs its loaded
+domains side by side in one model. Projects already record their domain, and creating
+projects in unavailable domains is refused. When a second domain is implemented, the
+registries will be keyed by domain so each project sees only its own.
+
 ## 1. Guiding decisions
 
 | # | Decision | Reason |

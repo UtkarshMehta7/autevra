@@ -1,17 +1,17 @@
-"""Derived values: read-only quantities computed from parameters.
-
-Requests to edit a derived value are answered with a clarification naming
-the parameters in ``CONTROLLED_BY``.
+"""Automotive derived values: vehicle geometry, suspension and mass relations.
 
 Suspension values follow textbook relations (each function names its
 assumptions). They are analytical estimates for the template, not
-measurements of a real vehicle.
+measurements of a real vehicle. ``DEFINITIONS`` is registered into the core
+derived-value registry by the automotive domain module.
 """
 
 import math
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 
-from pydantic import BaseModel, ConfigDict
+from autevra.core.derived import DERIVED, DerivedDef, Values, compute, compute_all
+
+__all__ = ["DEFINITIONS", "DERIVED", "compute", "compute_all"]
 
 INCH_MM = 25.4
 G = 9.80665  # standard gravity, m/s²
@@ -24,18 +24,6 @@ SPRING_SHEAR_MODULUS = 79_300.0  # N/mm² (79.3 GPa)
 SPRING_ACTIVE_COILS = 6.0
 SPRING_SEAT_OFFSET = 40.0  # mm, damper eye centre to spring seat face, at each end
 AXLES = ("front", "rear")
-
-Values = Mapping[str, float]
-
-
-class DerivedDef(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    label: str
-    unit: str
-    controlled_by: tuple[str, ...]
-    aliases: tuple[str, ...]
 
 
 def overall_length(p: Values) -> float:
@@ -263,7 +251,7 @@ for _a in AXLES:
         )  # fmt: skip
 
 
-_DERIVED: dict[str, tuple[DerivedDef, Callable[[Values], float]]] = {
+DEFINITIONS: dict[str, tuple[DerivedDef, Callable[[Values], float]]] = {
     "overall_length": (
         DerivedDef(
             id="overall_length",
@@ -332,13 +320,3 @@ _DERIVED: dict[str, tuple[DerivedDef, Callable[[Values], float]]] = {
         power_to_weight,
     ),
 }  # fmt: skip
-
-DERIVED: dict[str, DerivedDef] = {k: v[0] for k, v in _DERIVED.items()}  # extensible
-
-
-def compute(derived_id: str, p: Values) -> float:
-    return _DERIVED[derived_id][1](p)
-
-
-def compute_all(p: Values) -> dict[str, float]:
-    return {k: fn(p) for k, (_, fn) in _DERIVED.items()}

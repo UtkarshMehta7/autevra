@@ -1,6 +1,6 @@
 import pytest
 
-from autevra.domain.units import Unit, UnitError, convert, parse_unit
+from autevra.core.units import Unit, UnitError, convert, parse_unit
 
 
 @pytest.mark.parametrize(
