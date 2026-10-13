@@ -166,7 +166,7 @@ def test_state_survives_app_restart(tmp_path: Path) -> None:
     from autevra.config import Settings
     from autevra.main import create_app
 
-    settings = Settings(data_dir=tmp_path / "data")
+    settings = Settings(data_dir=tmp_path / "data", llm_provider="off")
     with TestClient(create_app(settings)) as c:
         pid = c.post("/api/projects", json={"name": "Persist"}).json()["id"]
         _instruct(c, pid, "increase the wheelbase by 100 mm")
