@@ -46,7 +46,7 @@ class Check:
 
 
 # Interface kinds that may be mated (parent kind, child kind).
-COMPATIBLE = frozenset({
+COMPATIBLE = set({  # extensible
     ("origin", "origin"), ("axle_mount", "centre"), ("hub", "hub"), ("shock", "lower_eye"),
     ("shock_tower", "upper_eye"),
 })  # fmt: skip
@@ -67,7 +67,7 @@ class Clearance:
 
 
 _TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
-CLEARANCES: tuple[Clearance, ...] = tuple(
+CLEARANCES: list[Clearance] = list(
     item
     for c, axle in (("fl", "front"), ("fr", "front"), ("rl", "rear"), ("rr", "rear"))
     for item in (

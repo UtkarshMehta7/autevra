@@ -131,7 +131,7 @@ def test_integration_report(client: TestClient, project: str) -> None:
 
 def test_test_catalogue(client: TestClient) -> None:
     tests = {t["id"]: t for t in client.get("/api/tests").json()}
-    assert set(tests) == {"quarter_car", "ride_modes"}
+    assert set(tests) == {"quarter_car", "ride_modes", "longitudinal"}
     assert tests["ride_modes"]["criteria"] == []  # no invented pass/fail limits
     assert "front_damping_bump" in tests["quarter_car"]["inputs"]["front"]
 
@@ -288,3 +288,38 @@ def test_specification_interview_to_design(client: TestClient, project: str) -> 
     assert all(r["verification"]["status"] == "not_approved" for r in reqs)
     _say(client, project, "undo")
     assert client.get(f"/api/projects/{project}").json()["values"]["wheelbase"] == 2700
+
+
+def test_longitudinal_test_verifies_an_acceleration_requirement(
+    client: TestClient, project: str
+) -> None:
+    added = _say(client, project, "require the 0-100 time to be at most 7 s")
+    assert added["kind"] == "requirement"
+    reply = _say(client, project, "test the acceleration")
+    assert reply["kind"] == "test" and reply["runs"][0]["test_id"] == "longitudinal"
+    rows = client.get(f"/api/projects/{project}/requirements").json()
+    status = rows[0]["verification"]["status"]
+    assert status == "verified"  # default design: about 6.6 s
+    _say(client, project, "set the peak power to 60 kW")
+    stale = client.get(f"/api/projects/{project}/requirements").json()[0]["verification"]["status"]
+    assert stale == "stale"
+    _say(client, project, "test the acceleration")
+    failed = client.get(f"/api/projects/{project}/requirements").json()[0]["verification"]["status"]
+    assert failed == "failed"
+
+
+def test_retest_reruns_only_stale_cases(client: TestClient, project: str) -> None:
+    url = f"/api/projects/{project}/tests"
+    client.post(f"{url}/run", json={"target": "rear", "scenario_id": "hump_75"})
+    client.post(
+        f"{url}/run",
+        json={"test_id": "longitudinal", "target": "vehicle", "scenario_id": "accel_0_100"},
+    )
+    assert client.post(f"{url}/retest").json()["runs"] == []  # nothing stale yet
+    _say(client, project, "increase the rear damping by 10%")
+    rerun = client.post(f"{url}/retest").json()
+    assert [(r["test_id"], r["scenario"]["id"]) for r in rerun["runs"]] == [
+        ("quarter_car", "hump_75")
+    ]
+    assert len(rerun["comparisons"]) == 1
+    assert client.post(f"{url}/retest").json()["runs"] == []

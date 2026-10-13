@@ -450,6 +450,28 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
 }
+# Wheel travel to the bump stop and tyre-to-arch gap per class, mm (template values; the arch
+# gap is kept at least as large as the bump travel so the tyre clears the arch at full bump).
+TRAVEL = {
+    "city_car": (60, 60),
+    "hatchback": (65, 65),
+    "sedan": (70, 70),
+    "suv": (90, 95),
+    "pickup": (100, 105),
+    "sports_car": (50, 50),
+    "van": (80, 85),
+}
+# Unsprung mass per corner (front, rear), kg: light cars have light wheels, brakes and beams;
+# pickups carry a live rear axle (template values).
+UNSPRUNG = {
+    "city_car": (32, 30),
+    "hatchback": (36, 34),
+    "sedan": (42, 42),
+    "suv": (50, 52),
+    "pickup": (55, 75),
+    "sports_car": (38, 40),
+    "van": (45, 55),
+}
 SEAT_CABIN = {"2": 1900, "4": 2300, "5": 2500, "7": 3000}  # cabin length at the beltline, mm
 # Target body-bounce (ride) frequencies for the front axle, Hz; the rear is set 10 % higher
 # (flat-ride guidance after Olley). Typical published ranges: passenger cars 1.0–1.5 Hz,
@@ -535,8 +557,8 @@ def checks(spec: VehicleSpec, generated: Mapping[str, float] | None = None) -> l
                         id="accel_target",
                         severity="info",
                         message=f"0–100 km/h in {target:g} s is not ruled out: the lower bound is "
-                        f"{est['time']:.1f} s. Verifying it needs a longitudinal simulation "
-                        "(planned), so it is not claimed as met.",
+                        f"{est['time']:.1f} s. It is not claimed as met until the longitudinal "
+                        "performance test verifies it (proposed as a requirement).",
                         basis=basis,
                         answers=["accel_0_100", "peak_power"],
                         estimate={k: round(v, 3) for k, v in est.items()},
@@ -643,6 +665,24 @@ def _spring_and_damping(values: dict[str, float], ride: str) -> dict[str, tuple[
     return out
 
 
+def _place_dampers(
+    values: dict[str, float], sources: dict[str, str], axle: str, bump: float
+) -> None:
+    """Choose the stroke and the upper mount height so the damper has room for the bump
+    and rebound travel at ride height (with 5 mm to spare at each end)."""
+    rebound = bump + 10.0
+    stroke = bump + rebound + 10.0
+    lower = d.tyre_radius(values) + d.AXLE_RADIUS
+    length = stroke + d.DAMPER_DEAD_LENGTH + bump + 5.0  # compression room = bump + 5
+    values[f"{axle}_bump_travel"] = bump
+    values[f"{axle}_rebound_travel"] = rebound
+    values[f"{axle}_damper_stroke"] = stroke
+    values[f"{axle}_shock_mount_height"] = round(lower + length, 0)
+    why = f"damper centred for {bump:g} mm bump and {rebound:g} mm rebound travel"
+    for key in ("bump_travel", "rebound_travel", "damper_stroke", "shock_mount_height"):
+        sources[f"{axle}_{key}"] = why
+
+
 def generate(spec: VehicleSpec) -> Generated:
     missing = [
         q.id
@@ -679,6 +719,21 @@ def generate(spec: VehicleSpec) -> Generated:
     elif drive == "rwd":
         values["front_mass_distribution"] = min(values["front_mass_distribution"], 52)
         sources["front_mass_distribution"] = "rear-wheel drive layout (default)"
+    if isinstance(power := _value(spec, "peak_power"), float | int):
+        values["peak_power"] = float(power)
+        sources["peak_power"] = "specification"
+    values["front_drive_share"] = {"fwd": 100.0, "rwd": 0.0, "awd": 40.0}[drive]
+    sources["front_drive_share"] = f"{drive.upper()}" + (
+        " (40/60 split suits rearward load transfer)" if drive == "awd" else ""
+    )
+    for axle, mass in zip(d.AXLES, UNSPRUNG[cls], strict=True):
+        values[f"{axle}_unsprung_mass"] = float(mass)
+        sources[f"{axle}_unsprung_mass"] = f"{CLASS_LABELS[cls]} template"
+    bump, arch = TRAVEL[cls]
+    values["arch_clearance"] = float(arch)
+    sources["arch_clearance"] = f"{CLASS_LABELS[cls]} template (covers {bump} mm bump travel)"
+    for axle in d.AXLES:
+        _place_dampers(values, sources, axle, float(bump))
     ride = str(_value(spec, "ride") or ("sporty" if spec.get("use") == "track" else "balanced"))
     for k, (v, why) in _spring_and_damping(values, ride).items():
         values[k] = v
@@ -708,10 +763,14 @@ def generate(spec: VehicleSpec) -> Generated:
     if isinstance(target := _value(spec, "accel_0_100"), float | int):
         requirements.append(
             {
-                "kind": "text",
+                "kind": "performance",
+                "test_id": "longitudinal",
+                "target": "vehicle",
+                "scenario_id": "accel_0_100",
+                "metric": "accel_time",
+                "comparator": "<=",
+                "limit": float(target),
                 "approved": False,
-                "text": f"The vehicle shall accelerate from 0 to 100 km/h in at most "
-                f"{target:g} s (verification needs a longitudinal simulation).",
                 "rationale": "from the specification",
             }
         )

@@ -88,7 +88,20 @@ def _index() -> tuple[Mapping[str, frozenset[str]], Mapping[str, frozenset[str]]
     )
 
 
-GEOMETRY_INDEX, PLACEMENT_INDEX = _index()
+GEOMETRY_INDEX: dict[str, frozenset[str]] = {}
+PLACEMENT_INDEX: dict[str, frozenset[str]] = {}
+
+
+def reindex() -> None:
+    """Rebuild the parameter -> component indexes in place (after components change)."""
+    geometry, placement = _index()
+    GEOMETRY_INDEX.clear()
+    GEOMETRY_INDEX.update(geometry)
+    PLACEMENT_INDEX.clear()
+    PLACEMENT_INDEX.update(placement)
+
+
+reindex()
 
 
 def impact(changed: Iterable[str]) -> Impact:

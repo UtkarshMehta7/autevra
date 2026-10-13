@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from autevra.cad import components, kernel
 
-BUILDERS: Mapping[str, Callable[[Mapping[str, float]], kernel.Shape]] = {
+BUILDERS: dict[str, Callable[[Mapping[str, float]], kernel.Shape]] = {  # extensible
     "body": components.build_body,
     "frame": components.build_frame,
     "axle": components.build_axle,

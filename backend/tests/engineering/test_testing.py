@@ -30,8 +30,10 @@ def test_same_inputs_same_results_and_hash() -> None:
 
 
 def test_affected_tests_follow_their_inputs() -> None:
-    assert tst.tests_affected(["wheelbase"]) == []
+    assert tst.tests_affected(["wheelbase"]) == [("longitudinal", "vehicle")]  # load transfer
+    assert tst.tests_affected(["cabin_length"]) == []
     assert ("quarter_car", "front") in tst.tests_affected(["rim_diameter"])  # usable travel
+    assert ("longitudinal", "vehicle") in tst.tests_affected(["peak_power"])
     assert tst.tests_affected(["front_damping_bump"]) == [
         ("quarter_car", "front"),
         ("ride_modes", "front"),

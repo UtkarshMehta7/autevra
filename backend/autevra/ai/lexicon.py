@@ -42,6 +42,16 @@ ALIASES: dict[str, Target] = _build_aliases()
 # Longest alias first, so "front track" wins over "track" and "ride height" over "height".
 ALIASES_BY_LENGTH: list[str] = sorted(ALIASES, key=len, reverse=True)
 
+
+def rebuild() -> None:
+    """Refresh aliases and comparatives in place after the registries change."""
+    ALIASES.clear()
+    ALIASES.update(_build_aliases())
+    ALIASES_BY_LENGTH[:] = sorted(ALIASES, key=len, reverse=True)
+    COMPARATIVES.clear()
+    COMPARATIVES.update(_comparatives())
+
+
 INCREASE_VERBS = frozenset({
     "increase", "increased", "raise", "extend", "lengthen", "widen", "grow", "enlarge",
     "stretch", "lift", "boost", "add", "bigger", "larger", "longer", "wider", "taller",
@@ -54,20 +64,26 @@ DECREASE_VERBS = frozenset({
 })  # fmt: skip
 SET_VERBS = frozenset({"set", "change", "make", "use", "fit", "put", "give", "adjust"})
 
+
 # Comparative words with no explicit parameter ("make it wider").
-COMPARATIVES: dict[str, tuple[str, bool]] = {}  # word -> (target id, is_increase)
-for _spec in REGISTRY.values():
-    for _w in _spec.increase_words:
-        COMPARATIVES[_w] = (_spec.id, True)
-    for _w in _spec.decrease_words:
-        COMPARATIVES[_w] = (_spec.id, False)
-COMPARATIVES |= {
+def _comparatives() -> dict[str, tuple[str, bool]]:
+    out: dict[str, tuple[str, bool]] = {}  # word -> (target id, is_increase)
+    for spec in REGISTRY.values():
+        for w in spec.increase_words:
+            out[w] = (spec.id, True)
+        for w in spec.decrease_words:
+            out[w] = (spec.id, False)
+    return out | _FIXED_COMPARATIVES
+
+
+_FIXED_COMPARATIVES: dict[str, tuple[str, bool]] = {
     "longer": ("overall_length", True),
     "lengthen": ("overall_length", True),
     "shorter": ("overall_length", False),
     "shorten": ("overall_length", False),
     "higher": ("ground_clearance", True),
 }
+COMPARATIVES: dict[str, tuple[str, bool]] = _comparatives()
 
 # Plain adjectives used with an absolute value ("make it 1.9 m wide").
 ADJECTIVES: dict[str, str] = {

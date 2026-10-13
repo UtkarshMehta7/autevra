@@ -230,7 +230,7 @@ def _axle(cid: str, name: str, track: str, mount: str) -> ComponentDef:
     )  # fmt: skip
 
 
-COMPONENTS: tuple[ComponentDef, ...] = (
+COMPONENTS: list[ComponentDef] = [
     ComponentDef(
         id="vehicle", name="Vehicle", category="assembly", builder=None,
         frames={"origin": (), "front_axle_mount": TYRE,
@@ -262,17 +262,17 @@ COMPONENTS: tuple[ComponentDef, ...] = (
     _damper("damper_fr", "Damper front right", "front", "right"),
     _damper("damper_rl", "Damper rear left", "rear", "left"),
     _damper("damper_rr", "Damper rear right", "rear", "right"),
-)  # fmt: skip
+]  # fmt: skip
 
-BY_ID: Mapping[str, ComponentDef] = {c.id: c for c in COMPONENTS}
+BY_ID: dict[str, ComponentDef] = {c.id: c for c in COMPONENTS}  # extensible
 
-COINCIDENCES: tuple[Coincidence, ...] = tuple(
+COINCIDENCES: list[Coincidence] = [
     Coincidence((f"damper_{tower[-2:]}", "upper_eye"), ("body", tower)) for tower in SHOCK_TOWERS
-)
+]
 
 # Vertical load paths from the road to the body. Each consecutive pair must be joined by a
 # mate or a coincidence; ``integration.check`` verifies this against the definitions above.
-LOAD_PATHS: tuple[tuple[str, ...], ...] = tuple(
+LOAD_PATHS: list[tuple[str, ...]] = [
     (f"wheel_{c}", f"{'front' if c[0] == 'f' else 'rear'}_axle", f"damper_{c}", "body")
     for c in ("fl", "fr", "rl", "rr")
-)
+]

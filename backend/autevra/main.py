@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from autevra import __version__
+from autevra import __version__, extensions
 from autevra.ai.llm.clients import LLMClient, make_client
 from autevra.api.routes import EXCEPTION_HANDLERS, router
 from autevra.api.service import Workspace
@@ -16,6 +16,7 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None) -
     llm = llm or make_client(
         settings.llm_provider, settings.llm_url, settings.llm_model, settings.llm_timeout
     )
+    extensions.load(settings.plugin_modules(), use_entry_points=settings.plugin_entry_points)
     url = settings.resolved_database_url()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     migrate(url)

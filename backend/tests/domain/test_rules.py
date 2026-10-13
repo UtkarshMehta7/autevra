@@ -46,6 +46,7 @@ def _violated(changes: dict[str, float]) -> set[str]:
         ({"overall_height": 1150, "beltline_height": 960}, "cabin_has_height"),
         ({"beltline_height": 700, "ground_clearance": 350, "rail_height": 250}, "body_has_depth"),
         ({"rail_spacing": 1300}, "frame_clears_tyres"),
+        ({"cg_height": 1000}, "cg_within_body"),
         ({"front_shock_mount_height": 1000, "beltline_height": 1300, "overall_height": 1800},
          "front_damper_fits_mounts"),
         ({"rear_shock_mount_height": 560}, "rear_damper_fits_mounts"),
@@ -82,6 +83,7 @@ def test_every_rule_has_a_violation_test() -> None:
         "rail_wall_fits_section",
         "frame_clears_tyres",
         "arches_do_not_overlap",
+        "cg_within_body",
         *(
             f"{axle}_{rule}"
             for axle in ("front", "rear")

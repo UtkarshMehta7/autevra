@@ -46,7 +46,7 @@ def test_softer_suspension_asks_which_quantity() -> None:
 
 @pytest.mark.parametrize(
     "text",
-    ["increase the engine power by 20 kW", "fit bigger brakes", "paint it red"],
+    ["change the gear ratio", "fit bigger brakes", "paint it red"],
 )
 def test_unmodelled_concepts_are_reported_not_guessed(text: str) -> None:
     result = interpret(text, V, FakeLLM())
@@ -236,3 +236,9 @@ def test_the_users_unit_overrides_the_models() -> None:
     )
     assert result.command is not None
     assert result.command.changes[0].unit is Unit.CM
+
+
+def test_engine_power_is_now_a_parameter() -> None:
+    result = interpret("increase the engine power by 20 kW", V, FakeLLM())
+    assert result.kind is Kind.COMMAND and result.command is not None
+    assert result.command.changes[0].parameter == "peak_power"

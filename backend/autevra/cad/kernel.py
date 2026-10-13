@@ -94,6 +94,24 @@ def ruled_loft(sections: Sequence[Sequence[tuple[float, float, float]]]) -> Shap
     return cq.Solid.makeLoft(wires, ruled=True)
 
 
+def prism_y(profile: Sequence[tuple[float, float]], y: tuple[float, float]) -> Shape:
+    """Solid from a closed (x, z) profile in the XZ plane, extruded from y[0] to y[1]."""
+    pts = [cq.Vector(x, y[0], z) for x, z in profile]
+    face = cq.Face.makeFromWires(cq.Wire.makePolygon(pts, close=True))
+    return cq.Solid.extrudeLinear(face, cq.Vector(0, y[1] - y[0], 0))
+
+
+def prism_z(outline: Sequence[tuple[float, float]], z: tuple[float, float]) -> Shape:
+    """Solid from a closed (x, y) outline in the XY plane, extruded from z[0] to z[1]."""
+    pts = [cq.Vector(x, y, z[0]) for x, y in outline]
+    face = cq.Face.makeFromWires(cq.Wire.makePolygon(pts, close=True))
+    return cq.Solid.extrudeLinear(face, cq.Vector(0, 0, z[1] - z[0]))
+
+
+def intersect(shape: Shape, other: Shape) -> Shape:
+    return _clean(shape.intersect(other))
+
+
 def cut(shape: Shape, *tools: Shape) -> Shape:
     return _clean(shape.cut(*tools))
 

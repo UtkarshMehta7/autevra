@@ -4,7 +4,6 @@ The registry is the single list of parameter IDs. The command system, the
 intent parser, the API and (later) the LLM schema are all derived from it.
 """
 
-from collections.abc import Mapping
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,6 +19,7 @@ class Group(StrEnum):
     FRAME = "frame"
     SUSPENSION = "suspension"
     MASS = "mass"
+    POWERTRAIN = "powertrain"
 
 
 class ParameterDef(BaseModel):
@@ -27,7 +27,7 @@ class ParameterDef(BaseModel):
 
     id: str
     label: str
-    group: Group
+    group: Group | str  # plugins may add groups
     unit: Unit
     default: float
     min: float
@@ -436,10 +436,56 @@ _DEFINITIONS += (
     ),
 )  # fmt: skip
 
-REGISTRY: Mapping[str, ParameterDef] = {d.id: d for d in _DEFINITIONS}
+# --- Powertrain and road loads (used by the longitudinal test) ---
+_DEFINITIONS += (
+    _p(
+        id="peak_power", label="Peak power", group=Group.POWERTRAIN,
+        unit=Unit.KW, default=150, min=20, max=1000, step=5,
+        description="Peak power of the engine or motors.",
+        aliases=("peak power", "power", "engine power", "motor power", "power output",
+                 "horsepower"),
+        increase_words=("faster", "quicker", "more powerful"),
+        decrease_words=("slower", "less powerful"),
+    ),
+    _p(
+        id="front_drive_share", label="Front drive torque share", group=Group.POWERTRAIN,
+        unit=Unit.PERCENT, default=0, min=0, max=100, step=5,
+        description="Share of drive torque at the front axle: 0 = rear-wheel drive, "
+        "100 = front-wheel drive, in between = all-wheel drive.",
+        aliases=("front drive share", "front drive torque share", "torque split",
+                 "drive split", "front torque share"),
+    ),
+    _p(
+        id="drivetrain_efficiency", label="Drivetrain efficiency", group=Group.POWERTRAIN,
+        unit=Unit.PERCENT, default=90, min=50, max=99, step=1,
+        description="Power reaching the wheels as a share of peak power.",
+        aliases=("drivetrain efficiency", "transmission efficiency", "driveline efficiency"),
+    ),
+    _p(
+        id="drag_coefficient", label="Drag coefficient", group=Group.POWERTRAIN,
+        unit=Unit.NONE, default=0.32, min=0.15, max=0.8, step=0.01,
+        description="Aerodynamic drag coefficient Cd (with the frontal area gives the drag area).",
+        aliases=("drag coefficient", "cd", "cx", "aero drag coefficient"),
+    ),
+    _p(
+        id="rolling_resistance", label="Rolling resistance coefficient",
+        group=Group.POWERTRAIN, unit=Unit.NONE, default=0.012, min=0.005, max=0.03,
+        step=0.001, description="Tyre rolling resistance force per unit weight (Crr).",
+        aliases=("rolling resistance", "rolling resistance coefficient", "crr"),
+    ),
+    _p(
+        id="cg_height", label="Centre of gravity height", group=Group.MASS,
+        unit=Unit.MM, default=550, min=300, max=1200, step=10,
+        description="Height of the centre of gravity above the ground (load transfer).",
+        aliases=("centre of gravity height", "center of gravity height", "cg height",
+                 "cog height", "centre of gravity", "center of gravity"),
+    ),
+)  # fmt: skip
+
+REGISTRY: dict[str, ParameterDef] = {d.id: d for d in _DEFINITIONS}  # extensible
 
 # Group aliases: one word that addresses several parameters at once.
-GROUP_ALIASES: Mapping[str, tuple[str, ...]] = {
+GROUP_ALIASES: dict[str, tuple[str, ...]] = {
     "track": ("track_front", "track_rear"),
     "track width": ("track_front", "track_rear"),
     "wheel track": ("track_front", "track_rear"),
@@ -480,4 +526,4 @@ def get(parameter_id: str) -> ParameterDef:
 
 
 def default_values() -> dict[str, float]:
-    return {d.id: d.default for d in _DEFINITIONS}
+    return {d.id: d.default for d in REGISTRY.values()}

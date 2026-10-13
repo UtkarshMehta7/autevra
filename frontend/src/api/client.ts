@@ -76,6 +76,7 @@ export const api = {
   tests: () => request<TestDefinition[]>("/tests"),
   runTests: (id: string, body: { test_id: string; target: string; scenario_id?: string | null }) =>
     post<TestRunResponse>(`/projects/${id}/tests/run`, body),
+  retest: (id: string) => post<TestRunResponse>(`/projects/${id}/tests/retest`),
   runs: (id: string) => request<RunSummary[]>(`/projects/${id}/runs`),
   run: (id: string, run: string) => request<RunRecord>(`/projects/${id}/runs/${run}`),
   compare: (id: string, baseline: string, candidate: string) =>

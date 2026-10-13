@@ -190,6 +190,19 @@ def available_rebound_travel(p: Values, a: str) -> float:
 
 
 _MASS = ("vehicle_mass", "front_mass_distribution")
+FRONTAL_FILL = 0.85  # frontal area / (width x height above the ground), typical for cars
+
+
+def frontal_area(p: Values) -> float:
+    """Approximate frontal area, m²: body width x height above the ground x fill factor."""
+    return FRONTAL_FILL * p["body_width"] * (p["overall_height"] - p["ground_clearance"]) / 1e6
+
+
+def power_to_weight(p: Values) -> float:
+    """Peak power per tonne of vehicle mass, kW/t."""
+    return p["peak_power"] / (p["vehicle_mass"] / 1000.0)
+
+
 _SUSPENSION_DERIVED: dict[str, tuple[DerivedDef, Callable[[Values], float]]] = {}
 for _a in AXLES:
     _A = _a.capitalize()
@@ -302,9 +315,25 @@ _DERIVED: dict[str, tuple[DerivedDef, Callable[[Values], float]]] = {
         arch_top_height,
     ),
     **_SUSPENSION_DERIVED,
-}
+    "frontal_area": (
+        DerivedDef(
+            id="frontal_area", label="Frontal area", unit="m²",
+            controlled_by=("body_width", "overall_height", "ground_clearance"),
+            aliases=("frontal area", "frontal area of the car"),
+        ),
+        frontal_area,
+    ),
+    "power_to_weight": (
+        DerivedDef(
+            id="power_to_weight", label="Power-to-weight", unit="kW/t",
+            controlled_by=("peak_power", "vehicle_mass"),
+            aliases=("power to weight", "power-to-weight", "power to weight ratio"),
+        ),
+        power_to_weight,
+    ),
+}  # fmt: skip
 
-DERIVED: Mapping[str, DerivedDef] = {k: v[0] for k, v in _DERIVED.items()}
+DERIVED: dict[str, DerivedDef] = {k: v[0] for k, v in _DERIVED.items()}  # extensible
 
 
 def compute(derived_id: str, p: Values) -> float:

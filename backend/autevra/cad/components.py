@@ -23,13 +23,64 @@ RIM_BARREL = 12.0  # radial thickness of the rim barrel
 SPOKES = 5
 
 
+def _rounded_outline(
+    x: tuple[float, float], half_w: float, r_front: float, r_rear: float, n: int = 6
+) -> list[tuple[float, float]]:
+    """Plan-view outline (x, y) of a rectangle whose four corners are rounded."""
+    rear, front = x
+    pts: list[tuple[float, float]] = []
+    for cx, cy, r, a0 in (
+        (front - r_front, half_w - r_front, r_front, 0.0),  # front left
+        (rear + r_rear, half_w - r_rear, r_rear, 90.0),  # rear left
+        (rear + r_rear, -half_w + r_rear, r_rear, 180.0),  # rear right
+        (front - r_front, -half_w + r_front, r_front, 270.0),  # front right
+    ):
+        for i in range(n + 1):
+            a = math.radians(a0 + 90.0 * i / n)
+            pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    return pts
+
+
+def body_profile(p: Inputs) -> list[tuple[float, float]]:
+    """Side profile (x, z) of the lower body: bumper, nose, hood rising to the windscreen
+    cowl, beltline, rear deck and tail. Proportions follow the design parameters."""
+    rear, front = -(p["wheelbase"] + p["rear_overhang"]), p["front_overhang"]
+    floor, belt = p["body_floor"], p["beltline_height"]
+    depth = belt - floor
+    centre = (rear + front) / 2.0 + p["cabin_offset"]
+    cowl = min(centre + p["cabin_length"] / 2.0, front - 150.0)  # windscreen base
+    deck = max(centre - p["cabin_length"] / 2.0, rear + 150.0)  # rear screen base
+    arch_top = p["tyre_radius"] + p["arch_radius"]
+    # The hood stays above the front wheel arch, below the beltline.
+    nose = min(max(floor + 0.62 * depth, arch_top + 40.0), belt - 20.0)
+    tail = min(max(floor + 0.78 * depth, arch_top + 40.0), belt - 10.0)
+    bumper = floor + 0.25 * depth
+    under = min(0.06 * (front - rear), 220.0)
+    return [
+        (rear + under * 0.6, floor),
+        (front - under, floor),
+        (front, bumper),
+        (front, nose),
+        (cowl, belt),
+        (deck, belt),
+        (rear, tail),
+        (rear, floor + 0.3 * depth),
+    ]
+
+
 def build_body(p: Inputs) -> k.Shape:
-    """Lower body with wheel wells, plus a lofted cabin (greenhouse)."""
+    """Lower body (side profile x rounded plan view) with wheel wells, plus a raked,
+    tapered greenhouse. Extents: overhang to overhang, full width, floor to roof."""
     rear, front = -(p["wheelbase"] + p["rear_overhang"]), p["front_overhang"]
     half_w = p["body_width"] / 2.0
     floor, belt, roof = p["body_floor"], p["beltline_height"], p["overall_height"]
 
-    lower = k.box((rear, front), (-half_w, half_w), (floor, belt))
+    side = k.prism_y(body_profile(p), (-half_w, half_w))
+    plan = k.prism_z(
+        _rounded_outline((rear, front), half_w, 0.32 * half_w, 0.18 * half_w),
+        (floor - 1.0, belt + 1.0),
+    )
+    lower = k.intersect(side, plan)
 
     # Wheel wells: cylinders around each wheel, cut from the tyre's inner face outwards.
     wheel_z = p["tyre_radius"]
@@ -41,18 +92,20 @@ def build_body(p: Inputs) -> k.Shape:
         wells.append(k.cylinder_y(r, (-half_w - 1, -inner), x=x, z=wheel_z))
     lower = k.cut(lower, *wells)
 
-    # Cabin: ruled loft from the beltline outline to the roof outline.
+    # Greenhouse: ruled loft from the beltline outline to the roof outline; the corners are
+    # chamfered so the glasshouse reads as rounded, and the roof is narrower (tumblehome).
     centre = (rear + front) / 2.0 + p["cabin_offset"]
     cab_half, roof_half = p["cabin_length"] / 2.0, p["roof_length"] / 2.0
     cab_w, roof_w = half_w - 40.0, half_w - 150.0
 
     def outline(z: float, half_len: float, half_wid: float) -> list[tuple[float, float, float]]:
+        c = min(0.18 * half_wid, 0.25 * half_len)  # corner chamfer
         return [
-            (centre - half_len, -half_wid, z),
-            (centre + half_len, -half_wid, z),
-            (centre + half_len, half_wid, z),
-            (centre - half_len, half_wid, z),
-        ]
+            (centre - half_len, -half_wid + c, z), (centre - half_len + c, -half_wid, z),
+            (centre + half_len - c, -half_wid, z), (centre + half_len, -half_wid + c, z),
+            (centre + half_len, half_wid - c, z), (centre + half_len - c, half_wid, z),
+            (centre - half_len + c, half_wid, z), (centre - half_len, half_wid - c, z),
+        ]  # fmt: skip
 
     cabin = k.ruled_loft([outline(belt, cab_half, cab_w), outline(roof, roof_half, roof_w)])
     return k.fuse(lower, cabin)
