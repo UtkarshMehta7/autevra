@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.glb binary
+*.stl binary
+*.gguf binary
+*.parquet binary
