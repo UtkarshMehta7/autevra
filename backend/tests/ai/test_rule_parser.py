@@ -176,3 +176,27 @@ def test_unknown_words_prevent_a_guess(text: str) -> None:
     result = parse(text)
     assert result.kind is Kind.CLARIFICATION
     assert result.reason is Reason.NO_TARGET  # escalated to the LLM when one is available
+
+
+@pytest.mark.parametrize(
+    ("text", "target", "scenario", "test_id"),
+    [
+        ("run a quarter-car suspension test", None, None, "quarter_car"),
+        ("test the rear suspension over a pothole", "rear", "pothole_50", "quarter_car"),
+        ("simulate a speed bump on the front", "front", "hump_75", "quarter_car"),
+        ("run the ride modes test", None, None, "ride_modes"),
+        ("test it", None, None, "quarter_car"),
+    ],
+)
+def test_test_requests(text: str, target: str | None, scenario: str | None, test_id: str) -> None:
+    r = parse(text)
+    assert r.kind is Kind.TEST and r.tests is not None
+    assert (r.tests.target, r.tests.scenario_id, r.tests.test_id) == (target, scenario, test_id)
+
+
+def test_change_then_test() -> None:
+    r = parse("Increase the rear shock absorber damping by 10% and test its response.")
+    assert r.kind is Kind.COMMAND and r.command is not None and r.tests is not None
+    assert {c.parameter for c in r.command.changes} == {"rear_damping_bump", "rear_damping_rebound"}
+    assert all(c.unit == "%" and c.value == 10 for c in r.command.changes)
+    assert parse("increase the wheelbase by 100 mm").tests is None
