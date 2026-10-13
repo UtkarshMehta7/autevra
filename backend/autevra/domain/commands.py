@@ -31,6 +31,7 @@ class Source(StrEnum):
     API = "api"
     RULES = "rules"
     LLM = "llm"
+    OPTIMIZER = "optimizer"  # applied only after the user accepts a study result
 
 
 class Change(BaseModel):

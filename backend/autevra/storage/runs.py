@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from autevra.engineering.testing import Requirement, RunRecord
-from autevra.storage.models import RequirementRow, TestRunRow
+from autevra.storage.models import RequirementRow, StudyRow, TestRunRow
 
 
 class RunNotFoundError(LookupError):
@@ -86,3 +86,35 @@ class RunRepository:
         if row is None or row.project_id != project_id:
             raise RunNotFoundError(requirement_id)
         self.session.delete(row)
+
+
+class StudyRepository:
+    """Studies are stored as self-describing JSON records keyed by kind."""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def save(self, project_id: str, kind: str, study_id: str, status: str, record_json: str
+             ) -> None:  # fmt: skip
+        row = self.session.get(StudyRow, study_id)
+        if row is None:
+            self.session.add(StudyRow(id=study_id, project_id=project_id, kind=kind,
+                                      status=status, record_json=record_json))  # fmt: skip
+        else:
+            row.status, row.record_json = status, record_json
+        self.session.flush()
+
+    def get(self, project_id: str, study_id: str) -> tuple[str, str]:
+        row = self.session.get(StudyRow, study_id)
+        if row is None or row.project_id != project_id:
+            raise RunNotFoundError(study_id)
+        return row.kind, row.record_json
+
+    def find(self, project_id: str, kind: str, limit: int = 50) -> list[str]:
+        rows = self.session.scalars(
+            select(StudyRow)
+            .where(StudyRow.project_id == project_id, StudyRow.kind == kind)
+            .order_by(StudyRow.created_at.desc())
+            .limit(limit)
+        )
+        return [r.record_json for r in rows]

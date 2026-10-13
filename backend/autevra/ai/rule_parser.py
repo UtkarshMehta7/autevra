@@ -29,6 +29,8 @@ class Kind(StrEnum):
     OUT_OF_SCOPE = "out_of_scope"
     TEST = "test"  # run component tests (no design change)
     DIAGNOSE = "diagnose"  # explain the latest failed test
+    OPTIMIZE = "optimize"  # bounded optimisation of a solver metric under the test criteria
+    LOOP = "loop"  # engineering loop: diagnose and fix until the tests pass
 
 
 class Reason(StrEnum):
@@ -51,6 +53,9 @@ class TestRequest:
     target: str | None = None
     scenario_id: str | None = None  # None: every scenario
     focus: str | None = None  # diagnosis: "travel" or "contact" failures first
+    objective: str | None = None  # optimisation metric
+    sense: str = "minimize"
+    unmodelled: tuple[str, ...] = ()  # constraints named by the user that no model checks
 
 
 @dataclass
@@ -86,10 +91,40 @@ _TEST_WORDS = re.compile(
 )
 
 
+_COMFORT = r"\bcomfort|comfortable|comfier|plusher|smoother|ride quality|better ride"
+_GRIP = r"\bgrip|road holding|roadholding|tyre contact|keep the tyres? on"
+_OBJECTIVES = (  # phrase -> (metric, sense)
+    (_COMFORT, "rms_body_acceleration", "minimize"),
+    (r"\bsettl", "settling_time", "minimize"),
+    (_GRIP, "min_tyre_load_ratio", "maximize"),
+    (r"\bharsh|peak acceleration|jolt", "peak_body_acceleration", "minimize"),
+)
+_OPTIMIZE = re.compile(
+    r"\b(optimi[sz]e|optimi[sz]ation|improve|maximi[sz]e|minimi[sz]e|"
+    r"more comfortable|comfier|plusher|smoother)\b"
+)
+_LOOP = re.compile(
+    r"^(?:please )?(?:fix|repair|sort out)\b.*\b(suspension|tests?|corner|"
+    r"failures?)\b|^(?:please )?(?:make|get)\b.*\bpass(?:ing)?\b"
+)
+_UNMODELLED_LIMITS = {
+    "roll": "body roll",
+    "pitch": "pitch",
+    "dive": "brake dive",
+    "squat": "squat",
+    "noise": "noise",
+}
 _DIAGNOSE = re.compile(
     r"^(?:please )?(?:diagnose|explain|why)\b.*\b(fail|failed|fails|failure|exceed|exceeded|"
     r"exceeds|limit|test|lift|lifted|diagnos)|^diagnose\b"
 )
+
+
+def _objective(text: str) -> tuple[str, str] | None:
+    for pattern, metric, sense in _OBJECTIVES:
+        if re.search(pattern, text):
+            return metric, sense
+    return None
 
 
 def _test_request(text: str) -> TestRequest:
@@ -365,6 +400,15 @@ def parse(text: str) -> Interpretation:
         return Interpretation(Kind.REDO)
     if _DIAGNOSE.search(t):
         return Interpretation(Kind.DIAGNOSE, tests=_test_request(t))
+    if _OPTIMIZE.search(t) and (objective := _objective(t)) is not None:
+        request = _test_request(t)
+        words = set(_words(t))
+        unmodelled = tuple(v for k, v in _UNMODELLED_LIMITS.items() if k in words)
+        return Interpretation(Kind.OPTIMIZE, tests=TestRequest(
+            request.test_id, request.target, request.scenario_id, None, *objective, unmodelled
+        ))  # fmt: skip
+    if _LOOP.search(t) and not _find_target(t.replace("suspension", "")):
+        return Interpretation(Kind.LOOP, tests=_test_request(t))
     if t.endswith("?") or _QUESTION_START.match(t):
         return _parse_query(t.rstrip("?"))
     if re.match(rf"^(?:please )?{_TEST_VERB}\b", t) and _TEST_WORDS.search(t):

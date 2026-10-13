@@ -23,10 +23,12 @@ from autevra.domain.design import ApplyResult, CommandRejectedError, DesignState
 from autevra.domain.rules import validate
 from autevra.engineering import diagnosis as dgn
 from autevra.engineering import integration
+from autevra.engineering import loop as eloop
+from autevra.engineering import optimize as opt
 from autevra.engineering import testing as tst
 from autevra.storage.database import Database
 from autevra.storage.repository import ProjectInfo, ProjectRepository
-from autevra.storage.runs import RunRepository
+from autevra.storage.runs import RunRepository, StudyRepository
 
 
 def _derived(values: dict[str, float]) -> list[schemas.DerivedValue]:
@@ -100,6 +102,33 @@ def _run_message(run: tst.RunRecord, comparison: tst.Comparison | None) -> str:
                 for m in moved
             )
     return text + "."
+
+
+def _study_message(result: opt.StudyResult, label: str) -> str:
+    target = result.study.target.capitalize()
+    n = result.evaluations
+    if result.status == "no_feasible_design" or result.best is None:
+        why = f" Blocking: {result.blocking}." if result.blocking else ""
+        return f"{target}: no design met every criterion within the bounds ({n} evaluations).{why}"
+    metric = result.study.objectives[0].metric
+    change = result.improvement.get(metric)
+    base = result.baseline.objectives.get(metric)
+    best = result.best.objectives[metric]
+    pct = f" ({change / base * 100:+.1f} %)" if change is not None and base else ""
+    moves = ", ".join(
+        f"{c.parameter} {c.value:g}" for c in (result.command.changes if result.command else ())
+    )
+    return (
+        f"{target}: worst-case {label} {base:.3g} → {best:.3g}{pct} with "
+        f"{moves or 'no change'}; verified with full runs ({n} evaluations)."
+    )
+
+
+def _loop_message(result: eloop.LoopResult) -> str:
+    target = result.goal.target.capitalize()
+    steps = "; ".join(it.decision for it in result.iterations)
+    outcome = result.outcome.replace("_", " ")
+    return f"{target}: {outcome} after {len(result.iterations)} iteration(s): {steps}."
 
 
 def _format(pid: str, values: dict[str, float]) -> str:
@@ -232,6 +261,26 @@ class Workspace:
             case Kind.TEST:
                 assert interpretation.tests is not None
                 return self._instruct_tests(project_id, interpretation.tests)
+            case Kind.OPTIMIZE:
+                assert interpretation.tests is not None
+                return self._instruct_optimize(project_id, interpretation.tests)
+            case Kind.LOOP:
+                request = interpretation.tests or TestRequest()
+                targets = [request.target] if request.target else ["front", "rear"]
+                loops = [
+                    self.engineering_loop(
+                        project_id,
+                        eloop.Goal(
+                            test_id=request.test_id,
+                            target=t,
+                            scenarios=[request.scenario_id] if request.scenario_id else None,
+                        ),
+                    )  # fmt: skip
+                    for t in targets
+                ]
+                return schemas.InstructionResult(
+                    kind="loop", message=" ".join(_loop_message(r) for r in loops), loops=loops
+                )
             case Kind.DIAGNOSE:
                 request = interpretation.tests or TestRequest()
                 target = request.target
@@ -296,6 +345,45 @@ class Workspace:
             assumptions=interpretation.assumptions,
             runs=runs,
             comparisons=comparisons,
+        )
+
+    def _instruct_optimize(
+        self, project_id: str, request: TestRequest
+    ) -> schemas.InstructionResult:
+        assert request.objective is not None
+        definition = tst.DEFINITIONS[request.test_id]
+        targets = [request.target] if request.target else list(definition.targets)
+        scenarios = (
+            [request.scenario_id] if request.scenario_id else [s.id for s in definition.scenarios]
+        )
+        values = self.project(project_id).values
+        studies = []
+        for target in targets:
+            study = opt.Study(
+                test_id=request.test_id, target=target, scenarios=scenarios,
+                objectives=[opt.Objective(metric=request.objective, sense=request.sense)],
+                variables=opt.default_variables(request.test_id, target, values),
+            )  # fmt: skip
+            result = self.optimize(project_id, study)
+            if request.unmodelled:
+                result.notes.append(
+                    f"not checked: {', '.join(request.unmodelled)} (no model for it yet)"
+                )
+            studies.append(result)
+        label = definition.metrics[request.objective][0].lower()
+        parts = [_study_message(r, label) for r in studies]
+        if request.unmodelled:
+            parts.append(
+                f"I did not constrain {', '.join(request.unmodelled)}: the quarter-car model has "
+                "no roll or pitch, so that limit is not checked. A half-car or full-vehicle model "
+                "is needed for it."
+            )
+        parts.append(
+            "Constraints: every test criterion and approved requirement in each scenario. "
+            "Accept a proposal to apply it (undoable)."
+        )
+        return schemas.InstructionResult(
+            kind="optimization", message=" ".join(parts), studies=studies
         )
 
     def _instruct_tests(self, project_id: str, request: TestRequest) -> schemas.InstructionResult:
@@ -427,6 +515,87 @@ class Workspace:
                 return run
             fallback = fallback or run
         return fallback
+
+    # --- optimisation ---
+    def optimize(self, project_id: str, study: opt.Study) -> opt.StudyResult:
+        with self._lock, self.db.session() as s:
+            state = ProjectRepository(s).load(project_id)
+            reqs = RunRepository(s).requirements(project_id)
+            result = opt.run_study(study, state.values, reqs)
+            result.notes.append(f"run on design revision {state.cursor}")
+            StudyRepository(s).save(
+                project_id, "optimization", result.id, result.status, result.model_dump_json()
+            )
+            return result
+
+    def engineering_loop(self, project_id: str, goal: eloop.Goal) -> eloop.LoopResult:
+        with self._lock, self.db.session() as s:
+            state = ProjectRepository(s).load(project_id)
+            reqs = RunRepository(s).requirements(project_id)
+            result = eloop.run_loop(goal, state.values, reqs)
+            result.notes.append(f"started from design revision {state.cursor}")
+            StudyRepository(s).save(
+                project_id, "loop", result.id, result.status, result.model_dump_json()
+            )
+            return result
+
+    def choose_candidate(self, project_id: str, study_id: str, index: int) -> opt.StudyResult:
+        """Pick a design from a study (e.g. a Pareto point); it is re-verified before proposing."""
+        with self._lock, self.db.session() as s:
+            kind, raw = StudyRepository(s).get(project_id, study_id)
+            if kind != "optimization":
+                raise CommandError("only optimisation studies have candidates")
+            result = opt.StudyResult.model_validate_json(raw)
+            if result.status not in ("proposed", "no_feasible_design"):
+                raise CommandError(f"study is {result.status}")
+            candidate = next((c for c in result.candidates if c.index == index), None)
+            if candidate is None or not candidate.feasible:
+                raise CommandError("choose a feasible candidate")
+            state = ProjectRepository(s).load(project_id)
+            result.status = "proposed"
+            opt.propose(result, candidate, state.values, RunRepository(s).requirements(project_id))
+            StudyRepository(s).save(
+                project_id, kind, result.id, result.status, result.model_dump_json()
+            )
+            return result
+
+    def loops(self, project_id: str) -> list[eloop.LoopResult]:
+        with self.db.session() as s:
+            ProjectRepository(s).info(project_id)
+            return [
+                eloop.LoopResult.model_validate_json(r)
+                for r in StudyRepository(s).find(project_id, "loop")
+            ]
+
+    def studies(self, project_id: str) -> list[opt.StudyResult]:
+        with self.db.session() as s:
+            ProjectRepository(s).info(project_id)
+            return [
+                opt.StudyResult.model_validate_json(r)
+                for r in StudyRepository(s).find(project_id, "optimization")
+            ]
+
+    def decide_study(
+        self, project_id: str, study_id: str, accept: bool
+    ) -> schemas.CommandResult | None:
+        """Accept applies the proposed command (undoable); reject records the decision."""
+        with self.db.session() as s:
+            kind, raw = StudyRepository(s).get(project_id, study_id)
+        model = opt.StudyResult if kind == "optimization" else eloop.LoopResult
+        result = model.model_validate_json(raw)
+        if result.status != "proposed":
+            raise CommandError(f"study is {result.status}, not awaiting a decision")
+        applied = None
+        if accept:
+            if result.command is None:
+                raise CommandError("the study has no change to apply")
+            applied = self.apply(project_id, result.command)
+        result.status = "accepted" if accept else "rejected"
+        with self.db.session() as s:
+            StudyRepository(s).save(
+                project_id, kind, result.id, result.status, result.model_dump_json()
+            )
+        return applied
 
     def compare_runs(self, project_id: str, baseline: str, candidate: str) -> tst.Comparison:
         with self.db.session() as s:

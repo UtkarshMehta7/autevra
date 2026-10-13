@@ -72,3 +72,18 @@ class RequirementRow(Base):
     )
     created_at: Mapped[datetime] = mapped_column(default=_now)
     requirement_json: Mapped[str] = mapped_column(Text)
+
+
+class StudyRow(Base):
+    """Optimisation studies and engineering-loop sessions, with their decision."""
+
+    __tablename__ = "studies"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(32))  # optimization | loop
+    status: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    record_json: Mapped[str] = mapped_column(Text)

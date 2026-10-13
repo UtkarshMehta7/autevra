@@ -10,6 +10,8 @@ from autevra.domain.design import HistoryEntry
 from autevra.domain.parameters import ParameterDef
 from autevra.domain.rules import Violation
 from autevra.engineering.diagnosis import Diagnosis
+from autevra.engineering.loop import LoopResult
+from autevra.engineering.optimize import StudyResult
 from autevra.engineering.testing import Comparison, RunRecord, RunStatus
 
 
@@ -89,6 +91,8 @@ InstructionKind = Literal[
     "out_of_scope",
     "test",
     "diagnosis",
+    "optimization",
+    "loop",
 ]
 
 
@@ -107,6 +111,8 @@ class InstructionResult(BaseModel):
     runs: list["RunSummary"] = []
     comparisons: list[Comparison] = []
     diagnosis: Diagnosis | None = None
+    studies: list[StudyResult] = []
+    loops: list[LoopResult] = []
 
 
 class HistoryOut(BaseModel):

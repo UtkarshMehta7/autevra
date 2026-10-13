@@ -10,6 +10,8 @@ from autevra.api.service import ProposalNotFoundError, Workspace, _derived
 from autevra.domain import parameters
 from autevra.domain.commands import CommandError
 from autevra.domain.design import CommandRejectedError
+from autevra.engineering import loop as eloop
+from autevra.engineering import optimize as opt
 from autevra.engineering import testing as tst
 from autevra.engineering.diagnosis import Diagnosis
 from autevra.storage.repository import ProjectNotFoundError
@@ -245,6 +247,77 @@ def delete_requirement(project_id: str, requirement_id: str, ws: WorkspaceDep) -
 @router.get("/projects/{project_id}/integration", response_model=schemas.IntegrationOut)
 def integration_report(project_id: str, ws: WorkspaceDep) -> schemas.IntegrationOut:
     return ws.integration(project_id)
+
+
+@router.post("/projects/{project_id}/optimize", response_model=opt.StudyResult)
+def optimize(project_id: str, body: opt.Study, ws: WorkspaceDep) -> opt.StudyResult:
+    try:
+        return ws.optimize(project_id, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.post("/projects/{project_id}/loop", response_model=eloop.LoopResult)
+def engineering_loop(project_id: str, body: eloop.Goal, ws: WorkspaceDep) -> eloop.LoopResult:
+    try:
+        return ws.engineering_loop(project_id, body)
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.get("/optimize/defaults")
+def optimize_defaults(target: str = "rear", test_id: str = "quarter_car") -> dict:
+    values = parameters.default_values()
+    return {"variables": [v.model_dump() for v in opt.default_variables(test_id, target, values)]}
+
+
+@router.get("/projects/{project_id}/loops", response_model=list[eloop.LoopResult])
+def list_loops(project_id: str, ws: WorkspaceDep) -> list[eloop.LoopResult]:
+    return ws.loops(project_id)
+
+
+@router.get("/projects/{project_id}/studies", response_model=list[opt.StudyResult])
+def list_studies(project_id: str, ws: WorkspaceDep) -> list[opt.StudyResult]:
+    return ws.studies(project_id)
+
+
+@router.post(
+    "/projects/{project_id}/studies/{study_id}/accept",
+    response_model=schemas.CommandResult,
+    responses={422: {"model": schemas.Rejection}},
+)
+def accept_study(
+    project_id: str, study_id: str, ws: WorkspaceDep
+) -> schemas.CommandResult | JSONResponse:
+    try:
+        result = ws.decide_study(project_id, study_id, accept=True)
+    except CommandRejectedError as exc:
+        rejection = schemas.Rejection(detail=str(exc), violations=exc.violations)
+        return JSONResponse(status_code=422, content=rejection.model_dump(mode="json"))
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    assert result is not None
+    return result
+
+
+@router.post(
+    "/projects/{project_id}/studies/{study_id}/choose/{index}", response_model=opt.StudyResult
+)
+def choose_candidate(
+    project_id: str, study_id: str, index: int, ws: WorkspaceDep
+) -> opt.StudyResult:
+    try:
+        return ws.choose_candidate(project_id, study_id, index)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+@router.post("/projects/{project_id}/studies/{study_id}/reject", status_code=204)
+def reject_study(project_id: str, study_id: str, ws: WorkspaceDep) -> None:
+    try:
+        ws.decide_study(project_id, study_id, accept=False)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
 
 
 def run_not_found_handler(_request: Request, exc: Exception) -> JSONResponse:

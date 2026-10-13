@@ -153,3 +153,39 @@ def test_diagnose_then_fix_then_retest(client: TestClient, project: str) -> None
 def test_diagnose_without_failures_asks_for_a_test(client: TestClient, project: str) -> None:
     reply = _say(client, project, "why did the front test fail?")
     assert reply["kind"] == "clarification" and "Run a test first" in reply["message"]
+
+
+def test_optimise_accept_and_undo(client: TestClient, project: str) -> None:
+    client.post(
+        f"/api/projects/{project}/commands",
+        json={
+            "command": {
+                "changes": [{"parameter": "arch_clearance", "operation": "set", "value": 45}]
+            }
+        },
+    )
+    body = {"target": "rear", "scenarios": ["step_25", "hump_75"], "budget": 20,
+            "objectives": [{"metric": "rms_body_acceleration"}],
+            "variables": [{"parameter": "rear_damping_bump", "lower": 900, "upper": 1700},
+                          {"parameter": "rear_spring_rate", "lower": 17, "upper": 31}]}  # fmt: skip
+    study = client.post(f"/api/projects/{project}/optimize", json=body).json()
+    assert study["status"] == "proposed"
+    before = client.get(f"/api/projects/{project}").json()["values"]
+    accepted = client.post(f"/api/projects/{project}/studies/{study['id']}/accept")
+    assert accepted.status_code == 200
+    after = client.get(f"/api/projects/{project}").json()["values"]
+    assert after["rear_spring_rate"] == study["best"]["values"]["rear_spring_rate"]
+    history = client.get(f"/api/projects/{project}/history").json()["entries"]
+    assert history[-1]["command"]["source"] == "optimizer"
+    again = client.post(f"/api/projects/{project}/studies/{study['id']}/accept")
+    assert again.status_code == 409  # decided once
+    _say(client, project, "undo")
+    assert client.get(f"/api/projects/{project}").json()["values"] == before
+
+
+def test_comfort_request_states_what_is_not_checked(client: TestClient, project: str) -> None:
+    reply = _say(
+        client, project, "make the car more comfortable over potholes without increasing body roll"
+    )
+    assert reply["kind"] == "optimization" and "body roll" in reply["message"]
+    assert "not checked" in reply["message"] and len(reply["studies"]) == 2
