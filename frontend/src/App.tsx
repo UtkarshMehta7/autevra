@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
 import type {
   Command, CommandResult, Comparison, Diagnosis, ComponentTestStatus, HistoryEntry, IntegrationReport, LLMStatus,
-  LoopResult, ModelPayload, ParameterDef, ProjectState, ProjectSummary, RunSummary, StudyResult,
+  LoopResult, ModelPayload, ParameterDef, ProjectState, ProjectSummary, Requirement, RequirementRow,
+  RunSummary, StudyResult,
   TestDefinition, Variable,
 } from "./api/types";
 import { AiPanel, type ChatTurn } from "./panels/AiPanel";
@@ -10,6 +11,7 @@ import { ComponentTree } from "./panels/ComponentTree";
 import { HistoryPanel } from "./panels/HistoryPanel";
 import { IntegrationPanel } from "./panels/IntegrationPanel";
 import { PropertyEditor } from "./panels/PropertyEditor";
+import { RequirementsPanel } from "./panels/RequirementsPanel";
 import { StudiesPanel } from "./panels/StudiesPanel";
 import { TestBench } from "./panels/TestBench";
 import { geometryCache, Viewport } from "./viewport/Viewport";
@@ -58,7 +60,9 @@ export function App() {
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<ComponentTestStatus[]>([]);
-  const [dock, setDock] = useState<"bench" | "integration" | "optimize" | null>("bench");
+  const [dock, setDock] = useState<
+    "bench" | "integration" | "optimize" | "requirements" | null>("bench");
+  const [requirements, setRequirements] = useState<RequirementRow[]>([]);
   const [studies, setStudies] = useState<StudyResult[]>([]);
   const [loops, setLoops] = useState<LoopResult[]>([]);
   const [integration, setIntegration] = useState<IntegrationReport | null>(null);
@@ -74,6 +78,7 @@ export function App() {
       api.project(id), api.history(id), api.model(id, geometryCache.keys()), api.runs(id),
       api.componentStatus(id), api.studies(id), api.loops(id),
     ]);
+    api.requirements(id).then(setRequirements).catch(() => setRequirements([]));
     setStudies(studyList);
     setLoops(loopList);
     setProject(state);
@@ -163,6 +168,7 @@ export function App() {
         const reply = await api.instruct(project!.id, text);
         setTurns((t) => [...t, { text, reply }]);
         if (reply.studies?.length || reply.loops?.length) setDock("optimize");
+        if (reply.kind === "requirement" || reply.kind === "verification") setDock("requirements");
         if (reply.runs?.length) {
           setComparisons(reply.comparisons ?? []);
           setSelectedRun(reply.runs[0].id);
@@ -227,6 +233,9 @@ export function App() {
       if (!accept) { await api.rejectStudy(project!.id, studyId); return null; }
       return api.acceptStudy(project!.id, studyId);
     });
+  const requirementAction = (action: () => Promise<unknown>) =>
+    run(async () => { await action(); return null; });
+
   const chooseCandidate = (studyId: string, index: number) =>
     run(async () => { await api.chooseCandidate(project!.id, studyId, index); return null; });
 
@@ -301,6 +310,8 @@ export function App() {
             onClick={() => setDock("integration")}>Integration</button>
           <button className={dock === "optimize" ? "active" : ""}
             onClick={() => setDock("optimize")}>Optimise &amp; loop</button>
+          <button className={dock === "requirements" ? "active" : ""}
+            onClick={() => setDock("requirements")}>Requirements ({requirements.length})</button>
           <span className="spacer" />
           <button onClick={() => setDock(dock ? null : "bench")}>{dock ? "Hide" : "Show"}</button>
         </nav>
@@ -315,6 +326,16 @@ export function App() {
             values={project.values} studies={studies} loops={loops} busy={busy}
             onOptimize={optimize} onLoop={engineeringLoop} onDecide={decideStudy}
             onChoose={chooseCandidate} />
+        )}
+        {project && dock === "requirements" && (
+          <RequirementsPanel rows={requirements} parameters={parameters} derived={project.derived}
+            test={tests.find((t) => t.id === "quarter_car")} reqifUrl={api.reqifUrl(project.id)}
+            busy={busy}
+            onAdd={(body: Partial<Requirement>) => requirementAction(() => api.addRequirement(project.id, body))}
+            onUpdate={(rid, body) => requirementAction(() => api.updateRequirement(project.id, rid, body))}
+            onDelete={(rid) => requirementAction(() => api.deleteRequirement(project.id, rid))}
+            onVerify={() => requirementAction(() => api.verifyRequirements(project.id))}
+            onImport={(xml) => requirementAction(() => api.importReqif(project.id, xml))} />
         )}
         {project && dock === "integration" && (
           <IntegrationPanel report={integration} onRefresh={checkIntegration} busy={busy} />

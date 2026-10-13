@@ -86,7 +86,8 @@ export interface Violation {
 
 export interface InstructionResult {
   kind: "command" | "undo" | "redo" | "query" | "clarification" | "rejected" | "proposal"
-    | "out_of_scope" | "test" | "diagnosis" | "optimization" | "loop";
+    | "out_of_scope" | "test" | "diagnosis" | "optimization" | "loop" | "preview" | "requirement"
+    | "verification";
   message: string;
   interpreted_by: "rules" | "llm";
   command: Command | null;
@@ -102,6 +103,8 @@ export interface InstructionResult {
   diagnosis?: Diagnosis | null;
   studies?: StudyResult[];
   loops?: LoopResult[];
+  impact_preview?: ImpactPreview | null;
+  requirements?: RequirementRow[];
 }
 
 export interface GeometryData {
@@ -382,4 +385,64 @@ export interface LoopResult {
   command: Command | null;
   status: "proposed" | "accepted" | "rejected" | "nothing_to_apply";
   notes: string[];
+}
+
+export type Comparator = "<=" | "<" | ">=" | ">";
+
+export interface Requirement {
+  id: string;
+  key: string;
+  title: string;
+  text: string;
+  rationale: string;
+  kind: "performance" | "design" | "text";
+  verification: "test" | "analysis" | "inspection";
+  priority: "must" | "should" | "may";
+  parent: string | null;
+  approved: boolean;
+  source: string;
+  created_at: string;
+  test_id: string | null;
+  target: string;
+  scenario_id: string;
+  metric: string | null;
+  quantity: string | null;
+  comparator: Comparator;
+  limit: number;
+  unit: string;
+  note: string;
+}
+
+export interface RequirementEvidence {
+  kind: string;
+  status: "pass" | "fail" | "stale" | "missing";
+  detail: string;
+  run_id: string | null;
+  measured: number | null;
+  limit: number | null;
+  unit: string;
+  design_revision: number | null;
+}
+
+export interface RequirementRow {
+  requirement: Requirement;
+  verification: { requirement: string; key: string; status: string;
+    evidence: RequirementEvidence[]; summary: string };
+  parameters: string[];
+  components: string[];
+  cases: string[];
+}
+
+export interface ImpactPreview {
+  valid: boolean;
+  violations: Violation[];
+  changes: { id: string; label: string; unit: string; before: number; after: number }[];
+  derived: { id: string; label: string; unit: string; before: number; after: number }[];
+  rebuild: string[];
+  move: string[];
+  retest: string[];
+  requirements: { key: string; title: string; before: string; after: string; detail: string }[];
+  warnings_added: string[];
+  warnings_cleared: string[];
+  summary: string;
 }

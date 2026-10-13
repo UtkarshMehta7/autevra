@@ -3,7 +3,10 @@ import type {
   Comparison,
   ComponentTestStatus,
   Diagnosis,
+  ImpactPreview,
   IntegrationReport,
+  Requirement,
+  RequirementRow,
   LoopResult,
   Study,
   StudyResult,
@@ -88,5 +91,18 @@ export const api = {
     post<StudyResult>(`/projects/${id}/studies/${study}/choose/${index}`),
   optimizeDefaults: (target: string) =>
     request<{ variables: Variable[] }>(`/optimize/defaults?target=${target}`),
+  requirements: (id: string) => request<RequirementRow[]>(`/projects/${id}/requirements`),
+  addRequirement: (id: string, body: Partial<Requirement>) =>
+    post<RequirementRow>(`/projects/${id}/requirements`, body),
+  updateRequirement: (id: string, req: string, body: Partial<Requirement>) =>
+    request<RequirementRow>(`/projects/${id}/requirements/${req}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteRequirement: (id: string, req: string) =>
+    request<void>(`/projects/${id}/requirements/${req}`, { method: "DELETE" }),
+  verifyRequirements: (id: string) => post<RequirementRow[]>(`/projects/${id}/requirements/verify`),
+  importReqif: (id: string, xml: string) =>
+    request<RequirementRow[]>(`/projects/${id}/requirements.reqif`, {
+      method: "POST", body: xml, headers: { "content-type": "application/xml" } }),
+  reqifUrl: (id: string) => `/api/projects/${id}/requirements.reqif`,
+  preview: (id: string, command: Command) => post<ImpactPreview>(`/projects/${id}/preview`, { command }),
   integration: (id: string) => request<IntegrationReport>(`/projects/${id}/integration`),
 };

@@ -12,7 +12,9 @@ from autevra.domain.rules import Violation
 from autevra.engineering.diagnosis import Diagnosis
 from autevra.engineering.loop import LoopResult
 from autevra.engineering.optimize import StudyResult
+from autevra.engineering.requirements import Requirement, Verification
 from autevra.engineering.testing import Comparison, RunRecord, RunStatus
+from autevra.engineering.trace import ImpactPreview
 
 
 class ProjectCreate(BaseModel):
@@ -93,6 +95,9 @@ InstructionKind = Literal[
     "diagnosis",
     "optimization",
     "loop",
+    "preview",
+    "requirement",
+    "verification",
 ]
 
 
@@ -113,6 +118,8 @@ class InstructionResult(BaseModel):
     diagnosis: Diagnosis | None = None
     studies: list[StudyResult] = []
     loops: list[LoopResult] = []
+    impact_preview: ImpactPreview | None = None
+    requirements: list["RequirementOut"] = []
 
 
 class HistoryOut(BaseModel):
@@ -210,19 +217,34 @@ class ComponentTestStatus(BaseModel):
 
 
 class RequirementIn(BaseModel):
-    test_id: str = "quarter_car"
+    """Create or edit a requirement; unspecified fields take their defaults."""
+
+    key: str = ""
+    title: str = ""
+    text: str = ""
+    rationale: str = ""
+    kind: Literal["performance", "design", "text"] = "performance"
+    verification: Literal["test", "analysis", "inspection"] = "test"
+    priority: Literal["must", "should", "may"] = "must"
+    parent: str | None = None
+    approved: bool = True
+    test_id: str | None = "quarter_car"
     target: Literal["front", "rear", "*"] = "*"
     scenario_id: str = "*"
-    metric: str
-    comparator: Literal["<=", "<", ">=", ">"]
-    limit: float
+    metric: str | None = None
+    quantity: str | None = None
+    comparator: Literal["<=", "<", ">=", ">"] = "<="
+    limit: float = 0.0
     unit: str = ""
     note: str = ""
 
 
-class RequirementOut(RequirementIn):
-    id: str
-    approved: bool
+class RequirementOut(BaseModel):
+    requirement: Requirement
+    verification: Verification
+    parameters: list[str] = []
+    components: list[str] = []
+    cases: list[str] = []
 
 
 class CheckOut(BaseModel):

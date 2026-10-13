@@ -31,6 +31,9 @@ class Kind(StrEnum):
     DIAGNOSE = "diagnose"  # explain the latest failed test
     OPTIMIZE = "optimize"  # bounded optimisation of a solver metric under the test criteria
     LOOP = "loop"  # engineering loop: diagnose and fix until the tests pass
+    PREVIEW = "preview"  # impact of a command, without applying it
+    REQUIREMENT = "requirement"  # create a requirement
+    VERIFY = "verify"  # verify every requirement (runs missing tests)
 
 
 class Reason(StrEnum):
@@ -69,12 +72,15 @@ class Interpretation:
     reason: Reason | None = None
     interpreted_by: str = "rules"
     tests: TestRequest | None = None  # run after the command, or on its own for Kind.TEST
+    requirement: dict | None = None  # fields of a requirement to create (Kind.REQUIREMENT)
 
 
 _NUMBER = r"(-?\d+(?:\.\d+)?)"
 _UNIT = (
-    r"(mm|millimet(?:er|re)s?|cm|centimet(?:er|re)s?|m|met(?:er|re)s?|inch(?:es)?|in|\"|"
-    r"deg(?:rees?)?|°|%|percent|pct)"
+    r"(mm|millimet(?:er|re)s?|cm|centimet(?:er|re)s?|"
+    r"kn[·.]?s/m|kns/m|n[·.]?s/mm|ns/mm|n[·.]?s/m|ns/m|n s/m|kn/m|n/mm|n/m|lbf/in|lb/in|"
+    r"kgs?|kilograms?|lbs?|pounds?|"
+    r"m(?!/s)|met(?:er|re)s?|inch(?:es)?|in|\"|deg(?:rees?)?|°|%|percent|pct)"
 )
 QUANTITY = re.compile(_NUMBER + r"\s*" + _UNIT + r"?(?![a-z0-9])")
 _SPLIT = re.compile(r"\s*(?:,|;|\band then\b|\bthen\b|\band also\b|\balso\b|\band\b)\s*")
@@ -118,6 +124,95 @@ _DIAGNOSE = re.compile(
     r"^(?:please )?(?:diagnose|explain|why)\b.*\b(fail|failed|fails|failure|exceed|exceeded|"
     r"exceeds|limit|test|lift|lifted|diagnos)|^diagnose\b"
 )
+
+
+_PREVIEW = re.compile(
+    r"^(?:what if|what happens if|what would happen if|preview|show the impact of|"
+    r"impact of)\s+(?:i|we|you)?\s*(?P<rest>.+?)\??$"
+)
+_VERIFY = re.compile(r"^(?:please )?(?:verify|check|re-?check)\b.*\brequirements?\b")
+_REQUIRE = re.compile(
+    r"^(?:please )?(?:add (?:a )?requirement:?|requirement:|require|"
+    r"we require|it must|the requirement is)\b\s*(?P<rest>.+)$"
+)
+_AT_LEAST = (
+    r"(?:at least|no less than|not less than|a minimum of|minimum|above|over|more than|"
+    r"greater than|>=|>)"
+)
+_AT_MOST = (
+    r"(?:at most|no more than|not more than|a maximum of|maximum|below|under|less than|within|<=|<)"
+)
+_METRICS = {  # requirement phrase -> quarter-car metric
+    "peak body acceleration": "peak_body_acceleration",
+    "rms body acceleration": "rms_body_acceleration",
+    "body settling time": "settling_time", "settling time": "settling_time",
+    "bump travel": "max_bump_travel", "compression travel": "max_bump_travel",
+    "rebound travel": "max_rebound_travel", "body displacement": "peak_body_displacement",
+    "overshoot": "step_overshoot", "time off the road": "lift_off_time",
+    "lift-off time": "lift_off_time", "lift off time": "lift_off_time",
+    "minimum tyre load": "min_tyre_load_ratio", "tyre load": "min_tyre_load_ratio",
+}  # fmt: skip
+_TEST_CONTEXT = re.compile(
+    r"\b(test|tests|scenario|hump|pothole|step|bump test|quarter[- ]car|over the)\b"
+)
+
+
+def _parse_requirement(text: str) -> Interpretation:
+    number = QUANTITY.search(text)
+    before = text[: number.start()] if number else text
+    least = [m.end() for m in re.finditer(_AT_LEAST, before)]
+    most = [m.end() for m in re.finditer(_AT_MOST, before)]
+    if least and (not most or max(least) > max(most)):
+        comparator = ">="
+    elif most:
+        comparator = "<="
+    else:
+        return Interpretation(
+            Kind.CLARIFICATION, reason=Reason.INVALID,
+            question="Should that be at least or at most a value? For example: require the "
+            "ground clearance to be at least 150 mm.",
+            suggestions=["require the ground clearance to be at least 150 mm"],
+        )  # fmt: skip
+    quantity = _quantity(text)
+    if quantity is None:
+        return Interpretation(Kind.CLARIFICATION, reason=Reason.MISSING_AMOUNT,
+                              question="What limit should the requirement have?")  # fmt: skip
+    value, unit = quantity
+    phrase = next((ph for ph in sorted(_METRICS, key=len, reverse=True) if ph in text), None)
+    metric = _METRICS[phrase] if phrase else None
+    # The metric's own words ("bump travel") must not pick a scenario ("bump" -> hump).
+    request = _test_request(text.replace(phrase, " ") if phrase else text)  # fmt: skip
+    if metric is not None and (_TEST_CONTEXT.search(text) or _find_target(text) is None):
+        return Interpretation(Kind.REQUIREMENT, requirement={
+            "kind": "performance", "test_id": "quarter_car", "metric": metric,
+            "target": request.target or "*", "scenario_id": request.scenario_id or "*",
+            "comparator": comparator, "limit": value, "unit": "",
+        })  # fmt: skip
+    if re.search(r"\bbody acceleration\b", text):
+        return Interpretation(
+            Kind.CLARIFICATION, reason=Reason.INVALID,
+            question="Peak or RMS body acceleration?",
+            suggestions=[f"require the peak body acceleration to be at most {value:g} m/s²",
+                         f"require the rms body acceleration to be at most {value:g} m/s²"],
+        )  # fmt: skip
+    target = _find_target(text)
+    if target is None:
+        question = f"Which quantity is the requirement about in '{text}'?"
+        return Interpretation(Kind.CLARIFICATION, reason=Reason.NO_TARGET, question=question)
+    if len(target.ids) > 1:
+        ids = target.ids
+        if request.target:
+            ids = tuple(i for i in ids if i.startswith(request.target)) or ids
+        if len(ids) > 1:
+            return Interpretation(
+                Kind.CLARIFICATION, reason=Reason.INVALID,
+                question=f"'{target.alias}' covers several parameters; say front or rear.",
+            )  # fmt: skip
+        target = Target(target.kind, ids, target.alias)
+    return Interpretation(Kind.REQUIREMENT, requirement={
+        "kind": "design", "quantity": target.ids[0], "comparator": comparator,
+        "limit": value, "unit": str(unit) if unit else "",
+    })  # fmt: skip
 
 
 def _objective(text: str) -> tuple[str, str] | None:
@@ -258,6 +353,7 @@ _FILLER = frozenset({
     "mm", "cm", "m", "in", "inch", "inches", "deg", "degree", "degrees", "percent", "pct",
     "millimetre", "millimetres", "millimeter", "millimeters", "metre", "metres", "meter",
     "meters", "centimetre", "centimetres", "centimeter", "centimeters", "factor", "times",
+    "n", "kn", "kg", "kgs", "lb", "lbs", "lbf", "kilogram", "kilograms", "pound", "pounds",
 })  # fmt: skip
 _KNOWN = (
     _FILLER
@@ -398,6 +494,16 @@ def parse(text: str) -> Interpretation:
         return Interpretation(Kind.UNDO)
     if t in lx.REDO_PHRASES:
         return Interpretation(Kind.REDO)
+    if _VERIFY.search(t):
+        return Interpretation(Kind.VERIFY)
+    if (req := _REQUIRE.match(t)) is not None:
+        return _parse_requirement(req.group("rest"))
+    if (what_if := _PREVIEW.match(t)) is not None:
+        inner = parse(what_if.group("rest"))
+        if inner.kind is Kind.COMMAND and inner.command is not None:
+            return Interpretation(Kind.PREVIEW, command=inner.command,
+                                  assumptions=inner.assumptions)  # fmt: skip
+        return inner
     if _DIAGNOSE.search(t):
         return Interpretation(Kind.DIAGNOSE, tests=_test_request(t))
     if _OPTIMIZE.search(t) and (objective := _objective(t)) is not None:
