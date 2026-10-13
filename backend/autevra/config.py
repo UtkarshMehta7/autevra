@@ -1,8 +1,11 @@
 """Settings read from environment variables (prefix ``AUTEVRA_``)."""
 
+import json
 from pathlib import Path
+from typing import Annotated
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -10,7 +13,11 @@ class Settings(BaseSettings):
 
     data_dir: Path = Path("data")
     database_url: str = ""
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    # A JSON list, a comma-separated list or one URL (hosting dashboards make all three easy).
+    cors_origins: Annotated[list[str], NoDecode] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
 
     # Local LLM fallback (Phase 2). "off" keeps the app fully deterministic.
     llm_provider: str = "ollama"  # ollama | llama_server | off
@@ -22,6 +29,17 @@ class Settings(BaseSettings):
     # installed package that declares the "autevra.plugins" entry-point group.
     plugins: str = ""
     plugin_entry_points: bool = True
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _parse_origins(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        text = value.strip()
+        if text.startswith("["):
+            return json.loads(text)
+        # Browsers send the origin without a trailing slash, so strip one if pasted.
+        return [o.strip().strip("'\"").rstrip("/") for o in text.split(",") if o.strip()]
 
     def plugin_modules(self) -> list[str]:
         return [m.strip() for m in self.plugins.split(",") if m.strip()]
