@@ -250,3 +250,27 @@ def test_ambiguous_requirements_ask() -> None:
     assert parse("require the body acceleration to be below 5").kind is Kind.CLARIFICATION
     assert parse("require the spring rate to be at least 20 N/mm").kind is Kind.CLARIFICATION
     assert parse("verify the requirements").kind is Kind.VERIFY
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("the peak pitch angle over the hump shall be below 1.5 deg",
+         {"test_id": "half_car", "metric": "peak_pitch_angle", "scenario_id": "hump_75",
+          "comparator": "<=", "limit": 1.5}),
+        ("require pitch acceleration under 40 deg/s2 over the pothole",
+         {"test_id": "half_car", "metric": "peak_pitch_acceleration",
+          "scenario_id": "pothole_50", "limit": 40.0}),
+        ("require the rms heave acceleration over the step below 1.2 m/s^2",
+         {"test_id": "half_car", "metric": "rms_heave_acceleration", "scenario_id": "step_25",
+          "limit": 1.2}),
+        ("require the peak body acceleration over the hump below 3 m/s^2",
+         {"test_id": "quarter_car", "metric": "peak_body_acceleration", "limit": 3.0}),
+        ("the ground clearance shall be at least 180 mm",
+         {"kind": "design", "quantity": "ground_clearance", "comparator": ">=", "limit": 180.0}),
+    ],
+)  # fmt: skip
+def test_pitch_and_shall_requirements(text: str, expected: dict) -> None:
+    out = parse(text)
+    assert out.kind is Kind.REQUIREMENT, out.question
+    assert expected.items() <= out.requirement.items()

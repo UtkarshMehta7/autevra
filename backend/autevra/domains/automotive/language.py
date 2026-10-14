@@ -109,6 +109,15 @@ _LONGITUDINAL_METRICS = {  # requirement phrase -> longitudinal metric
     "stopping distance": "stopping_distance",
     "braking distance": "stopping_distance",
 }
+_HALF_CAR_METRICS = {  # requirement phrase -> half-car metric
+    "peak pitch angle": "peak_pitch_angle",
+    "pitch angle": "peak_pitch_angle",
+    "pitch": "peak_pitch_angle",
+    "rms pitch acceleration": "rms_pitch_acceleration",
+    "pitch acceleration": "peak_pitch_acceleration",
+    "rms heave acceleration": "rms_heave_acceleration",
+    "heave acceleration": "peak_heave_acceleration",
+}
 _METRICS = {  # requirement phrase -> quarter-car metric
     "peak body acceleration": "peak_body_acceleration",
     "rms body acceleration": "rms_body_acceleration",
@@ -143,6 +152,20 @@ def requirement_metric(text: str, value: float):  # type: ignore[no-untyped-def]
             "kind": "performance",
             "test_id": "longitudinal",
             "metric": metric,
+            "target": "vehicle",
+            "scenario_id": request.scenario_id or "*",
+        }
+    half = next(
+        (ph for ph in sorted(_HALF_CAR_METRICS, key=len, reverse=True)
+         if re.search(rf"\b{re.escape(ph)}\b", text)),
+        None,
+    )  # fmt: skip
+    if half is not None:
+        request = test_request(text.replace(half, " "))
+        return {
+            "kind": "performance",
+            "test_id": "half_car",
+            "metric": _HALF_CAR_METRICS[half],
             "target": "vehicle",
             "scenario_id": request.scenario_id or "*",
         }
