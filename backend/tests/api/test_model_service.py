@@ -21,17 +21,11 @@ def test_four_wheels_share_one_geometry() -> None:
     # body, frame, one axle shape (equal tracks), one wheel shape, and one damper per axle
     # (front and rear spring rates differ, so their coils differ)
     assert sorted(cache.stats.builds) == [
-        "axle",
-        "body",
-        "damper",
-        "damper",
-        "frame",
-        "glass",
-        "wheel",
-    ]
+        "axle", "body", "damper", "damper", "frame", "glass", "head_lamps", "tail_lamps", "wheel"
+    ]  # fmt: skip
     payload = mesh_payload(model, cache)
-    assert len(payload["geometries"]) == 7
-    assert len(payload["parts"]) == 13
+    assert len(payload["geometries"]) == 9
+    assert len(payload["parts"]) == 15
 
 
 def test_wheelbase_change_rebuilds_only_body_and_frame() -> None:
@@ -40,7 +34,7 @@ def test_wheelbase_change_rebuilds_only_body_and_frame() -> None:
     build_model(p, cache)
     cache.reset_stats()
     build_model(p | {"wheelbase": 2800}, cache)
-    assert sorted(cache.stats.builds) == ["body", "frame", "glass"]
+    assert sorted(cache.stats.builds) == ["body", "frame", "glass", "head_lamps", "tail_lamps"]
 
 
 def test_unchanged_design_rebuilds_nothing() -> None:

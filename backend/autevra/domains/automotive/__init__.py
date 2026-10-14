@@ -36,6 +36,8 @@ PLUGIN = extensions.Plugin(
     builders={
         "body": builders.build_body,
         "glass": builders.build_glass,
+        "head_lamps": builders.build_head_lamps,
+        "tail_lamps": builders.build_tail_lamps,
         "frame": builders.build_frame,
         "axle": builders.build_axle,
         "wheel": builders.build_wheel,
