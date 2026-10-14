@@ -213,3 +213,28 @@ tr.selected-row td { background: #2b4366; }
   z-index: 20; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
   box-shadow: 0 10px 30px #0008; }
 .command-popover .popover-actions { display: flex; justify-content: flex-end; gap: 4px; }
+
+/* Part Design */
+.part-design .part-list button { width: 100%; text-align: left; }
+.part-design .part-list button.active { background: var(--accent-soft, #24364f); }
+.part-design .new-part select, .part-design label select { margin-left: 6px; }
+.part-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.part-head .part-name { font-weight: 600; min-width: 160px; }
+.placement { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 8px; }
+.placement label { display: flex; gap: 3px; align-items: center; color: var(--muted); font-size: 12px; }
+.num { width: 72px; padding: 2px 4px; text-align: right; }
+.feature-tree { margin: 6px 0; padding-left: 22px; }
+.feature-tree li { margin: 3px 0; }
+.feature-tree .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.feature-tree .row .name { flex: 1; min-width: 160px; text-align: left; }
+.feature-tree .row .name em { color: var(--muted); font-style: normal; margin-left: 4px; }
+.feature-tree li.suppressed .name { opacity: 0.5; text-decoration: line-through; }
+.feature-tree li.failed .name { border-color: var(--bad); }
+.feature-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 12px;
+  padding: 6px 0 8px 8px; border-left: 2px solid var(--line); margin: 4px 0 6px; }
+.feature-fields label { display: flex; gap: 6px; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.feature-fields label.wide { grid-column: 1 / -1; flex-direction: column; align-items: stretch; }
+.feature-fields .tuple { display: flex; gap: 4px; }
+.feature-fields > .hint, .feature-fields > .placement { grid-column: 1 / -1; }
+textarea.json { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; }
+textarea.json.bad { border-color: var(--bad); }

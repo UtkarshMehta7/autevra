@@ -28,6 +28,7 @@ workspace / routed studio, the shared engineering core with the automotive domai
 a hosted demo (Netlify, Render, Neon) with per-browser workspaces, seven body styles with
 eight vehicle templates, and the half-car (bounce and pitch) ride test.
 
+- **Part Design.** User-authored parts from a feature tree (extruded sketches, revolves, lofts, sweeps, shells, fillets, mirrors and patterns), placed with the vehicle and exported to STEP, with starting points from aerospace, consumer products, plant and machinery.
 - **Parametric vehicle.** Body with wheel wells and cabin, hollow ladder frame, beam axles, wheels and four coil-over dampers, in real CadQuery/Open CASCADE geometry. It is edited through typed, validated commands from the property editor, the API or plain English, with undo/redo, persistence and STEP export.
 - **Local language model (optional).** A local model proposes changes the deterministic parser cannot resolve, and every proposal needs confirmation.
 - **Engineering workflow.** One complete loop on the suspension:

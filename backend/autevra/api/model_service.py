@@ -1,5 +1,6 @@
 """Builds the vehicle model from a parameter set: assembly placement + cached CAD."""
 
+import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +10,8 @@ from autevra.assembly import transforms as tf
 from autevra.assembly.model import COMPONENTS
 from autevra.cad import kernel
 from autevra.cad.cache import GeometryCache
+from autevra.part import build as part_build
+from autevra.part.features import PartDoc
 
 
 @dataclass(frozen=True)
@@ -44,6 +47,55 @@ def build_model(values: Mapping[str, float], cache: GeometryCache) -> VehicleMod
             matrix=tf.to_list(world[c.id]), color=color, finish=finish,
         ))  # fmt: skip
     return VehicleModel(parts=parts, shapes=shapes)
+
+
+def part_key(doc: PartDoc) -> str:
+    """Geometry key of a Part Design part: a hash of its features (appearance and
+    placement excluded, so moving or repainting a part does not rebuild it)."""
+    import hashlib
+
+    text = json.dumps([f.model_dump(mode="json") for f in doc.features], sort_keys=True)
+    return "part:" + hashlib.sha256(text.encode()).hexdigest()[:20]
+
+
+_REPORTS: dict[str, part_build.BuildResult] = {}  # build reports by geometry key
+_REPORT_LIMIT = 256
+
+
+def build_part(doc: PartDoc, cache: GeometryCache) -> tuple[str, part_build.BuildResult]:
+    """The part's shape (cached by its feature hash) and its build report."""
+    key = part_key(doc)
+
+    def run() -> kernel.Shape | None:
+        report = part_build.build_part(doc)
+        _REPORTS[key] = report
+        while len(_REPORTS) > _REPORT_LIMIT:
+            _REPORTS.pop(next(iter(_REPORTS)))
+        return report.shape
+
+    shape = cache.custom(key, run)
+    report = _REPORTS.get(key)
+    if report is None or report.shape is not shape:  # evicted: build the report again
+        report = part_build.build_part(doc)
+        _REPORTS[key] = report
+    return key, report
+
+
+def add_parts(model: VehicleModel, parts: Iterable[tuple[str, PartDoc]],
+              cache: GeometryCache) -> VehicleModel:  # fmt: skip
+    """The model with the project's Part Design parts placed in it."""
+    placed, shapes = list(model.parts), dict(model.shapes)
+    for part_id, doc in parts:
+        key, result = build_part(doc, cache)
+        if result.shape is None:
+            continue  # nothing built yet (empty tree or the first feature fails)
+        shapes[key] = result.shape
+        placed.append(PlacedPart(
+            id=f"part_{part_id}", name=doc.name, category="custom", geometry=key,
+            matrix=tf.to_list(part_build.placement_matrix(doc.at)), color=doc.color,
+            finish=doc.finish,
+        ))  # fmt: skip
+    return VehicleModel(parts=placed, shapes=shapes)
 
 
 def mesh_payload(model: VehicleModel, cache: GeometryCache, skip: Iterable[str] = ()) -> dict:

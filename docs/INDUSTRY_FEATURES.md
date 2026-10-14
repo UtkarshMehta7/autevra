@@ -17,7 +17,7 @@ Status: **have** (implemented and tested), **partial** (a working subset), **pla
 | Capability (typical in the category) | Autevra | Notes |
 |---|---|---|
 | Parametric solid modelling (features, history, parameters) | **have** | Parameters drive B-rep builders (CadQuery / Open CASCADE); typed commands with undo and redo |
-| Sketch-based features (pads, pockets, revolves, fillets) authored by the user | planned | Builders are authored in code; no interactive sketcher |
+| Sketch-based features (pads, pockets, revolves, fillets) authored by the user | partial | Part Design feature tree: extrude, revolve, loft, sweep, shell, fillet, mirror, patterns, add/cut/intersect; sketches are point lists, no interactive sketcher |
 | Surface design: lofts, sweeps, fills, continuity control | partial | Smooth lofts for the glasshouse; no user-driven surfaces or G2 control |
 | Class-A styling surfaces (highlight lines, zebra and curvature analysis) | partial | Zebra highlight-line display; no curvature combs or continuity checks yet |
 | Knowledge-based engineering (rules, formulas, checks bound to the model) | **have** | Design rules, derived values, packaging checks with stated limits |
@@ -134,7 +134,7 @@ feature-by-feature account of any product.
 |---|---|---|
 | One general shape engine for every domain | Plan-law sections lofted and trimmed by a profile; the automotive body is the first user. Measured: smooth multi-section B-spline lofts are too slow on the hosted tier, so they wait for the Part Design workbench | partial |
 | Shape controls instead of fixed designs | Haunch, nose and tail width, sill tuck, roundness and tumblehome as parameters on every body style | **have** |
-| A general feature modeller | Part Design workbench: user-authored feature tree (sketch, pad, pocket, revolve, sweep, loft, shell, fillet, pattern) on OCCT, saved as typed commands with undo | planned |
+| A general feature modeller | Part Design workbench: user-authored feature tree (extrude, revolve, loft, sweep, shell, fillet, mirror, patterns) on OCCT, with per-part undo | **have** (v1) |
 | Reusable templates with published inputs | Feature templates (Autevra's form of power copies) instantiated with new inputs | planned |
 | Design tables | Variant tables that drive parameters, exportable as CSV | planned |
 | Surface quality analysis | Zebra (highlight-line) display mode; curvature next | partial |

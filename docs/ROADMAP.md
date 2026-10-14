@@ -136,6 +136,30 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-15: Part Design workbench
+
+- **User-authored parts** from an ordered feature tree, domain-neutral (`backend/autevra/part/`).
+  - Solids: box, cylinder, sphere, extruded sketch (a polygon in XY, XZ or YZ, optionally symmetric), revolved profile, loft through rounded-rectangle sections (smooth or ruled), and a swept bar or tube along a path with rounded bends.
+  - Each solid adds, cuts or intersects, with its own placement.
+  - Modifiers: shell (open on a chosen side), fillet all edges, mirror.
+  - Linear and circular patterns repeat the solid feature before them, adding or cutting like it.
+  - Features can be suppressed.
+  - A failing feature is named with the kernel's reason, and the work before it is kept.
+- Parts are stored per project with per-part undo and redo (migration `b6c7d8e9f0a1`).
+  - They are placed in the vehicle frame, shown in the 3D view under "Part Design" and included in the STEP export.
+  - Moving or repainting a part does not rebuild it (the geometry key hashes the features only).
+- API: `GET /api/part-features` (types and JSON schema), and `/api/projects/{id}/parts` CRUD with `undo` and `redo`.
+- Studio: a **Part Design** workspace with:
+  - a parts list and starting points from several domains (bracket, bottle, pipe run, fuselage, turbine disc, conveyor frame);
+  - a feature tree with operation, suppress, reorder and delete;
+  - a field editor per feature, and part placement and colour.
+- Checked in Chrome: a 36-blade turbine disc created from its starting point and moved above a supercar (moved in 31 ms without a rebuild).
+
+**Known limitations**
+- There is no interactive sketcher: sketches are point lists.
+- Fillet rounds every edge; no edge selection yet.
+- There are no constraints between features, and no parameters or formulas inside parts yet.
+
 ### 2026-10-15: sculpted bodies, shape controls and five new body types
 
 - **Sculpted lower body** for every style (`sculpt.py`):

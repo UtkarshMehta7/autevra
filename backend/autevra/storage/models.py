@@ -115,3 +115,21 @@ class ContactMessageRow(Base):
     email: Mapped[str] = mapped_column(String(320))
     topic: Mapped[str] = mapped_column(String(64))
     message: Mapped[str] = mapped_column(Text)
+
+
+class PartRow(Base):
+    """A user-authored Part Design part: its feature document, with undo and redo stacks
+    of earlier documents (JSON lists, newest last)."""
+
+    __tablename__ = "parts"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
+    document_json: Mapped[str] = mapped_column(Text)
+    undo_json: Mapped[str] = mapped_column(Text, default="[]")
+    redo_json: Mapped[str] = mapped_column(Text, default="[]")
