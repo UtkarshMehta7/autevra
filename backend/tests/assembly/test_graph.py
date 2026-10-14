@@ -40,30 +40,31 @@ def test_wheelbase_moves_only_the_rear_axle_group() -> None:
         assert after[cid][:3, 3] - before[cid][:3, 3] == pytest.approx([-100, 0, 0])
 
 
+EQUIPMENT = {
+    "engine", "gearbox", "fuel_tank", "exhaust", "radiator", "traction_battery", "front_motor",
+    "rear_motor", "inverters", "charger", "charge_port", "hv_cables", "battery_12v", "ecus",
+    "harness",
+}  # fmt: skip
+INTERIOR = {"seats", "dashboard", "display", "steering_wheel", "console"}
+
+
 def test_impact_of_wheelbase() -> None:
     impact = graph.impact(["wheelbase"])
-    assert impact.rebuild == {
-        "body",
-        "frame",
-        "glass",
-        "head_lamps",
-        "tail_lamps",
-        "seats",
-        "dashboard",
-        "display",
-        "steering_wheel",
-        "console",
-    }
-    assert impact.move == {"rear_axle", "wheel_rl", "wheel_rr", "damper_rl", "damper_rr"}
+    assert (
+        impact.rebuild
+        == {"body", "frame", "glass", "head_lamps", "tail_lamps"} | INTERIOR | EQUIPMENT
+    )
+    assert impact.move == {"damper_rl", "damper_rr", "rear_axle", "wheel_rl", "wheel_rr"}
+    assert not {"wheel_fl", "front_axle"} & (impact.rebuild | impact.move)  # the front stays
 
 
 def test_impact_of_rim_rebuilds_wheels_and_body_and_moves_axles() -> None:
     impact = graph.impact(["rim_diameter"])
     wheels = {"wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr"}
     dampers = {"damper_fl", "damper_fr", "damper_rl", "damper_rr"}
-    assert (
-        impact.rebuild == {"body", "head_lamps", "tail_lamps"} | wheels | dampers
-    )  # dampers: length between mounts
+    # dampers: length between mounts; equipment: placed from the wheel-centre height
+    assert impact.rebuild == {"body", "head_lamps", "tail_lamps"} | wheels | dampers | EQUIPMENT
+    assert not INTERIOR & impact.rebuild  # the cabin does not follow the wheels
     assert {"front_axle", "rear_axle"} <= impact.move
 
 
@@ -75,7 +76,9 @@ def test_impact_of_front_track() -> None:
 
 def test_frame_spacing_rebuilds_the_frame_and_moves_the_dampers() -> None:
     impact = graph.impact(["rail_spacing"])
-    assert impact.rebuild == {"frame"}
+    # Conservative: on a ladder frame the floor battery sits between the rails, so the floor
+    # height (and every body-mounted part) is declared to depend on the rail spacing.
+    assert "frame" in impact.rebuild and not {"wheel_fl", "front_axle"} & impact.rebuild
     assert impact.move == {"damper_fl", "damper_fr", "damper_rl", "damper_rr"}
 
 
@@ -84,7 +87,7 @@ def test_frame_spacing_rebuilds_the_frame_and_moves_the_dampers() -> None:
 # later steering sweep.
 NO_GEOMETRY = {
     "max_steer_angle", "vehicle_mass", "front_mass_distribution", "tyre_vertical_stiffness",
-    "peak_power", "front_drive_share", "drivetrain_efficiency", "drag_coefficient",
+    "peak_power", "drivetrain_efficiency", "drag_coefficient",
     "rolling_resistance", "cg_height", "pitch_dynamic_index", "paint_colour", "paint_finish",
     "interior_colour",
     *(f"{a}_{n}" for a in ("front", "rear")

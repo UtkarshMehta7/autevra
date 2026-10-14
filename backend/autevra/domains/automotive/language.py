@@ -479,6 +479,22 @@ LANGUAGE = Language(
     unmodelled_limits=_UNMODELLED_LIMITS,
     spec_trigger=SPEC_TRIGGER,
     option_aliases={
+        "chassis_type": {
+            "Ladder frame": ("ladder", "body on frame", "body-on-frame", "separate chassis"),
+            "Unibody": ("monocoque", "unit body", "integrated body"),
+            "Skateboard": ("skateboard platform", "ev platform", "flat floor platform"),
+        },
+        "powertrain_type": {
+            "Combustion": ("petrol", "gasoline", "diesel", "ice", "combustion engine"),
+            "Hybrid": ("hybrid", "phev", "plug-in hybrid", "full hybrid"),
+            "Battery electric": ("electric", "ev", "bev", "fully electric", "electric car"),
+        },
+        "engine_cylinders": {
+            "3-cylinder": ("three cylinder", "3 cylinder", "triple"),
+            "4-cylinder": ("four cylinder", "4 cylinder", "inline four", "i4"),
+            "V6": ("v6", "six cylinder"),
+            "V8": ("v8", "eight cylinder"),
+        },
         "interior_trim": {
             "Standard": ("basic", "base", "entry"),
             "Comfort": ("mid", "comfort pack"),

@@ -59,9 +59,91 @@ def overall_width_at_tyres(p: Values) -> float:
     return max(p["track_front"], p["track_rear"]) + p["tyre_width"]
 
 
+# Pack-level battery figures (typical of current lithium-ion packs; assumptions, not data
+# for any product): energy per volume and per mass.
+PACK_KWH_PER_L = 0.25
+PACK_KWH_PER_KG = 0.16
+UNIBODY_FLOOR = 50.0  # floor structure above the ground-clearance line, mm
+PACK_CLEARANCE = 20.0  # gap above the ground-clearance line and below the floor, mm
+
+# Parameters the floor height (and so every body-mounted part) depends on.
+CHASSIS_INPUTS = (
+    "chassis_type", "powertrain_type", "battery_capacity", "rail_height", "ground_clearance",
+    "wheelbase", "body_width", "rail_spacing", "rail_width",
+)  # fmt: skip
+
+
+def chassis(p: Values) -> str:
+    return ("ladder", "unibody", "skateboard")[min(max(int(round(p["chassis_type"])), 0), 2)]
+
+
+def powertrain(p: Values) -> str:
+    return ("combustion", "hybrid", "electric")[min(max(int(round(p["powertrain_type"])), 0), 2)]
+
+
+def pack_footprint(p: Values) -> tuple[tuple[float, float], tuple[float, float]]:
+    """(x, y) extents of the traction battery between the axles, mm: between the rails on a
+    ladder frame, nearly body-wide on a unibody or skateboard."""
+    x = (-p["wheelbase"] + 450.0, -400.0)
+    if chassis(p) == "ladder":
+        half = p["rail_spacing"] / 2.0 - p["rail_width"] / 2.0 - 20.0
+    else:
+        half = p["body_width"] / 2.0 - 180.0
+    return x, (-half, half)
+
+
+def floor_pack_height(p: Values) -> float:
+    """Height of a flat floor pack of this energy over the pack footprint, mm."""
+    (x0, x1), (y0, y1) = pack_footprint(p)
+    volume = p["battery_capacity"] / PACK_KWH_PER_L * 1e6  # mm³
+    return min(max(volume / ((x1 - x0) * (y1 - y0)), 90.0), 320.0)
+
+
+HYBRID_PACK_LENGTH = 650.0  # compact pack under the rear seat, mm
+
+
+def pack_height(p: Values) -> float:
+    """Traction battery height, mm: a flat floor pack (battery electric) or a compact pack
+    under the rear seat (hybrid); 0 for combustion."""
+    kind = powertrain(p)
+    if kind == "combustion":
+        return 0.0
+    if kind == "electric":
+        return floor_pack_height(p)
+    _, (y0, y1) = pack_footprint(p)
+    volume = p["battery_capacity"] / PACK_KWH_PER_L * 1e6
+    return min(max(volume / (HYBRID_PACK_LENGTH * 0.6 * (y1 - y0)), 90.0), 320.0)
+
+
 def body_floor_height(p: Values) -> float:
-    """The ladder frame sits on the ground-clearance line; the body sits on the frame."""
-    return p["ground_clearance"] + p["rail_height"]
+    """Floor of the body: on top of the rails (ladder frame), on a low integrated floor
+    structure (unibody) or on top of the battery (skateboard)."""
+    kind = chassis(p)
+    if kind == "ladder":
+        return p["ground_clearance"] + p["rail_height"]
+    if kind == "unibody":
+        return p["ground_clearance"] + UNIBODY_FLOOR
+    # The platform is sized for a floor pack even when a smaller pack is fitted.
+    return p["ground_clearance"] + 2 * PACK_CLEARANCE + max(floor_pack_height(p), 110.0)
+
+
+def battery_mass(p: Values) -> float:
+    """Traction battery mass at the assumed pack energy density, kg (0 for combustion)."""
+    return 0.0 if powertrain(p) == "combustion" else p["battery_capacity"] / PACK_KWH_PER_KG
+
+
+def electric_range(p: Values) -> float:
+    """Rough steady 100 km/h range on battery energy, km: aerodynamic drag plus rolling
+    resistance at constant speed, 90 % usable energy, 85 % drive efficiency. An estimate
+    with stated assumptions, not a test-cycle figure; 0 for combustion."""
+    if powertrain(p) == "combustion":
+        return 0.0
+    v = 100 / 3.6
+    drag = 0.5 * 1.204 * p["drag_coefficient"] * frontal_area(p) * v**3
+    rolling = p["rolling_resistance"] * p["vehicle_mass"] * 9.80665 * v
+    power_w = (drag + rolling) / 0.85
+    hours = p["battery_capacity"] * 0.9 * 1000 / power_w
+    return hours * 100.0
 
 
 def body_x_range(p: Values) -> tuple[float, float]:
@@ -317,6 +399,23 @@ DEFINITIONS: dict[str, tuple[DerivedDef, Callable[[Values], float]]] = {
             aliases=("frontal area", "frontal area of the car"),
         ),
         frontal_area,
+    ),
+    "battery_mass": (
+        DerivedDef(
+            id="battery_mass", label="Traction battery mass", unit="kg",
+            controlled_by=("battery_capacity", "powertrain_type"),
+            aliases=("battery mass", "battery weight", "pack mass", "pack weight"),
+        ),
+        battery_mass,
+    ),
+    "electric_range": (
+        DerivedDef(
+            id="electric_range", label="Estimated range at 100 km/h", unit="km",
+            controlled_by=("battery_capacity", "drag_coefficient", "vehicle_mass",
+                           "rolling_resistance", "body_width", "overall_height"),
+            aliases=("range", "electric range", "driving range", "ev range"),
+        ),
+        electric_range,
     ),
     "front_headroom": (
         DerivedDef(

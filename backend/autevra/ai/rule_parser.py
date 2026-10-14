@@ -512,7 +512,8 @@ def _parse_query(text: str) -> Interpretation:
 
 
 _CHOICE_VERB = (
-    r"(?:make it|make this|make the (?:car|vehicle|body|design|interior|cabin|seats?|upholstery)|"
+    r"(?:make it|make this|give it|fit it with|fit|"
+    r"make the (?:car|vehicle|body|design|interior|cabin|seats?|upholstery)|"
     r"turn it into|turn this into|"
     r"convert it (?:in)?to|convert to|change it (?:in)?to|switch (?:it )?to|"
     r"paint it|paint the (?:car|vehicle|body)|respray it(?: in)?|colou?r it|"

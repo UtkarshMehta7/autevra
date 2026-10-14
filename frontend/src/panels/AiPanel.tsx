@@ -17,7 +17,7 @@ interface Props {
   onDecide: (turn: number, confirm: boolean) => void;
 }
 
-const EXAMPLES = [
+export const EXAMPLES = [
   "I want an electric SUV with 220 kW, 7 seats and AWD",
   "increase the wheelbase by 100 mm",
   "increase the rear shock absorber damping by 10% and test its response",
@@ -29,34 +29,13 @@ const EXAMPLES = [
   "how long is the car?",
 ];
 
-export function AiPanel({ turns, busy, llm, onSend, onDecide }: Props) {
-  const [text, setText] = useState("");
-  const log = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    // Block body: in current browsers scrollTo returns a Promise, which must not reach React.
-    log.current?.scrollTo(0, log.current.scrollHeight);
-  }, [turns]);
-
-  const send = (value: string) => {
-    if (!value.trim()) return;
-    onSend(value.trim());
-    setText("");
-  };
-
+/** One instruction and its reply (shared by the panel and the command bar). */
+export function TurnView({ t, i, onDecide, send }: {
+  t: ChatTurn; i: number; onDecide: (turn: number, confirm: boolean) => void;
+  send: (value: string) => void;
+}) {
   return (
-    <section className="panel ai">
-      <h2>Instructions <small title={llm?.detail || llm?.url}>{llmLabel(llm)}</small></h2>
-      <div className="chat" ref={log}>
-        {turns.length === 0 && (
-          <div className="hint">
-            Try:{" "}
-            {EXAMPLES.map((e) => (
-              <button key={e} className="chip" onClick={() => send(e)}>{e}</button>
-            ))}
-          </div>
-        )}
-        {turns.map((t, i) => (
-          <div key={i} className="turn">
+          <div className="turn">
             <div className="you">{t.text}</div>
             <div className={`reply ${t.reply.kind}`}>
               {"interpreted_by" in t.reply && t.reply.interpreted_by === "llm" && (
@@ -96,7 +75,36 @@ export function AiPanel({ turns, busy, llm, onSend, onDecide }: Props) {
               )}
             </div>
           </div>
-        ))}
+  );
+}
+
+export function AiPanel({ turns, busy, llm, onSend, onDecide }: Props) {
+  const [text, setText] = useState("");
+  const log = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Block body: in current browsers scrollTo returns a Promise, which must not reach React.
+    log.current?.scrollTo(0, log.current.scrollHeight);
+  }, [turns]);
+
+  const send = (value: string) => {
+    if (!value.trim()) return;
+    onSend(value.trim());
+    setText("");
+  };
+
+  return (
+    <section className="panel ai">
+      <h2>Instructions <small title={llm?.detail || llm?.url}>{llmLabel(llm)}</small></h2>
+      <div className="chat" ref={log}>
+        {turns.length === 0 && (
+          <div className="hint">
+            Try:{" "}
+            {EXAMPLES.map((e) => (
+              <button key={e} className="chip" onClick={() => send(e)}>{e}</button>
+            ))}
+          </div>
+        )}
+        {turns.map((t, i) => <TurnView key={i} t={t} i={i} onDecide={onDecide} send={send} />)}
       </div>
       <form onSubmit={(e) => { e.preventDefault(); send(text); }}>
         <input

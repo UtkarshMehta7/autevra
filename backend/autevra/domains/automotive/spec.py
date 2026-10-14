@@ -322,6 +322,7 @@ class Check(BaseModel):
 # by the design rules in tests; they are not data for any real vehicle.
 TEMPLATES: dict[str, dict[str, float]] = {
     "city_car": {
+        "chassis_type": 1,
         "seat_rows": 2,
         "interior_trim": 0,
         "interior_colour": 1,
@@ -350,6 +351,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 61,
     },
     "hatchback": {
+        "chassis_type": 1,
         "seat_rows": 2,
         "interior_trim": 1,
         "interior_colour": 0,
@@ -378,6 +380,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 60,
     },
     "sedan": {
+        "chassis_type": 1,
         "seat_rows": 2,
         "interior_trim": 2,
         "interior_colour": 3,
@@ -406,6 +409,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "suv": {
+        "chassis_type": 1,
         "seat_rows": 2,
         "interior_trim": 1,
         "interior_colour": 0,
@@ -434,6 +438,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "pickup": {
+        "chassis_type": 0,
         "seat_rows": 2,
         "interior_trim": 1,
         "interior_colour": 0,
@@ -462,6 +467,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "sports_car": {
+        "chassis_type": 1,
         "seat_rows": 1,
         "interior_trim": 2,
         "interior_colour": 5,
@@ -490,6 +496,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 50,
     },
     "van": {
+        "chassis_type": 1,
         "seat_rows": 3,
         "interior_trim": 0,
         "interior_colour": 1,
@@ -518,6 +525,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "box_truck": {
+        "chassis_type": 0,
         "seat_rows": 1,
         "interior_trim": 0,
         "interior_colour": 0,
@@ -826,6 +834,15 @@ def generate(spec: VehicleSpec) -> Generated:
         if isinstance(_value(spec, "target_mass"), float)
         else f"{CLASS_LABELS[cls]} typical (default)"
     )
+    pt_answer = str(spec.get("powertrain") or "petrol")
+    if pt_answer in ("electric", "hybrid"):
+        values["powertrain_type"] = 2.0 if pt_answer == "electric" else 1.0
+        sources["powertrain_type"] = "specification"
+        if pt_answer == "electric" and values.get("chassis_type", 0) != 0:
+            values["chassis_type"] = 2.0  # skateboard: the battery in the floor
+            sources["chassis_type"] = "battery electric: skateboard platform (default)"
+        values["battery_capacity"] = 75.0 if pt_answer == "electric" else 14.0
+        sources["battery_capacity"] = "typical for the powertrain (default)"
     layout = {("electric", "fwd"): 54, ("electric", "rwd"): 48, ("electric", "awd"): 50}
     pt, drive = str(spec.get("powertrain") or "petrol"), str(spec.get("drivetrain") or "fwd")
     if (pt, drive) in layout:

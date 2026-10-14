@@ -48,6 +48,7 @@ def _violated(changes: dict[str, float]) -> set[str]:
         ({"rail_spacing": 1300}, "frame_clears_tyres"),
         ({"cg_height": 1000}, "cg_within_body"),
         ({"seat_rows": 3}, "seat_rows_fit"),
+        ({"powertrain_type": 2, "battery_capacity": 90}, "battery_under_floor"),
         ({"front_shock_mount_height": 1000, "beltline_height": 1300, "overall_height": 1800},
          "front_damper_fits_mounts"),
         ({"rear_shock_mount_height": 560}, "rear_damper_fits_mounts"),
@@ -75,6 +76,7 @@ def test_every_rule_has_a_violation_test() -> None:
     tested = {
         "tyres_within_body",
         "seat_rows_fit",
+        "battery_under_floor",
         "arch_below_beltline",
         "front_overhang_contains_arch",
         "rear_overhang_contains_arch",

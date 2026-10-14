@@ -13,8 +13,9 @@ from dataclasses import dataclass, field
 
 from autevra.cad import kernel
 
-# Builder name -> function(inputs) -> shape. Filled by domain modules and plugins.
-BUILDERS: dict[str, Callable[[Mapping[str, float]], kernel.Shape]] = {}
+# Builder name -> function(inputs) -> shape, or None when the part is not fitted for these
+# inputs (equipment that depends on the configuration). Filled by domain modules and plugins.
+BUILDERS: dict[str, Callable[[Mapping[str, float]], kernel.Shape | None]] = {}
 DEFAULT_ANGULAR = 0.3  # display mesh angular deflection, rad
 
 
@@ -40,13 +41,13 @@ class CacheStats:
 
 class GeometryCache:
     def __init__(self, max_entries: int = 64) -> None:
-        self._shapes: OrderedDict[str, kernel.Shape] = OrderedDict()
+        self._shapes: OrderedDict[str, kernel.Shape | None] = OrderedDict()
         self._meshes: dict[str, kernel.Mesh] = {}
         self._builder_of: dict[str, str] = {}
         self.max_entries = max_entries
         self.stats = CacheStats()
 
-    def shape(self, builder: str, inputs: Mapping[str, float]) -> tuple[str, kernel.Shape]:
+    def shape(self, builder: str, inputs: Mapping[str, float]) -> tuple[str, kernel.Shape | None]:
         key = geometry_key(builder, inputs)
         if key in self._shapes:
             self._shapes.move_to_end(key)

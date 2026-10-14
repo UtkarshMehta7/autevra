@@ -347,3 +347,25 @@ def _seat_rows_fit(p: Values) -> str | None:
             f"{_mm(room)} long"
         )
     return None
+
+
+@_rule(
+    "battery_under_floor",
+    "A floor battery must fit between the ground-clearance line and the cabin floor.",
+    "battery_capacity",
+    "chassis_type",
+    "powertrain_type",
+    "rail_height",
+)
+def _battery_under_floor(p: Values) -> str | None:
+    if d.powertrain(p) != "electric" or d.chassis(p) == "skateboard":
+        return None  # the skateboard floor is sized for the pack; hybrids carry it under a seat
+    top = p["ground_clearance"] + d.PACK_CLEARANCE + d.pack_height(p)
+    floor = d.body_floor_height(p)
+    if top > floor:
+        return (
+            f"the {p['battery_capacity']:g} kWh pack is {_mm(d.pack_height(p))} high and would "
+            f"reach {_mm(top)}, above the {d.chassis(p)} floor at {_mm(floor)}: make it a "
+            "skateboard platform first, or use a smaller pack"
+        )
+    return None
