@@ -21,7 +21,7 @@ Inputs = Mapping[str, float]
 ROOF_TYPES = ("solid", "panoramic", "sunroof")
 ROOF_RAILS = ("none", "rails", "crossbars")
 SPOILERS = ("none", "roof", "boot_lip", "wing")
-BOOT_STYLES = ("sedan", "coupe")  # styles with a boot deck for a lip or a wing
+BOOT_STYLES = ("sedan", "coupe", "roadster", "supercar")  # a deck for a lip or a wing
 MIRRORS = ("conventional", "camera")
 MIRROR_REACH = {"conventional": 210.0, "camera": 130.0}  # beyond the body side, mm
 BALL_HEIGHT = 400.0  # typical tow ball centre height above the ground, mm (not a standard)
@@ -47,10 +47,10 @@ def roof_opening(p: Inputs, layout: b.BodyLayout) -> tuple[tuple[float, float], 
     """Box cut from the roof panel for a panoramic roof or a sunroof (the glazing below
     shows through), or None for a solid roof."""
     kind = roof_type(p)
-    if kind == "solid":
+    if kind == "solid" or layout.open:
         return None
     (r0, r1), top = layout.roof, layout.roof_z
-    roof_w = p["body_width"] / 2.0 - 150.0
+    roof_w = b.roof_half_width(p)
     x0, x1 = r0 + b.PILLAR + 40.0, r1 - b.PILLAR - 40.0
     half = roof_w - b.PILLAR - 30.0
     if kind == "sunroof":  # a smaller panel over the front seats
@@ -95,8 +95,10 @@ def build_roof_rails(p: Inputs) -> k.Shape | None:
     if kind == "none":
         return None
     layout = b.body_layout(p)
+    if layout.open:
+        return None  # no roof to carry them (a design rule reports it)
     (r0, r1), top = layout.roof, layout.roof_z
-    y_rail = p["body_width"] / 2.0 - 150.0 - 70.0
+    y_rail = b.roof_half_width(p) - 70.0
     x0, x1 = r0 + 80.0, r1 - 80.0
     if x1 - x0 < 300.0:
         return None  # roof too short for rails
@@ -131,7 +133,9 @@ def build_spoiler(p: Inputs) -> k.Shape | None:
     rear = -(p["wheelbase"] + p["rear_overhang"])
     (r0, r1), top = layout.roof, layout.roof_z
     if kind == "roof":
-        y = (-(half_w - 180.0), half_w - 180.0)
+        if layout.open:
+            return None  # no roof (a design rule reports it)
+        y = (-(b.roof_half_width(p) - 30.0), b.roof_half_width(p) - 30.0)
         if layout.cargo is not None:  # deflector from the cab roof up to the box top
             box_top = p["overall_height"]
             return k.prism_y([(r1 - 100.0, top - 5.0), (r0 + 30.0, top - 5.0),

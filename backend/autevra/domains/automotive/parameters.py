@@ -9,6 +9,7 @@ from autevra.core.units import Unit
 
 class Group(StrEnum):
     BODY = "body"
+    SHAPE = "shape"
     EXTERIOR = "exterior"
     INTERIOR = "interior"
     CHASSIS = "chassis"
@@ -126,11 +127,25 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=0,
         min=0,
-        max=6,
+        max=11,
         step=1,
-        options=("Sedan", "Hatchback", "SUV", "Coupe", "Pickup", "Van", "Box truck"),
-        description="Overall body form: three-box sedan, two-box hatchback or SUV, fastback "
-        "coupe, pickup with an open bed, one-box van, or box truck with a cargo box.",
+        options=(
+            "Sedan",
+            "Hatchback",
+            "SUV",
+            "Coupe",
+            "Pickup",
+            "Van",
+            "Box truck",
+            "Estate",
+            "Crossover",
+            "MPV",
+            "Roadster",
+            "Supercar",
+        ),  # fmt: skip
+        description="Overall body form: three-box sedan, two-box hatchback, estate, crossover "
+        "or SUV, fastback coupe, open roadster, mid-engine supercar, pickup with an open bed, "
+        "one-box MPV or van, or box truck with a cargo box.",
         aliases=("body style", "body type", "body shape", "body form", "style"),
     ),
     _p(
@@ -212,6 +227,80 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
             "rear lamp style",
             "tail lamp design",
         ),  # fmt: skip
+    ),
+    # --- Body shaping (any style can be pushed towards any other) ---
+    _p(
+        id="haunch",
+        label="Haunch",
+        group=Group.SHAPE,
+        unit=Unit.MM,
+        default=30,
+        min=0,
+        max=80,
+        step=5,
+        description="How far the waist between the wheel arches is pulled in from the full "
+        "width over the arches.",
+        aliases=("haunch", "haunches", "hip", "waist pinch"),
+    ),
+    _p(
+        id="nose_taper",
+        label="Nose width",
+        group=Group.SHAPE,
+        unit=Unit.PERCENT,
+        default=72,
+        min=45,
+        max=100,
+        step=1,
+        description="Width of the nose as a share of the body width (plan view).",
+        aliases=("nose width", "nose taper", "front taper"),
+    ),
+    _p(
+        id="tail_taper",
+        label="Tail width",
+        group=Group.SHAPE,
+        unit=Unit.PERCENT,
+        default=82,
+        min=45,
+        max=100,
+        step=1,
+        description="Width of the tail as a share of the body width (plan view).",
+        aliases=("tail width", "tail taper", "rear taper"),
+    ),
+    _p(
+        id="sill_tuck",
+        label="Sill tuck",
+        group=Group.SHAPE,
+        unit=Unit.MM,
+        default=60,
+        min=0,
+        max=150,
+        step=5,
+        description="How far the sill is tucked in under the body side.",
+        aliases=("sill tuck", "sill", "rocker tuck"),
+    ),
+    _p(
+        id="body_roundness",
+        label="Body roundness",
+        group=Group.SHAPE,
+        unit=Unit.PERCENT,
+        default=45,
+        min=0,
+        max=100,
+        step=5,
+        description="How soft the body section is, from crisp and slab-sided (0) to round (100).",
+        aliases=("body roundness", "roundness", "softness"),
+    ),
+    _p(
+        id="tumblehome",
+        label="Tumblehome",
+        group=Group.SHAPE,
+        unit=Unit.MM,
+        default=110,
+        min=30,
+        max=250,
+        step=5,
+        description="How far the roof is drawn in from the beltline on each side.",
+        aliases=("tumblehome", "roof inset", "glasshouse taper"),
     ),
     # --- Exterior options ---
     _p(

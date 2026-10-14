@@ -136,6 +136,35 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-15: sculpted bodies, shape controls and five new body types
+
+- **Sculpted lower body** for every style (`sculpt.py`):
+  - The style's side profile is intersected with a ruled loft through dense plan outlines at the sill, shoulder, waist and beltline.
+  - The plan is boat-shaped: full width around each wheel arch, tapered into the nose and the tail, and pulled in at the waist between the haunches.
+  - The section tucks in at the sill and eases in towards the beltline, with crisp character lines between levels.
+  - The design extents are kept exactly; a body builds in about 1–2 s.
+  - Two richer variants were measured and rejected:
+    - a smooth B-spline loft through many sections (13–25 s per body, and invalid for some styles);
+    - spline plan curves (31 s to cut the wheel wells).
+- **Shape controls** as design parameters (new "Body shaping" group): haunch, nose width, tail width, sill tuck, body roundness and tumblehome. Any style can be pushed towards any other; the greenhouse and the cabin follow the haunch.
+- **Five new body types**, each with a template:
+  - estate (long roof, upright tailgate);
+  - crossover (raised, sloping roof);
+  - MPV (one-box with a longer bonnet than a van);
+  - roadster (open: only a windscreen surround and windscreen);
+  - supercar (mid-engine wedge: low nose, cab-forward canopy, long engine deck, wing).
+  - Thirteen templates in all.
+- New rule: roof rails, a roof spoiler or a glass roof need a fixed roof (not a roadster). Boot lips and wings now also fit roadsters and supercars.
+- **Viewer**:
+  - smooth shading across facets below 30 degrees, crisp at real edges;
+  - a **Zebra** display mode (highlight lines for surface continuity) that respects the section plane.
+- `docs/INDUSTRY_FEATURES.md`: research notes on where the flexibility of the established tools comes from, what Autevra takes from it, and a plan for domains beyond road vehicles (aerospace, consumer products, tooling, plant equipment).
+- Checked in Chrome: the sculpted coupe in shaded and zebra modes.
+
+**Known limitations**
+- The silhouette is still the style's polygonal side profile; the plan and sections are sculpted, but there are no freeform user-editable surfaces yet (planned: editable control sections, then a general Part Design workbench).
+- The supercar's engine is still packaged at the front by the powertrain builder; mid-engine packaging is not modelled.
+
 ### 2026-10-15: exterior options
 
 - **Roof**: solid, panoramic glass or a sunroof over the front seats, cut from the roof panel so the glazing below shows; body extents unchanged.

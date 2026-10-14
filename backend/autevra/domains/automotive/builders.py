@@ -58,7 +58,11 @@ def _hood_curve(
 
 
 # Body styles, in the order of the ``body_style`` parameter's options.
-BODY_STYLES = ("sedan", "hatchback", "suv", "coupe", "pickup", "van", "box_truck")
+BODY_STYLES = (
+    "sedan", "hatchback", "suv", "coupe", "pickup", "van", "box_truck",
+    "estate", "crossover", "mpv", "roadster", "supercar",
+)  # fmt: skip
+OPEN_STYLES = ("roadster",)  # no fixed roof: a windscreen surround only
 
 
 def body_style(p: Inputs) -> str:
@@ -78,6 +82,13 @@ class BodyLayout:
     roof_z: float
     bed: tuple[tuple[float, float], float] | None = None  # open bed: x extent, floor z
     cargo: tuple[float, float] | None = None  # closed cargo box x extent (floor to roof)
+    open: bool = False  # open top (roadster): the greenhouse is a windscreen surround only
+
+
+def roof_half_width(p: Inputs) -> float:
+    """Half width of the roof panel: in from the body side by the beltline tuck (40 mm plus
+    the haunch) and the tumblehome."""
+    return p["body_width"] / 2.0 - 40.0 - p.get("haunch", 30.0) - p.get("tumblehome", 110.0)
 
 
 MIN_GREENHOUSE = 600.0  # shortest greenhouse at the beltline, mm
@@ -128,12 +139,34 @@ def body_layout(p: Inputs) -> BodyLayout:
                    (rear, tail), (rear, tail_low)]  # fmt: skip
         return BodyLayout(style, profile, (deck, cowl), roof, top)
 
-    if style in ("hatchback", "suv"):
-        upright = style == "suv"
+    if style in ("hatchback", "suv", "estate", "crossover"):
+        # Two-box: the roof runs back to a tailgate; how far it slopes sets the type.
+        slope = {"hatchback": 0.45, "suv": 0.12, "estate": 0.1, "crossover": 0.32}[style]
+        bonnet = {"hatchback": 0.62, "suv": 0.8, "estate": 0.6, "crossover": 0.72}[style]
         back = rear + 60.0
-        roof = clamp_roof(back + (0.12 if upright else 0.45) * glass_h, cowl - rake)
-        profile = [*front_end, *hood(0.8 if upright else 0.62),
+        roof = clamp_roof(back + slope * glass_h, cowl - rake)
+        profile = [*front_end, *hood(bonnet),
                    (back, belt), (rear, belt - 60.0), (rear, tail_low)]  # fmt: skip
+        return BodyLayout(style, profile, (back, cowl), roof, top)
+
+    if style == "roadster":
+        # Open two-seater: long bonnet, a short cockpit and a deck behind it.
+        tail = min(max(floor + 0.85 * depth, arch_top + 40.0), belt - 10.0)
+        roof = clamp_roof(cowl - rake - 300.0, cowl - rake)
+        profile = [*front_end, *hood(0.5), (deck, belt),
+                   (rear, tail), (rear, tail_low)]  # fmt: skip
+        return BodyLayout(style, profile, (deck, cowl), roof, top, open=True)
+
+    if style == "supercar":
+        # Mid-engine wedge: a very low nose, the cabin pushed forward with a long raked
+        # screen, a short canopy and a long engine deck falling to a high, cut-off tail.
+        tail = min(max(floor + 0.9 * depth, arch_top + 40.0), belt - 5.0)
+        roof_front = cowl - max(rake, 1.5 * glass_h, 0.3 * p["cabin_length"])  # long screen
+        roof = clamp_roof(roof_front - p["roof_length"], roof_front)
+        back = max(rear + 0.16 * length, roof[0] - 1.8 * glass_h)
+        roof = clamp_roof(max(roof[0], back + 0.25 * glass_h), max(roof[1], roof_front))
+        profile = [*front_end, *hood(0.3), (back, belt),
+                   (rear, tail), (rear, tail_low)]  # fmt: skip
         return BodyLayout(style, profile, (back, cowl), roof, top)
 
     if style == "coupe":
@@ -165,6 +198,12 @@ def body_layout(p: Inputs) -> BodyLayout:
         profile = [*profile_front, (rear, belt), (rear, tail_low)]
         roof = clamp_roof(rear + 60.0, cowl - screen)
         return BodyLayout(style, profile, (rear + 40.0, cowl), roof, top)
+    if style == "mpv":
+        # One-box people carrier: a longer, lower bonnet than a van and a very raked screen.
+        cowl = front - max(450.0, 0.75 * p["front_overhang"])
+        profile = [*front_end, *hood(0.6), (rear, belt), (rear, tail_low)]
+        roof = clamp_roof(rear + 80.0, cowl - 0.8 * glass_h)
+        return BodyLayout(style, profile, (rear + 40.0, cowl), roof, top)
 
     cab_depth = min(max(0.5 * p["cabin_length"], 1300.0), 0.4 * length)
     cab_rear = cowl - cab_depth
@@ -190,7 +229,10 @@ def _greenhouse(p: Inputs, layout: BodyLayout, inset: float = 0.0) -> k.Shape:
     half_w = p["body_width"] / 2.0
     belt = p["beltline_height"]
     top = layout.roof_z - inset
-    cab_w, roof_w = half_w - 40.0 - inset, half_w - 150.0 - inset
+    # The greenhouse sits inside the sculpted beltline: in by the waist between the wheels.
+    tuck = 40.0 + p.get("haunch", 30.0)
+    cab_w = half_w - tuck - inset
+    roof_w = half_w - tuck - p.get("tumblehome", 110.0) - inset
 
     def outline(z: float, x: tuple[float, float], half_wid: float):  # type: ignore[no-untyped-def]
         r, f = x[0] + inset, x[1] - inset
@@ -214,7 +256,7 @@ def _window_frame(p: Inputs, layout: BodyLayout) -> k.Shape:
     half_w = p["body_width"] / 2.0
     belt, top = p["beltline_height"], layout.roof_z
     z = (belt + PILLAR * 0.6, top - PILLAR)
-    roof_w = half_w - 150.0
+    roof_w = roof_half_width(p)
     (g0, g1), (r0, r1) = layout.glass, layout.roof
     side = k.box((r0 + PILLAR, r1 - PILLAR), (-half_w - 10.0, half_w + 10.0), z)
     screens = [
@@ -222,7 +264,20 @@ def _window_frame(p: Inputs, layout: BodyLayout) -> k.Shape:
         for x in ((r1 - 1.0, g1 + 10.0), (g0 - 10.0, r0 + 1.0))  # windscreen, rear screen
         if x[1] - x[0] > 1.0
     ]
-    return k.cut(_greenhouse(p, layout), side, *screens)
+    frame = k.cut(_greenhouse(p, layout), side, *screens)
+    return _open_top(p, layout, frame)
+
+
+def _open_top(p: Inputs, layout: BodyLayout, shape: k.Shape) -> k.Shape:
+    """An open style keeps only the windscreen surround (or the windscreen) of a greenhouse
+    part: from the header rail forwards."""
+    if not layout.open:
+        return shape
+    half_w = p["body_width"] / 2.0
+    (_, g1), (_, r1) = layout.glass, layout.roof
+    keep = k.box((r1 - PILLAR - 1.0, g1 + 20.0), (-half_w - 20.0, half_w + 20.0),
+                 (p["beltline_height"] - 5.0, layout.roof_z + 5.0))  # fmt: skip
+    return k.intersect(shape, keep)
 
 
 GLASS_THICKNESS = 6.0  # mm
@@ -233,7 +288,8 @@ def build_glass(p: Inputs) -> k.Shape:
     so the cabin can be seen through it."""
     layout = body_layout(p)
     outer = _greenhouse(p, layout, inset=GLASS_INSET)
-    return k.cut(outer, _greenhouse(p, layout, inset=GLASS_INSET + GLASS_THICKNESS))
+    shell = k.cut(outer, _greenhouse(p, layout, inset=GLASS_INSET + GLASS_THICKNESS))
+    return _open_top(p, layout, shell)
 
 
 def build_lamps(p: Inputs, end: str) -> k.Shape:
@@ -252,30 +308,18 @@ def build_tail_lamps(p: Inputs) -> k.Shape:
 
 
 def build_body(p: Inputs) -> k.Shape:
-    """Lower body (side profile x rounded plan view) and the window frame of a raked, tapered
-    greenhouse, shaped by the body style (an open bed for a pickup, a cargo box for a box
-    truck), with wheel wells. Extents: overhang to overhang, full width, floor to roof."""
+    """Sculpted lower body (a freeform loft through cross-sections that follow the style's
+    side profile) and the window frame of a raked, tapered greenhouse, shaped by the body
+    style (an open bed for a pickup, a cargo box for a box truck), with wheel wells.
+    Extents: overhang to overhang, full width, floor to roof."""
+    from autevra.domains.automotive import sculpt
+
     layout = body_layout(p)
-    rear, front = -(p["wheelbase"] + p["rear_overhang"]), p["front_overhang"]
     half_w = p["body_width"] / 2.0
     floor, belt = p["body_floor"], p["beltline_height"]
-    square_back = layout.style in ("pickup", "van", "box_truck", "suv")
 
-    side = k.prism_y(layout.profile, (-half_w, half_w))
-    # Sculpted sides: a loft through plan sections, tucked in at the sill, full width at the
-    # shoulder, easing in towards the beltline. Commercial bodies stay squarer.
-    commercial = layout.style in ("van", "box_truck")
-    sill, upper, waist = (30.0, 5.0, 15.0) if commercial else (70.0, 12.0, 45.0)
-    r_rear = 0.08 if square_back else 0.18
-    depth = belt - floor
-    sections = []
-    for z, inset in ((floor - 1.0, sill), (floor + 0.4 * depth, 0.0),
-                     (floor + 0.8 * depth, upper), (belt + 1.0, waist)):  # fmt: skip
-        w = half_w - inset
-        sections.append(k.rounded_rect((rear + 0.3 * inset, front - 0.3 * inset), w,
-                                       0.32 * w, r_rear * w, z))  # fmt: skip
-    # Ruled between the sections: crisp sill and shoulder lines, and cheap booleans.
-    parts = [k.intersect(side, k.smooth_loft(sections, ruled=True))]
+    # One smooth freeform surface through cross-sections (see ``sculpt``).
+    parts = [sculpt.lower_body(p, layout.profile)]
 
     parts.append(_window_frame(p, layout))
     if layout.cargo is not None:
@@ -306,6 +350,9 @@ def build_body(p: Inputs) -> k.Shape:
     opening = exterior.roof_opening(p, layout)  # panoramic roof or sunroof
     roof = [k.box(*opening)] if opening is not None else []
     return k.cut(body, *wells, *lamps, cabin, *roof)  # one boolean for all the openings
+
+
+build_body.mesh_angular = 0.12  # type: ignore[attr-defined]  (smooth highlights on the curves)
 
 
 def _ladder(p: Inputs, z: tuple[float, float]) -> k.Shape:

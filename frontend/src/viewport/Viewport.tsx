@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { toCreasedNormals } from "three/addons/utils/BufferGeometryUtils.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { ModelPayload } from "../api/types";
 import { staleGeometry } from "../state/format";
 import { type Animation, frameIndex, framePoses, readout } from "./animation";
-import { baseEmissive, baseOpacity, materialFor, rememberEmissive } from "./materials";
+import { baseEmissive, baseOpacity, materialFor, rememberEmissive, zebraMaterial } from "./materials";
 import {
   type DisplayMode, type SectionAxis, type StandardView, VIEWS, edgesOf, featureEdges, framing,
   measure, sectionPlane,
@@ -41,11 +42,16 @@ export const geometryCache = new Map<string, THREE.BufferGeometry>();
 const edgeCache = new WeakMap<THREE.BufferGeometry, THREE.EdgesGeometry>();
 const FOV = 35;
 
+const CREASE = (30 * Math.PI) / 180; // facets meeting at less than this shade smoothly
+
 function toGeometry(vertices: number[], indices: number[]): THREE.BufferGeometry {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-  g.setIndex(indices);
-  g.computeVertexNormals();
+  const indexed = new THREE.BufferGeometry();
+  indexed.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+  indexed.setIndex(indices);
+  // Smooth shading across the facets of curved surfaces (and across B-rep face seams),
+  // crisp at real edges: the usual CAD display.
+  const g = toCreasedNormals(indexed, CREASE);
+  indexed.dispose();
   g.computeBoundingSphere();
   return g;
 }
@@ -243,7 +249,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
     for (const [id, mesh] of c.meshes) {
       if (!ids.has(id)) {
         c.root.remove(mesh);
-        (mesh.material as THREE.Material).dispose();
+        ((mesh.userData.baseMaterial ?? mesh.material) as THREE.Material).dispose();
         c.meshes.delete(id);
       }
     }
@@ -262,10 +268,12 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       }
       const look = `${part.finish}|${part.color.join(",")}`;
       if (mesh.userData.look !== undefined && mesh.userData.look !== look) {
-        (mesh.material as THREE.Material).dispose(); // repainted: same geometry, new material
+        // Repainted: same geometry, new material (zebra mode keeps showing the analysis).
+        ((mesh.userData.baseMaterial ?? mesh.material) as THREE.Material).dispose();
         const material = materialFor(part.finish, part.color);
         rememberEmissive(material);
-        mesh.material = material;
+        mesh.userData.baseMaterial = material;
+        if (mesh.material !== zebraMaterial()) mesh.material = material;
       }
       mesh.userData.look = look;
       if (mesh.geometry !== geometry) { // rebuilt: its edge outline is stale
@@ -296,7 +304,10 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
     const c = ctx.current;
     if (!c) return;
     for (const [id, mesh] of c.meshes) {
-      const mat = mesh.material as THREE.MeshStandardMaterial;
+      // Zebra analysis swaps in the highlight-line material; the part keeps its own.
+      const mat = (mesh.userData.baseMaterial ?? mesh.material) as THREE.MeshStandardMaterial;
+      mesh.userData.baseMaterial = mat;
+      mesh.material = display === "zebra" ? zebraMaterial() : mat;
       const isBody = mesh.userData.category === "body";
       const own = baseOpacity(mat);
       const opacity = xray && isBody ? Math.min(0.22, own) : own;
@@ -314,14 +325,15 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       mesh.visible = !hidden.has(id);
 
       let edges = mesh.children.find((ch) => ch.userData.edges) as THREE.LineSegments | undefined;
-      if (display !== "shaded" && !edges) {
+      const lined = display === "edges" || display === "wireframe";
+      if (lined && !edges) {
         let g = edgeCache.get(mesh.geometry);
         if (!g) { g = edgesOf(mesh.geometry); edgeCache.set(mesh.geometry, g); }
         edges = featureEdges(g);
         mesh.add(edges);
       }
       if (edges) {
-        edges.visible = display !== "shaded";
+        edges.visible = lined;
         (edges.material as THREE.LineBasicMaterial).color.set(
           display === "wireframe" ? (id === selected ? 0x7fb2ff : 0xc9d4e0) : 0x0b0e12);
       }
@@ -402,10 +414,11 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       <div className="viewport" ref={host} />
       <div className="cad-toolbar" role="toolbar" aria-label="View tools">
         <div className="seg" aria-label="Display mode">
-          {(["shaded", "edges", "wireframe"] as DisplayMode[]).map((d) => (
+          {(["shaded", "edges", "wireframe", "zebra"] as DisplayMode[]).map((d) => (
             <button key={d} className={display === d ? "on" : ""} onClick={() => setDisplay(d)}
-              title={{ shaded: "Shading", edges: "Shading with edges", wireframe: "Wireframe (edges only)" }[d]}>
-              {{ shaded: "Shaded", edges: "Edges", wireframe: "Wire" }[d]}
+              title={{ shaded: "Shading", edges: "Shading with edges", wireframe: "Wireframe (edges only)",
+                zebra: "Zebra: highlight lines for surface continuity" }[d]}>
+              {{ shaded: "Shaded", edges: "Edges", wireframe: "Wire", zebra: "Zebra" }[d]}
             </button>
           ))}
         </div>

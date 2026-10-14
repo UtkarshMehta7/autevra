@@ -28,7 +28,10 @@ def test_every_option_builds_on_every_template(template: str) -> None:
         for i in range(len(REGISTRY[option].options)):
             shape = _build(cid, v | {option: float(i)})
             if shape is None:
-                assert i == 0 or cid == "spoiler"  # off, or a boot spoiler without a boot
+                # off, a boot spoiler without a boot, or a roof option on an open roadster
+                assert (
+                    i == 0 or cid == "spoiler" or (cid == "roof_rails" and template == "roadster")
+                )
                 continue
             per_side = cid in ("mirrors", "roof_rails") and k.solid_count(shape) == 2
             assert k.is_valid(shape) and (k.solid_count(shape) == 1 or per_side), (cid, i)

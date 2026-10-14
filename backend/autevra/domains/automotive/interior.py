@@ -52,7 +52,7 @@ def cabin(p: Inputs) -> Cabin:
     lhd = int(round(p.get("driving_side", 0))) == 0
     return Cabin(
         rear=g0 + 40.0, cowl=g1, floor=p["body_floor"] + FLOOR_PAN, belt=p["beltline_height"],
-        half_w=half_w - WALL, roof=layout.roof_z - 70.0,
+        half_w=half_w - WALL - p.get("haunch", 30.0), roof=layout.roof_z - 70.0,
         rows=min(max(int(round(p.get("seat_rows", 2))), 1), 3),
         driver_y=(1.0 if lhd else -1.0) * 0.42 * half_w,
     )  # fmt: skip
