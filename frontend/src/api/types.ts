@@ -123,6 +123,7 @@ export interface ModelPart {
   geometry: string;
   matrix: number[][];
   color: [number, number, number];
+  finish?: string; // paint | glass | lamp | rubber | metal
 }
 
 export interface ModelPayload {

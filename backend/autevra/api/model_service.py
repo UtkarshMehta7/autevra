@@ -19,6 +19,7 @@ class PlacedPart:
     geometry: str  # geometry key; parts with equal keys share one mesh
     matrix: list[list[float]]
     color: tuple[float, float, float]
+    finish: str = "paint"
 
 
 @dataclass(frozen=True)
@@ -37,7 +38,7 @@ def build_model(values: Mapping[str, float], cache: GeometryCache) -> VehicleMod
         shapes[key] = shape
         parts.append(PlacedPart(
             id=c.id, name=c.name, category=c.category, geometry=key,
-            matrix=tf.to_list(world[c.id]), color=c.color,
+            matrix=tf.to_list(world[c.id]), color=c.color, finish=c.finish,
         ))  # fmt: skip
     return VehicleModel(parts=parts, shapes=shapes)
 
@@ -65,6 +66,7 @@ def mesh_payload(model: VehicleModel, cache: GeometryCache, skip: Iterable[str] 
                 "geometry": p.geometry,
                 "matrix": p.matrix,
                 "color": p.color,
+                "finish": p.finish,
             }
             for p in model.parts
         ],  # fmt: skip

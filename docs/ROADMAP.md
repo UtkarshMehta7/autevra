@@ -160,6 +160,8 @@ specification interview moves to Phase 5.
 - **Faster meshes.** CadQuery's `Shape.tessellate` walks OCCT arrays through Python iterators (about 5 ms per face, even for a two-triangle face); `kernel.tessellate` uses indexed access and a face explorer and returns identical meshes (tested against CadQuery). Mesh extraction for the default vehicle fell from about 2.3 s to under 0.6 s on the Mac (body 493 → 8 ms, frame 330 → 4 ms, damper 193 → 42 ms once meshed), which matters most on the 0.1 CPU hosted instance.
 - **Smaller downloads.** Builders can declare a coarser display mesh (`mesh_angular`); the coil dampers use 0.5 rad (3x fewer triangles, 5x faster meshing; B-rep and STEP unchanged), and responses are gzip-compressed. The default model's transfer fell from 1.53 MB to 158 KB.
 
+- **Materials.** Components declare a display finish (paint, glass, lamp, rubber, metal); the viewport renders each with a physically based material under a neutral studio environment, so glass reflects, lamps glow, tyres read as rubber and the chassis as metal. Display only: the CAD and STEP are unchanged.
+
 **Known limitations**
 - Shapes are still faceted (ruled lofts and prisms); no curved surfaces, doors or mirrors.
 - A van's greenhouse and a box truck's cargo box are sized from the overall dimensions, not from the cabin parameters.

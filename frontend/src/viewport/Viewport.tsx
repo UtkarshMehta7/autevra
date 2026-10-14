@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { ModelPayload } from "../api/types";
 import { staleGeometry } from "../state/format";
 import { type Animation, frameIndex, framePoses, readout } from "./animation";
+import { baseEmissive, materialFor, rememberEmissive } from "./materials";
 
 interface Props {
   model: ModelPayload | null;
@@ -60,14 +62,21 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1b1f24);
+    // A neutral studio environment for reflections on paint, glass and metal.
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = 0.35;
+    renderer.toneMappingExposure = 0.9;
+    pmrem.dispose();
     const camera = new THREE.PerspectiveCamera(35, 1, 10, 200000);
     camera.up.set(0, 0, 1); // ISO 8855: Z up
     camera.position.set(4500, -6500, 3200);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
-    scene.add(new THREE.HemisphereLight(0xdde6f0, 0x2a2a2a, 1.6));
-    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+    scene.add(new THREE.HemisphereLight(0xdde6f0, 0x2a2a2a, 0.9));
+    const sun = new THREE.DirectionalLight(0xffffff, 2.0);
     sun.position.set(3000, -4000, 6000);
     scene.add(sun);
 
@@ -175,9 +184,9 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       if (!geometry) continue;
       let mesh = c.meshes.get(part.id);
       if (!mesh) {
-        mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
-          color: new THREE.Color(...part.color), metalness: 0.2, roughness: 0.6,
-        }));
+        const material = materialFor(part.finish, part.color);
+        rememberEmissive(material);
+        mesh = new THREE.Mesh(geometry, material);
         mesh.matrixAutoUpdate = false;
         mesh.userData.partId = part.id;
         c.meshes.set(part.id, mesh);
@@ -215,7 +224,9 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       mat.transparent = seeThrough;
       mat.opacity = seeThrough ? 0.22 : 1;
       mat.depthWrite = !seeThrough;
-      mat.emissive.set(id === selected ? 0x3d6fb6 : highlighted.includes(id) ? 0x7a5a12 : 0x000000);
+      if (id === selected) mat.emissive.set(0x3d6fb6);
+      else if (highlighted.includes(id)) mat.emissive.set(0x7a5a12);
+      else mat.emissive.copy(baseEmissive(mat));
     }
   }, [model, selected, highlighted, xray]);
 
