@@ -528,3 +528,9 @@ export interface RunIndexItem extends RunSummary {
   project_id: string;
   project_name: string;
 }
+
+export interface DesignTemplate {
+  id: string;
+  label: string;
+  description: string;
+}

@@ -146,6 +146,8 @@ specification interview moves to Phase 5.
 
 - **Glazing.** Window openings (side glass, windscreen, rear screen) are cut into the greenhouse, leaving the pillars and roof; a separate tinted `glass` component fills them from inside. It depends only on the greenhouse parameters, so a wheel or track change does not rebuild it.
 
+- **Start from a template.** `GET /api/templates` lists one starting design per vehicle class (city car to box truck), each the design the specification interview generates for that class (body style, proportions, wheels, springs, dampers; rule-checked). Projects can be created from one (`template` in `POST /api/projects`), from the Projects page or the Models page. Templates are a core registry filled through the plugin API.
+
 **Known limitations**
 - Shapes are still faceted (ruled lofts and prisms); no surfaces, lights or doors.
 - A van's greenhouse and a box truck's cargo box are sized from the overall dimensions, not from the cabin parameters.

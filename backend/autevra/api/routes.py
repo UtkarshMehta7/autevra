@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from autevra import domains
 from autevra.api import access, schemas
 from autevra.api.service import ProposalNotFoundError, Workspace, _derived
-from autevra.core import parameters
+from autevra.core import parameters, templates
 from autevra.core.commands import CommandError
 from autevra.core.design import CommandRejectedError
 from autevra.domains import DomainDef
@@ -49,7 +49,7 @@ def create_project(
 ) -> schemas.ProjectState:
     access.check_project_quota(request, who)
     try:
-        return ws.create_project(body.name, body.domain, who.owner)
+        return ws.create_project(body.name, body.domain, who.owner, body.template)
     except CommandError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
 
@@ -83,6 +83,15 @@ def rule_status(project_id: str, ws: WorkspaceDep) -> list[schemas.RuleStatus]:
 def all_runs(ws: WorkspaceDep, who: VisitorDep) -> list[schemas.RunIndexItem]:
     """Recent runs across the visitor's projects (all projects locally)."""
     return ws.all_runs(owner=who.owner, all_owners=who.all_owners)
+
+
+@router.get("/templates", response_model=list[schemas.TemplateOut])
+def list_templates() -> list[schemas.TemplateOut]:
+    """Starting designs for new projects (one per vehicle class in the automotive domain)."""
+    return [
+        schemas.TemplateOut(id=t.id, label=t.label, description=t.description)
+        for t in templates.TEMPLATES.values()
+    ]
 
 
 @router.get("/domains", response_model=list[DomainDef])

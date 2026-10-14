@@ -17,6 +17,7 @@ from autevra.domains.automotive import (
     language,
     parameters,
     rules,
+    spec,
     vehicle,
 )
 from autevra.domains.automotive import tests as test_definitions
@@ -49,6 +50,7 @@ PLUGIN = extensions.Plugin(
     integration_checks=(integration.travel_checks,),
     notes=integration.NOT_CHECKED,
     language=language.LANGUAGE,
+    templates=tuple(spec.project_templates()),
 )
 
 

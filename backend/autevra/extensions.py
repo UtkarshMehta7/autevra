@@ -27,10 +27,11 @@ from autevra.assembly import graph
 from autevra.assembly import model as vehicle
 from autevra.assembly.model import Coincidence, ComponentDef
 from autevra.cad import cache
-from autevra.core import derived, parameters, rules
+from autevra.core import derived, parameters, rules, templates
 from autevra.core.derived import DerivedDef
 from autevra.core.parameters import ParameterDef
 from autevra.core.rules import Rule
+from autevra.core.templates import Template
 from autevra.engineering import integration, testing
 from autevra.engineering.integration import Clearance
 from autevra.engineering.testing import TestDefinition
@@ -61,6 +62,7 @@ class Plugin:
     integration_checks: Sequence[Callable] = ()  # values -> list of integration Checks
     notes: Sequence[str] = ()  # stated limitations of what is checked
     language: Language | None = None  # vocabulary for the parser, concepts and prompt
+    templates: Sequence[Template] = ()  # starting designs for new projects
 
 
 LOADED: dict[str, Plugin] = {}
@@ -76,6 +78,7 @@ def _check(plugin: Plugin) -> None:
         + [b for b in plugin.builders if b in cache.BUILDERS]
         + [c.id for c in plugin.components if c.id in vehicle.BY_ID]
         + [t.id for t in plugin.tests if t.id in testing.DEFINITIONS]
+        + [t.id for t in plugin.templates if t.id in templates.TEMPLATES]
     )
     if clashes:
         raise PluginError(f"identifiers already in use: {', '.join(clashes)}")
@@ -118,6 +121,8 @@ def register(plugin: Plugin) -> Plugin:
             testing.DEFINITIONS[t.id] = t
         if plugin.language is not None:
             languages.register(plugin.language)
+        for t in plugin.templates:
+            templates.TEMPLATES[t.id] = t
         graph.reindex()
         lexicon.rebuild()
         _verify()
@@ -172,6 +177,8 @@ def unregister(name: str) -> None:
         testing.DEFINITIONS.pop(t.id, None)
     if plugin.language is not None:
         languages.unregister(plugin.language.name)
+    for t in plugin.templates:
+        templates.TEMPLATES.pop(t.id, None)
     graph.reindex()
     lexicon.rebuild()
 
