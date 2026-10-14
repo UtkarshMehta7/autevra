@@ -198,6 +198,48 @@ def build_glass(p: Inputs) -> k.Shape:
     return _greenhouse(p, body_layout(p), inset=GLASS_INSET)
 
 
+LAMP_DEPTH = 15.0  # lamps sit in recesses this deep, flush with the body face, mm
+
+
+def lamp_boxes(p: Inputs, end: str) -> list[tuple[tuple[float, float], ...]]:
+    """(x, y, z) extents of the two lamps at the front ("head") or rear ("tail") face,
+    placed on the flat part of that face between the rounded corners. The body is
+    recessed by the same boxes, so the lamps are flush and the extents do not change."""
+    layout = body_layout(p)
+    rear, front = -(p["wheelbase"] + p["rear_overhang"]), p["front_overhang"]
+    half_w = p["body_width"] / 2.0
+    floor, belt = p["body_floor"], p["beltline_height"]
+    if end == "head":
+        bumper, nose = layout.profile[2][1], layout.profile[3][1]
+        h = nose - bumper
+        z = (bumper + 0.45 * h, nose - 0.1 * h)
+        x = (front - LAMP_DEPTH, front)
+        y_in, y_out = 0.30 * half_w, 0.62 * half_w
+    else:
+        at_rear = [zz for xx, zz in layout.profile if abs(xx - rear) < 1e-6]
+        top, bottom = (max(at_rear), min(at_rear)) if at_rear else (floor, floor)
+        if layout.cargo is not None or top - bottom < 60.0:  # box truck: low on the box
+            bottom, top = floor + 0.25 * (belt - floor), floor + 0.55 * (belt - floor)
+        h = top - bottom
+        z = (top - 0.5 * h, top - 0.15 * h)
+        x = (rear, rear + LAMP_DEPTH)
+        y_in, y_out = 0.50 * half_w, 0.76 * half_w
+    return [(x, (y_in, y_out), z), (x, (-y_out, -y_in), z)]
+
+
+def build_lamps(p: Inputs, end: str) -> k.Shape:
+    left, right = (k.box(*b) for b in lamp_boxes(p, end))
+    return k.fuse(left, right)
+
+
+def build_head_lamps(p: Inputs) -> k.Shape:
+    return build_lamps(p, "head")
+
+
+def build_tail_lamps(p: Inputs) -> k.Shape:
+    return build_lamps(p, "tail")
+
+
 def build_body(p: Inputs) -> k.Shape:
     """Lower body (side profile x rounded plan view) and the window frame of a raked, tapered
     greenhouse, shaped by the body style (an open bed for a pickup, a cargo box for a box
@@ -227,6 +269,9 @@ def build_body(p: Inputs) -> k.Shape:
         body = k.cut(
             body, k.box((b0, b1), (-half_w + 50.0, half_w - 50.0), (bed_floor, belt + 5.0))
         )
+
+    lamps = [k.box(*b) for end in ("head", "tail") for b in lamp_boxes(p, end)]
+    body = k.cut(body, *lamps)
 
     # Wheel wells: cylinders around each wheel, cut from the tyre's inner face outwards.
     wheel_z = p["tyre_radius"]

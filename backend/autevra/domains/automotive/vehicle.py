@@ -143,6 +143,8 @@ def _hub(p: Values) -> dict[str, Matrix]:
 _BODY_COLOR = (0.62, 0.70, 0.80)
 _FRAME_COLOR = (0.30, 0.32, 0.36)
 _GLASS_COLOR = (0.08, 0.11, 0.15)
+_HEAD_LAMP_COLOR = (0.93, 0.92, 0.82)
+_TAIL_LAMP_COLOR = (0.72, 0.08, 0.08)
 _AXLE_COLOR = (0.45, 0.45, 0.48)
 _WHEEL_COLOR = (0.12, 0.12, 0.13)
 _DAMPER_COLOR = (0.85, 0.55, 0.12)
@@ -199,6 +201,18 @@ COMPONENTS: tuple[ComponentDef, ...] = (
         geometry=GLASS_GEOMETRY, inputs=_glass_inputs,
         frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
         mate=Mate("vehicle", "origin", "origin"), color=_GLASS_COLOR,
+    ),
+    ComponentDef(
+        id="head_lamps", name="Head lamps", category="body", builder="head_lamps",
+        geometry=BODY_GEOMETRY, inputs=_body_inputs,  # on the body faces
+        frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
+        mate=Mate("vehicle", "origin", "origin"), color=_HEAD_LAMP_COLOR,
+    ),
+    ComponentDef(
+        id="tail_lamps", name="Tail lamps", category="body", builder="tail_lamps",
+        geometry=BODY_GEOMETRY, inputs=_body_inputs,  # on the body faces
+        frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
+        mate=Mate("vehicle", "origin", "origin"), color=_TAIL_LAMP_COLOR,
     ),
     ComponentDef(
         id="frame", name="Ladder frame", category="chassis", builder="frame",

@@ -42,7 +42,7 @@ def test_wheelbase_moves_only_the_rear_axle_group() -> None:
 
 def test_impact_of_wheelbase() -> None:
     impact = graph.impact(["wheelbase"])
-    assert impact.rebuild == {"body", "frame", "glass"}
+    assert impact.rebuild == {"body", "frame", "glass", "head_lamps", "tail_lamps"}
     assert impact.move == {"rear_axle", "wheel_rl", "wheel_rr", "damper_rl", "damper_rr"}
 
 
@@ -50,13 +50,15 @@ def test_impact_of_rim_rebuilds_wheels_and_body_and_moves_axles() -> None:
     impact = graph.impact(["rim_diameter"])
     wheels = {"wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr"}
     dampers = {"damper_fl", "damper_fr", "damper_rl", "damper_rr"}
-    assert impact.rebuild == {"body"} | wheels | dampers  # dampers: length between mounts
+    assert (
+        impact.rebuild == {"body", "head_lamps", "tail_lamps"} | wheels | dampers
+    )  # dampers: length between mounts
     assert {"front_axle", "rear_axle"} <= impact.move
 
 
 def test_impact_of_front_track() -> None:
     impact = graph.impact(["track_front"])
-    assert impact.rebuild == {"body", "front_axle"}
+    assert impact.rebuild == {"body", "head_lamps", "tail_lamps", "front_axle"}
     assert impact.move == {"wheel_fl", "wheel_fr"}
 
 

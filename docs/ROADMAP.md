@@ -148,8 +148,10 @@ specification interview moves to Phase 5.
 
 - **Start from a template.** `GET /api/templates` lists one starting design per vehicle class (city car to box truck), each the design the specification interview generates for that class (body style, proportions, wheels, springs, dampers; rule-checked). Projects can be created from one (`template` in `POST /api/projects`), from the Projects page or the Models page. Templates are a core registry filled through the plugin API.
 
+- **Lamps.** Head lamps and tail lamps are their own components, flush in recesses on the front and rear faces of every body style (low on the cargo box of a box truck), so the vehicle extents and the STEP bounding box are unchanged.
+
 **Known limitations**
-- Shapes are still faceted (ruled lofts and prisms); no surfaces, lights or doors.
+- Shapes are still faceted (ruled lofts and prisms); no curved surfaces, doors or mirrors.
 - A van's greenhouse and a box truck's cargo box are sized from the overall dimensions, not from the cabin parameters.
 
 ### 2026-10-14: hosted demo live
