@@ -136,6 +136,18 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-14: CAD viewer tools
+
+- Display modes: shaded, shaded with edges (feature edges where faces meet at more than 28°), wireframe (edges only).
+- Standard views (isometric, front, back, left, right, top, bottom; ISO 8855 axes, nose up in plan view) framing the visible model, and perspective or orthographic projection.
+- Section plane along X, Y or Z with a position slider (picking ignores the cut-away side).
+- Point-to-point measurement with ΔX, ΔY, ΔZ; hide, isolate and show all for the selected component.
+- Axis triad in the corner and a CAD-style gradient background.
+- Checked in Chrome: edges, left orthographic view, X section.
+
+**Known limitations**
+- A section shows the cut surfaces as open shells, not capped solids.
+
 ### 2026-10-14: modern bodywork
 
 - **Sculpted lower body**: a loft through exact plan sections (straight edges and corner arcs) tucked in at the sill, full width at the shoulder and easing in to the beltline, intersected with the side silhouette; ruled between sections, giving crisp sill and shoulder lines and booleans about five times cheaper than a smooth loft. Commercial bodies stay squarer.
