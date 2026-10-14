@@ -34,6 +34,7 @@ PLUGIN = extensions.Plugin(
     rules=tuple(rules.DEFINITIONS),
     builders={
         "body": builders.build_body,
+        "glass": builders.build_glass,
         "frame": builders.build_frame,
         "axle": builders.build_axle,
         "wheel": builders.build_wheel,

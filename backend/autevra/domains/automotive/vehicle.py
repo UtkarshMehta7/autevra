@@ -26,6 +26,18 @@ BODY_GEOMETRY = (
 )  # fmt: skip
 
 
+# The glazing follows the greenhouse only: not the wheels, arches or track.
+GLASS_GEOMETRY = (
+    "body_style", "wheelbase", "front_overhang", "rear_overhang", "body_width",
+    "overall_height", "beltline_height", "ground_clearance", "rail_height", "cabin_length",
+    "roof_length", "cabin_offset",
+)  # fmt: skip
+
+
+def _glass_inputs(p: Values) -> dict[str, float]:
+    return {k: p[k] for k in GLASS_GEOMETRY} | {"body_floor": d.body_floor_height(p)}
+
+
 def _body_inputs(p: Values) -> dict[str, float]:
     keys = [k for k in BODY_GEOMETRY if k not in TYRE]
     return {k: p[k] for k in keys} | {
@@ -130,6 +142,7 @@ def _hub(p: Values) -> dict[str, Matrix]:
 
 _BODY_COLOR = (0.62, 0.70, 0.80)
 _FRAME_COLOR = (0.30, 0.32, 0.36)
+_GLASS_COLOR = (0.08, 0.11, 0.15)
 _AXLE_COLOR = (0.45, 0.45, 0.48)
 _WHEEL_COLOR = (0.12, 0.12, 0.13)
 _DAMPER_COLOR = (0.85, 0.55, 0.12)
@@ -180,6 +193,12 @@ COMPONENTS: tuple[ComponentDef, ...] = (
                    for name, (axle, _) in SHOCK_TOWERS.items()}},
         interfaces=_body_interfaces,
         mate=Mate("vehicle", "origin", "origin"), color=_BODY_COLOR,
+    ),
+    ComponentDef(
+        id="glass", name="Glazing", category="body", builder="glass",
+        geometry=GLASS_GEOMETRY, inputs=_glass_inputs,
+        frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
+        mate=Mate("vehicle", "origin", "origin"), color=_GLASS_COLOR,
     ),
     ComponentDef(
         id="frame", name="Ladder frame", category="chassis", builder="frame",

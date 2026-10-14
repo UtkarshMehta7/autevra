@@ -42,7 +42,7 @@ def test_wheelbase_moves_only_the_rear_axle_group() -> None:
 
 def test_impact_of_wheelbase() -> None:
     impact = graph.impact(["wheelbase"])
-    assert impact.rebuild == {"body", "frame"}
+    assert impact.rebuild == {"body", "frame", "glass"}
     assert impact.move == {"rear_axle", "wheel_rl", "wheel_rr", "damper_rl", "damper_rr"}
 
 

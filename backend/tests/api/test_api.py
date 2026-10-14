@@ -52,7 +52,7 @@ def test_acceptance_increase_wheelbase_by_100_mm(
     reply = _instruct(client, project, "increase the wheelbase by 100 mm")
     assert reply["kind"] == "command"
     assert reply["result"]["values"]["wheelbase"] == 2800
-    assert set(reply["result"]["impact"]["rebuild"]) == {"body", "frame"}
+    assert set(reply["result"]["impact"]["rebuild"]) == {"body", "frame", "glass"}
     rear_group = {"rear_axle", "wheel_rl", "wheel_rr", "damper_rl", "damper_rr"}
     assert set(reply["result"]["impact"]["move"]) == rear_group
 
@@ -82,12 +82,12 @@ def test_acceptance_increase_wheelbase_by_100_mm(
 
 def test_model_deduplicates_and_skips_known_geometry(client: TestClient, project: str) -> None:
     model = _model(client, project)
-    assert len(model["parts"]) == 12
-    assert len(model["geometries"]) == 6  # body, frame, axle, wheel, front and rear damper
+    assert len(model["parts"]) == 13
+    assert len(model["geometries"]) == 7  # body, glass, frame, axle, wheel, two dampers
     keys = ",".join(model["geometries"])
     partial = client.get(f"/api/projects/{project}/model", params={"known": keys}).json()
     assert partial["geometries"] == {}
-    assert len(partial["parts"]) == 12
+    assert len(partial["parts"]) == 13
 
 
 def test_typed_command_endpoint_and_rejection(client: TestClient, project: str) -> None:

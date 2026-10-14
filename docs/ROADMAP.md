@@ -144,8 +144,10 @@ specification interview moves to Phase 5.
 - **Visitor workspaces and rate limits** (PR #16): see `DEPLOYMENT.md`, "Public safety defaults".
 - Checked in Chrome on the local studio: sedan, pickup, box truck, van and hatchback render as distinct bodies from plain-English instructions.
 
+- **Glazing.** Window openings (side glass, windscreen, rear screen) are cut into the greenhouse, leaving the pillars and roof; a separate tinted `glass` component fills them from inside. It depends only on the greenhouse parameters, so a wheel or track change does not rebuild it.
+
 **Known limitations**
-- Shapes are still faceted (ruled lofts and prisms); no surfaces, glazing, lights or doors.
+- Shapes are still faceted (ruled lofts and prisms); no surfaces, lights or doors.
 - A van's greenhouse and a box truck's cargo box are sized from the overall dimensions, not from the cabin parameters.
 
 ### 2026-10-14: hosted demo live
