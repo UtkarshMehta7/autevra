@@ -21,7 +21,8 @@ TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
 
 # Shape controls: the sculpted lower body reads all of them, the greenhouse (and so the
 # glazing and the cabin) the haunch and the tumblehome.
-SHAPE = ("haunch", "nose_taper", "tail_taper", "sill_tuck", "body_roundness", "tumblehome")
+SHAPE = ("haunch", "nose_taper", "tail_taper", "sill_tuck", "body_roundness", "tumblehome",
+         "fender_rise")  # fmt: skip
 GREENHOUSE_SHAPE = ("haunch", "tumblehome")
 
 BODY_GEOMETRY = (

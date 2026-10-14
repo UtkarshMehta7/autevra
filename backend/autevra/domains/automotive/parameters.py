@@ -302,6 +302,19 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         description="How far the roof is drawn in from the beltline on each side.",
         aliases=("tumblehome", "roof inset", "glasshouse taper"),
     ),
+    _p(
+        id="fender_rise",
+        label="Fender rise",
+        group=Group.SHAPE,
+        unit=Unit.MM,
+        default=0,
+        min=0,
+        max=200,
+        step=5,
+        description="How far the bonnet drops between raised front wings (the wings keep the "
+        "wheel-arch clearance).",
+        aliases=("fender rise", "wing rise", "fender height", "raised wings", "fender peaks"),
+    ),
     # --- Exterior options ---
     _p(
         id="roof_type",
