@@ -35,6 +35,8 @@ def build_model(values: Mapping[str, float], cache: GeometryCache) -> VehicleMod
         if c.builder is None:
             continue
         key, shape = cache.shape(c.builder, c.resolve_inputs(values))
+        if shape is None:  # not fitted in this configuration
+            continue
         shapes[key] = shape
         color, finish = c.resolve_appearance(values)
         parts.append(PlacedPart(

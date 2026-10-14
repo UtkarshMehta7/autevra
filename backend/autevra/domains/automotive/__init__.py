@@ -17,6 +17,7 @@ from autevra.domains.automotive import (
     interior,
     language,
     parameters,
+    powertrain,
     rules,
     spec,
     vehicle,
@@ -44,6 +45,26 @@ PLUGIN = extensions.Plugin(
         "display": interior.build_display,
         "steering_wheel": interior.build_steering_wheel,
         "console": interior.build_console,
+        **{
+            name: getattr(powertrain, f"build_{name}")
+            for name in (
+                "engine",
+                "gearbox",
+                "fuel_tank",
+                "exhaust",
+                "radiator",
+                "traction_battery",
+                "front_motor",
+                "rear_motor",
+                "inverters",
+                "charger",
+                "charge_port",
+                "hv_cables",
+                "battery_12v",
+                "ecus",
+                "harness",
+            )
+        },  # fmt: skip
         "frame": builders.build_frame,
         "axle": builders.build_axle,
         "wheel": builders.build_wheel,
@@ -55,7 +76,11 @@ PLUGIN = extensions.Plugin(
     compatible_interfaces=integration.COMPATIBLE,
     clearances=integration.CLEARANCES,
     tests=test_definitions.DEFINITIONS,
-    integration_checks=(integration.travel_checks, integration.interior_checks),
+    integration_checks=(
+        integration.travel_checks,
+        integration.interior_checks,
+        integration.platform_checks,
+    ),
     notes=integration.NOT_CHECKED,
     language=language.LANGUAGE,
     templates=tuple(spec.project_templates()),

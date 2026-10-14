@@ -7,7 +7,8 @@ import type {
   RunSummary, SpecDesign, SpecState, StudyResult,
   TestDefinition, Variable,
 } from "../api/types";
-import { AiPanel, type ChatTurn } from "../panels/AiPanel";
+import type { ChatTurn } from "../panels/AiPanel";
+import { CommandBar } from "../panels/CommandBar";
 import { ComponentTree } from "../panels/ComponentTree";
 import { HistoryPanel } from "../panels/HistoryPanel";
 import { IntegrationPanel } from "../panels/IntegrationPanel";
@@ -360,7 +361,7 @@ function StudioView({ projectId, workspace, navigate }: {
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <button onClick={newProject}>New</button>
-        <span className="spacer" />
+        <CommandBar turns={turns} busy={busy} llm={llm} onSend={send} onDecide={decide} />
         <button onClick={undo} disabled={!project?.can_undo || busy} title="Undo (⌘Z)">Undo</button>
         <button onClick={redo} disabled={!project?.can_redo || busy} title="Redo (⇧⌘Z)">Redo</button>
         <label className="toggle">
@@ -447,7 +448,6 @@ function StudioView({ projectId, workspace, navigate }: {
         )}
       </section>
       <aside className="right">
-        <AiPanel turns={turns} busy={busy} llm={llm} onSend={send} onDecide={decide} />
         {project && (
           <PropertyEditor parameters={parameters} values={project.values} derived={project.derived}
             error={error} onSet={setParameter} />

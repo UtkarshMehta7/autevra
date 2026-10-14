@@ -22,7 +22,7 @@ TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
 BODY_GEOMETRY = (
     "body_style", "wheelbase", "front_overhang", "rear_overhang", "body_width", "overall_height",
     "beltline_height", "ground_clearance", "rail_height", "cabin_length", "roof_length",
-    "cabin_offset", "track_front", "track_rear", "arch_clearance", *TYRE,
+    "cabin_offset", "track_front", "track_rear", "arch_clearance", *TYRE, *d.CHASSIS_INPUTS,
 )  # fmt: skip
 
 
@@ -30,12 +30,12 @@ BODY_GEOMETRY = (
 GLASS_GEOMETRY = (
     "body_style", "wheelbase", "front_overhang", "rear_overhang", "body_width",
     "overall_height", "beltline_height", "ground_clearance", "rail_height", "cabin_length",
-    "roof_length", "cabin_offset",
+    "roof_length", "cabin_offset", *d.CHASSIS_INPUTS,
 )  # fmt: skip
 
 
 def _glass_inputs(p: Values) -> dict[str, float]:
-    return {k: p[k] for k in GLASS_GEOMETRY} | {"body_floor": d.body_floor_height(p)}
+    return {k: p[k] for k in dict.fromkeys(GLASS_GEOMETRY)} | {"body_floor": d.body_floor_height(p)}
 
 
 # Interior parts follow the cabin (greenhouse) plus their own choices.
@@ -44,6 +44,49 @@ INTERIOR_GEOMETRY = (*GLASS_GEOMETRY, "seat_rows", "interior_trim", "driving_sid
 
 def _interior_inputs(p: Values) -> dict[str, float]:
     return {k: p[k] for k in INTERIOR_GEOMETRY} | {"body_floor": d.body_floor_height(p)}
+
+
+# Powertrain and electrical equipment follow the chassis, the drive layout and the tyres.
+POWERTRAIN_GEOMETRY = (
+    *d.CHASSIS_INPUTS, "front_overhang", "rear_overhang", "beltline_height", "front_drive_share",
+    "engine_cylinders", *TYRE,
+)  # fmt: skip
+
+
+def _powertrain_inputs(p: Values) -> dict[str, float]:
+    keys = dict.fromkeys(k for k in POWERTRAIN_GEOMETRY if k not in TYRE)
+    return {k: p[k] for k in keys} | {
+        "tyre_radius": d.tyre_radius(p), "body_floor": d.body_floor_height(p),
+    }  # fmt: skip
+
+
+def _equipment(cid: str, name: str, category: str, color: tuple[float, float, float],
+               finish: str) -> ComponentDef:  # fmt: skip
+    return ComponentDef(
+        id=cid, name=name, category=category, builder=cid,
+        geometry=POWERTRAIN_GEOMETRY, inputs=_powertrain_inputs,
+        frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
+        mate=Mate("vehicle", "origin", "origin"), color=color, finish=finish,
+    )  # fmt: skip
+
+
+EQUIPMENT = (
+    ("engine", "Engine", "powertrain", (0.24, 0.25, 0.27), "metal"),
+    ("gearbox", "Gearbox", "powertrain", (0.32, 0.33, 0.35), "metal"),
+    ("fuel_tank", "Fuel tank", "powertrain", (0.06, 0.06, 0.07), "trim"),
+    ("exhaust", "Exhaust", "powertrain", (0.42, 0.39, 0.36), "metal"),
+    ("radiator", "Cooling module", "powertrain", (0.14, 0.15, 0.17), "metal"),
+    ("traction_battery", "Traction battery", "electrical", (0.08, 0.13, 0.24), "metal"),
+    ("front_motor", "Front e-motor", "powertrain", (0.55, 0.56, 0.58), "metal"),
+    ("rear_motor", "Rear e-motor", "powertrain", (0.55, 0.56, 0.58), "metal"),
+    ("inverters", "Inverters", "electrical", (0.34, 0.35, 0.37), "metal"),
+    ("charger", "On-board charger and DC-DC", "electrical", (0.29, 0.30, 0.32), "metal"),
+    ("charge_port", "Charge port", "electrical", (0.04, 0.04, 0.045), "trim"),
+    ("hv_cables", "High-voltage cables", "electrical", (0.95, 0.33, 0.02), "rubber"),
+    ("battery_12v", "12 V battery", "electrical", (0.05, 0.05, 0.06), "trim"),
+    ("ecus", "Control units", "electrical", (0.10, 0.12, 0.14), "metal"),
+    ("harness", "Wiring harness", "electrical", (0.03, 0.03, 0.03), "rubber"),
+)
 
 
 # Interior colour palette, in the order of the ``interior_colour`` options.
@@ -70,7 +113,7 @@ def _interior(cid: str, name: str, builder: str, color: tuple[float, float, floa
 
 
 def _body_inputs(p: Values) -> dict[str, float]:
-    keys = [k for k in BODY_GEOMETRY if k not in TYRE]
+    keys = list(dict.fromkeys(k for k in BODY_GEOMETRY if k not in TYRE))
     return {k: p[k] for k in keys} | {
         "body_floor": d.body_floor_height(p),
         "tyre_width": p["tyre_width"],
@@ -81,7 +124,7 @@ def _body_inputs(p: Values) -> dict[str, float]:
 
 FRAME_GEOMETRY = (
     "wheelbase", "front_overhang", "rear_overhang", "rail_spacing", "rail_width",
-    "rail_height", "rail_wall", "ground_clearance",
+    "rail_height", "rail_wall", "ground_clearance", *d.CHASSIS_INPUTS,
 )  # fmt: skip
 
 
@@ -270,9 +313,10 @@ COMPONENTS: tuple[ComponentDef, ...] = (
     _interior("display", "Display", "display", (0.02, 0.03, 0.05), "screen"),
     _interior("steering_wheel", "Steering wheel", "steering_wheel", (0.03, 0.03, 0.035), "leather"),
     _interior("console", "Centre console", "console", (0.05, 0.052, 0.058), "trim"),
+    *(_equipment(*e) for e in EQUIPMENT),
     ComponentDef(
-        id="frame", name="Ladder frame", category="chassis", builder="frame",
-        geometry=FRAME_GEOMETRY, inputs=lambda p: {k: p[k] for k in FRAME_GEOMETRY},
+        id="frame", name="Chassis frame", category="chassis", builder="frame",
+        geometry=FRAME_GEOMETRY, inputs=lambda p: {k: p[k] for k in dict.fromkeys(FRAME_GEOMETRY)},
         frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
         mate=Mate("vehicle", "origin", "origin"), color=_FRAME_COLOR, finish="metal",
     ),

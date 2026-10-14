@@ -81,3 +81,14 @@ def interior_checks(values: Values) -> list[Check]:
     return [Check("interior:front_headroom", "packaging", Status.PASS if ok else Status.WARNING,
                   message, parameters=("overall_height", "ground_clearance", "rail_height"),
                   measured=round(room, 1), limit=HEADROOM_MIN, unit="mm")]  # fmt: skip
+
+
+def platform_checks(values: Values) -> list[Check]:
+    """A skateboard platform without a traction battery is allowed (so the platform can be
+    chosen before the powertrain) but flagged: its floor is sized for a pack."""
+    if d.chassis(values) == "skateboard" and d.powertrain(values) == "combustion":
+        message = ("skateboard platform with a combustion powertrain: the floor is sized for "
+                   "a battery that is not fitted")  # fmt: skip
+        return [Check("platform:skateboard_battery", "packaging", Status.WARNING, message,
+                      parameters=("chassis_type", "powertrain_type"))]  # fmt: skip
+    return []

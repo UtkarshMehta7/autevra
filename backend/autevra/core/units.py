@@ -2,7 +2,8 @@
 
 Every quantity belongs to a dimension. Values convert through the dimension's
 base unit: mm for length, deg for angle, % for ratio, kg for mass, N/mm for
-stiffness, N·s/m for damping and kW for power; coefficients are dimensionless.
+stiffness, N·s/m for damping, kW for power and kWh for energy; coefficients are
+dimensionless.
 Converting between dimensions is an error, so millimetres can never be silently
 mixed with newtons or kilograms.
 """
@@ -18,6 +19,7 @@ class Dimension(StrEnum):
     STIFFNESS = "stiffness"  # force per length
     DAMPING = "damping"  # force per velocity
     POWER = "power"
+    ENERGY = "energy"
     NONE = "none"  # dimensionless coefficients (drag, rolling resistance)
 
 
@@ -40,6 +42,8 @@ class Unit(StrEnum):
     KW = "kW"
     HP = "hp"
     PS = "PS"
+    KWH = "kWh"
+    WH = "Wh"
     NONE = ""
 
 
@@ -63,11 +67,20 @@ _UNITS: dict[Unit, tuple[Dimension, float]] = {
     Unit.KW: (Dimension.POWER, 1.0),
     Unit.HP: (Dimension.POWER, 0.745699872),  # mechanical horsepower
     Unit.PS: (Dimension.POWER, 0.73549875),  # metric horsepower
+    Unit.KWH: (Dimension.ENERGY, 1.0),
+    Unit.WH: (Dimension.ENERGY, 1e-3),
     Unit.NONE: (Dimension.NONE, 1.0),
 }
 
 # Spellings accepted from people and the parser, mapped to canonical units.
 UNIT_ALIASES: dict[str, Unit] = {
+    "kwh": Unit.KWH,
+    "kw h": Unit.KWH,
+    "kw·h": Unit.KWH,
+    "kilowatt hour": Unit.KWH,
+    "kilowatt hours": Unit.KWH,
+    "kilowatt-hours": Unit.KWH,
+    "wh": Unit.WH,
     "mm": Unit.MM,
     "millimetre": Unit.MM,
     "millimetres": Unit.MM,

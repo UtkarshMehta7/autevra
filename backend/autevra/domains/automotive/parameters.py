@@ -10,6 +10,7 @@ from autevra.core.units import Unit
 class Group(StrEnum):
     BODY = "body"
     INTERIOR = "interior"
+    CHASSIS = "chassis"
     DIMENSIONS = "dimensions"
     CABIN = "cabin"
     WHEELS = "wheels"
@@ -169,6 +170,60 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         options=("Gloss", "Metallic", "Matte", "Pearl"),
         description="Paint finish: solid gloss, metallic flake, matte or pearlescent.",
         aliases=("paint finish", "finish"),
+    ),
+    # --- Chassis and powertrain ---
+    _p(
+        id="chassis_type",
+        label="Chassis architecture",
+        group=Group.CHASSIS,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=2,
+        step=1,
+        options=("Ladder frame", "Unibody", "Skateboard"),
+        description="Body-on-frame ladder chassis (floor on the rails), unibody (integrated "
+        "floor structure, low floor) or skateboard (flat platform with the battery in the floor).",
+        aliases=("chassis architecture", "chassis type", "platform type"),  # not "chassis": rails
+    ),
+    _p(
+        id="powertrain_type",
+        label="Powertrain",
+        group=Group.CHASSIS,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=2,
+        step=1,
+        options=("Combustion", "Hybrid", "Battery electric"),
+        description="Combustion engine; hybrid (engine, motor-generator, small battery); or "
+        "battery electric (motors, battery pack, charger).",
+        aliases=("powertrain", "drivetrain type", "propulsion"),
+    ),
+    _p(
+        id="battery_capacity",
+        label="Battery capacity",
+        group=Group.CHASSIS,
+        unit=Unit.KWH,
+        default=60,
+        min=5,
+        max=200,
+        step=1,
+        description="Usable traction battery energy (hybrid or battery electric).",
+        aliases=("battery capacity", "battery size", "battery", "pack size", "pack capacity"),
+    ),
+    _p(
+        id="engine_cylinders",
+        label="Engine",
+        group=Group.CHASSIS,
+        unit=Unit.NONE,
+        default=1,
+        min=0,
+        max=3,
+        step=1,
+        options=("3-cylinder", "4-cylinder", "V6", "V8"),
+        description="Engine layout (combustion and hybrid).",
+        aliases=("engine", "engine layout", "cylinders"),
     ),
     # --- Interior ---
     _p(

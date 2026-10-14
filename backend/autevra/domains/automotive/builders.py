@@ -328,23 +328,61 @@ def build_body(p: Inputs) -> k.Shape:
     return k.cut(body, *wells, *lamps, cabin)  # one boolean for wells, lamps and cabin
 
 
-def build_frame(p: Inputs) -> k.Shape:
-    """Ladder frame: two hollow rectangular rails joined by hollow cross members."""
+def _ladder(p: Inputs, z: tuple[float, float]) -> k.Shape:
     front = p["front_overhang"] - 150.0
     rear = -(p["wheelbase"] + p["rear_overhang"] - 150.0)
-    w, h, t = p["rail_width"], p["rail_height"], p["rail_wall"]
-    z = (p["ground_clearance"], p["ground_clearance"] + h)
+    w, t = p["rail_width"], p["rail_wall"]
     half = p["rail_spacing"] / 2.0
-
     rails = [k.rect_tube_x((rear, front), (y - w / 2, y + w / 2), z, t) for y in (half, -half)]
-
     # Cross members between the rails' inner faces: both ends, and evenly in between.
     inner = half - w / 2.0
-    cm_depth = w  # cross member extent along X
     count = 5
-    xs = [rear + (front - rear - cm_depth) * i / (count - 1) for i in range(count)]
-    members = [k.rect_tube_y((x, x + cm_depth), (-inner, inner), z, t) for x in xs]
+    xs = [rear + (front - rear - w) * i / (count - 1) for i in range(count)]
+    members = [k.rect_tube_y((x, x + w), (-inner, inner), z, t) for x in xs]
     return k.fuse(rails[0], rails[1], *members)
+
+
+def build_frame(p: Inputs) -> k.Shape:
+    """Chassis structure by architecture:
+    - ladder frame: two hollow rails full length joined by five cross members;
+    - unibody: side sills, front and rear crash-rail subframes and floor cross members, all
+      within the low floor structure;
+    - skateboard: a perimeter tray around the floor battery, with subframes at each end.
+    """
+    from autevra.domains.automotive import derived as d
+
+    kind = d.chassis(p)
+    gc = p["ground_clearance"]
+    if kind == "ladder":
+        return _ladder(p, (gc, gc + p["rail_height"]))
+    w, t = p["rail_width"], p["rail_wall"]
+    front = p["front_overhang"] - 150.0
+    rear = -(p["wheelbase"] + p["rear_overhang"] - 150.0)
+    half_rail = p["rail_spacing"] / 2.0
+    sill = p["body_width"] / 2.0 - 110.0
+    if kind == "unibody":
+        z = (gc, gc + d.UNIBODY_FLOOR)
+        sills = [k.rect_tube_x((-p["wheelbase"] + 250.0, -250.0), (y - w / 2, y + w / 2), z, t)
+                 for y in (sill, -sill)]  # fmt: skip
+        crash = [k.rect_tube_x(x, (y - w / 2, y + w / 2), z, t)
+                 for x in ((-250.0, front), (rear, -p["wheelbase"] + 250.0))
+                 for y in (half_rail, -half_rail)]  # fmt: skip
+        xs = (-250.0 - w, -p["wheelbase"] / 2.0, -p["wheelbase"] + 250.0)
+        cross = [k.rect_tube_y((x, x + w), (-sill + w / 2, sill - w / 2), z, t) for x in xs]
+        return k.fuse(*sills, *crash, *cross)
+    h = d.body_floor_height(p) - gc - d.PACK_CLEARANCE  # up to the underside of the floor
+    z = (gc, gc + h)
+    (x0, x1), (y0, y1) = d.pack_footprint(p)
+    tray = [
+        k.rect_tube_x((x0 - w, x1 + w), (y - w / 2, y + w / 2), z, t)
+        for y in (y0 - w / 2, y1 + w / 2)
+    ]
+    ends = [k.rect_tube_y((x, x + w), (y0, y1), z, t) for x in (x0 - w, x1)]
+    zs = (gc, gc + min(h, p["rail_height"]))
+    ends_x = ((x1 + w, front), (rear, x0 - w))
+    subframes = [k.rect_tube_x(x, (y - w / 2, y + w / 2), zs, t)
+                 for x in ends_x for y in (half_rail, -half_rail)]  # fmt: skip
+    return k.fuse(*tray, *ends, *subframes)
 
 
 def build_axle(p: Inputs) -> k.Shape:

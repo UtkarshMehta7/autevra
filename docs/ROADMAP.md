@@ -136,6 +136,19 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-14: chassis architectures, powertrains and electrical equipment
+
+- **Chassis architecture**: ladder frame (body on the rails), unibody (sills, crash rails and floor cross members within a 50 mm floor structure; floor 60 mm lower) or skateboard (perimeter tray around the floor battery, subframes at each end; floor on top of the pack). The floor height, and every body-mounted part, follows it.
+- **Powertrain**: combustion, hybrid or battery electric, plus battery capacity (kWh, a new energy unit) and engine layout (3- and 4-cylinder, V6, V8). Equipment components are fitted per configuration (builders may return "not fitted"): engine, gearbox (with motor-generator for hybrids), fuel tank, exhaust with catalyst and muffler, cooling module; traction battery (module rows in a tray; a flat floor pack, or a compact pack under the rear seat for hybrids), front and rear e-motors by drive layout, inverters, on-board charger and DC-DC, charge port, orange high-voltage cables; and on every vehicle a 12 V battery, control units (with a battery management unit when electrified) and the main wiring harness.
+- **Derived**: battery mass and a steady 100 km/h range estimate from stated pack density and efficiency assumptions (not a test-cycle figure). **Rule** `battery_under_floor`; a skateboard without a battery is a packaging warning, not a rule, so the platform can be chosen before the powertrain. The interview sets the powertrain (electric: skateboard, 75 kWh; hybrid: 14 kWh); templates set unibody or ladder frame.
+- **Command bar**: the instruction panel became a one-line command input in the studio header with the reply in a popover and the history on demand; the parameters panel gets the full height. Phrases: "make it electric", "make it a skateboard platform", "give it a v8", "set the battery capacity to 90 kWh".
+- Removed the bare alias "chassis" from the chassis architecture ("beef up the chassis rail walls" had become an architecture command).
+- Checked in Chrome: an electric AWD SUV on a skateboard in X-ray.
+
+**Known limitations**
+- Equipment is packaging envelopes placed by rules of thumb, not component designs; there are no clearance checks between equipment items yet.
+- Dependencies are conservative: rail spacing and width now rebuild every body-mounted part (they set the floor-pack width on a ladder frame).
+
 ### 2026-10-14: interior
 
 - **Cabin**: the body has a passenger-space cavity open into the glasshouse, and the glazing is a 6 mm shell, so the interior shows through tinted, see-through glass (and in X-ray).
