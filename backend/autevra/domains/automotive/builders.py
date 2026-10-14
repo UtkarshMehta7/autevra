@@ -218,9 +218,15 @@ def _window_frame(p: Inputs, layout: BodyLayout) -> k.Shape:
     return k.cut(_greenhouse(p, layout), side, *screens)
 
 
+GLASS_THICKNESS = 6.0  # mm
+
+
 def build_glass(p: Inputs) -> k.Shape:
-    """Glazing: the greenhouse volume just inside the body's window openings."""
-    return _greenhouse(p, body_layout(p), inset=GLASS_INSET)
+    """Glazing: a thin shell just inside the body's window openings, open at the beltline,
+    so the cabin can be seen through it."""
+    layout = body_layout(p)
+    outer = _greenhouse(p, layout, inset=GLASS_INSET)
+    return k.cut(outer, _greenhouse(p, layout, inset=GLASS_INSET + GLASS_THICKNESS))
 
 
 LAMP_DEPTH = 15.0  # lamps sit in recesses this deep, flush with the body face, mm
@@ -316,7 +322,10 @@ def build_body(p: Inputs) -> k.Shape:
         inner = track / 2.0 - p["tyre_width"] / 2.0 - p["arch_clearance"]
         wells.append(k.cylinder_y(r, (inner, half_w + 1), x=x, z=wheel_z))
         wells.append(k.cylinder_y(r, (-half_w - 1, -inner), x=x, z=wheel_z))
-    return k.cut(body, *wells, *lamps)  # one boolean for wells and lamp recesses
+    from autevra.domains.automotive import interior  # (imports this module)
+
+    cabin = k.box(*interior.cavity(p))  # the passenger space, open into the glasshouse
+    return k.cut(body, *wells, *lamps, cabin)  # one boolean for wells, lamps and cabin
 
 
 def build_frame(p: Inputs) -> k.Shape:

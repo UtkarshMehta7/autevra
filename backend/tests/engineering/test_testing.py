@@ -6,7 +6,12 @@ from tests.assembly.test_graph import NO_GEOMETRY
 def test_every_parameter_without_geometry_feeds_a_test() -> None:
     read = {p for t in tst.DEFINITIONS.values() for target in t.targets for p in t.inputs(target)}
     # max steer angle: used by the later steering sweep; paint: appearance only.
-    assert NO_GEOMETRY - read == {"max_steer_angle", "paint_colour", "paint_finish"}
+    assert NO_GEOMETRY - read == {
+        "max_steer_angle",
+        "paint_colour",
+        "paint_finish",
+        "interior_colour",
+    }
 
 
 def test_no_criteria_means_no_verdict() -> None:

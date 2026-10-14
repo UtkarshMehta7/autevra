@@ -322,6 +322,9 @@ class Check(BaseModel):
 # by the design rules in tests; they are not data for any real vehicle.
 TEMPLATES: dict[str, dict[str, float]] = {
     "city_car": {
+        "seat_rows": 2,
+        "interior_trim": 0,
+        "interior_colour": 1,
         "paint_colour": 0,
         "paint_finish": 0,
         "drag_coefficient": 0.33,
@@ -347,6 +350,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 61,
     },
     "hatchback": {
+        "seat_rows": 2,
+        "interior_trim": 1,
+        "interior_colour": 0,
         "paint_colour": 6,
         "paint_finish": 1,
         "drag_coefficient": 0.31,
@@ -372,6 +378,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 60,
     },
     "sedan": {
+        "seat_rows": 2,
+        "interior_trim": 2,
+        "interior_colour": 3,
         "paint_colour": 3,
         "paint_finish": 1,
         "drag_coefficient": 0.28,
@@ -397,6 +406,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "suv": {
+        "seat_rows": 2,
+        "interior_trim": 1,
+        "interior_colour": 0,
         "paint_colour": 2,
         "paint_finish": 1,
         "drag_coefficient": 0.36,
@@ -422,6 +434,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "pickup": {
+        "seat_rows": 2,
+        "interior_trim": 1,
+        "interior_colour": 0,
         "paint_colour": 5,
         "paint_finish": 1,
         "drag_coefficient": 0.45,
@@ -447,6 +462,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "sports_car": {
+        "seat_rows": 1,
+        "interior_trim": 2,
+        "interior_colour": 5,
         "paint_colour": 4,
         "paint_finish": 3,
         "drag_coefficient": 0.32,
@@ -472,6 +490,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 50,
     },
     "van": {
+        "seat_rows": 3,
+        "interior_trim": 0,
+        "interior_colour": 1,
         "paint_colour": 0,
         "paint_finish": 0,
         "drag_coefficient": 0.35,
@@ -497,6 +518,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "box_truck": {
+        "seat_rows": 1,
+        "interior_trim": 0,
+        "interior_colour": 0,
         "paint_colour": 0,
         "paint_finish": 0,
         "drag_coefficient": 0.6,
@@ -524,7 +548,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
 }
 # Template values that are typical figures for the class, not data for any vehicle.
 TYPICAL_ROAD_LOADS = ("drag_coefficient", "rolling_resistance", "cg_height")
-APPEARANCE = ("paint_colour", "paint_finish")  # template choices, not engineering values
+APPEARANCE = ("paint_colour", "paint_finish", "interior_colour")  # template choices
 # Wheel travel to the bump stop and tyre-to-arch gap per class, mm (template values; the arch
 # gap is kept at least as large as the bump travel so the tyre clears the arch at full bump).
 TRAVEL = {
@@ -549,6 +573,12 @@ UNSPRUNG = {
     "van": (45, 55),
     "box_truck": (55, 90),
 }
+SEAT_ROWS = {
+    "2": 1,
+    "4": 2,
+    "5": 2,
+    "7": 3,
+}  # two seats per row; the middle rear seat is a bench place
 SEAT_CABIN = {"2": 1900, "4": 2300, "5": 2500, "7": 3000}  # cabin length at the beltline, mm
 # Target body-bounce (ride) frequencies for the front axle, Hz; the rear is set 10 % higher
 # (flat-ride guidance after Olley). Typical published ranges: passenger cars 1.0–1.5 Hz,
@@ -780,6 +810,8 @@ def generate(spec: VehicleSpec) -> Generated:
         )
     if (seats := spec.get("seats")) is not None and seats != "skip":
         values["cabin_length"] = SEAT_CABIN[str(seats)]
+        values["seat_rows"] = SEAT_ROWS[str(seats)]
+        sources["seat_rows"] = f"{seats} seats"
         values["roof_length"] = min(values["roof_length"], values["cabin_length"] - 400)
         sources["cabin_length"] = f"{seats} seats"
     if spec.get("use") == "off_road":

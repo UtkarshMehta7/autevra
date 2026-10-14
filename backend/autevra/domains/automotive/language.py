@@ -479,6 +479,23 @@ LANGUAGE = Language(
     unmodelled_limits=_UNMODELLED_LIMITS,
     spec_trigger=SPEC_TRIGGER,
     option_aliases={
+        "interior_trim": {
+            "Standard": ("basic", "base", "entry"),
+            "Comfort": ("mid", "comfort pack"),
+            "Premium": ("luxury", "luxurious", "high end", "high-end", "top", "executive"),
+        },
+        "interior_colour": {
+            "Charcoal": ("black interior", "dark interior"),
+            "Stone Grey": ("grey interior", "gray interior"),
+            "Cream": ("cream", "ivory", "white interior"),
+            "Tan": ("tan", "camel", "beige interior"),
+            "Cognac": ("cognac", "brown interior", "saddle"),
+            "Oxblood": ("oxblood", "red interior", "burgundy"),
+        },
+        "driving_side": {
+            "Left-hand drive": ("lhd", "left hand drive", "left-hand-drive"),
+            "Right-hand drive": ("rhd", "right hand drive", "right-hand-drive"),
+        },
         "paint_colour": {
             "Arctic White": ("white", "pearl white", "snow white"),
             "Lunar Silver": ("silver",),

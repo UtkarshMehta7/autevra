@@ -72,11 +72,11 @@ def test_every_style_builds_one_valid_solid_with_the_design_extents(style: str) 
 
 
 @pytest.mark.cad
-def test_the_pickup_bed_removes_material_and_the_truck_box_adds_it() -> None:
+def test_the_truck_box_adds_material_and_the_pickup_bed_does_not() -> None:
     sedan = k.volume(c.build_body(_inputs("sedan")))
     assert k.volume(c.build_body(_inputs("box_truck"))) > 1.2 * sedan
-    van = k.volume(c.build_body(_inputs("van")))
-    assert k.volume(c.build_body(_inputs("pickup"))) < van
+    truck = k.volume(c.build_body(_inputs("box_truck")))
+    assert k.volume(c.build_body(_inputs("pickup"))) < truck  # open bed against a cargo box
 
 
 @pytest.mark.cad
@@ -105,3 +105,14 @@ def test_glazing_ignores_the_wheels_and_track() -> None:
 
     assert "track_front" not in GLASS_GEOMETRY and "rim_diameter" not in GLASS_GEOMETRY
     assert "body_style" in GLASS_GEOMETRY and "cabin_length" in GLASS_GEOMETRY
+
+
+@pytest.mark.cad
+@pytest.mark.parametrize("style", c.BODY_STYLES)
+def test_the_cabin_is_hollow_so_the_interior_shows(style: str) -> None:
+    from autevra.domains.automotive import interior
+
+    p = _inputs(style)
+    (x0, x1), _, (z0, z1) = interior.cavity(p)
+    probe = k.box((x0 + 100.0, x1 - 100.0), (-200.0, 200.0), (z0 + 50.0, z0 + 200.0))
+    assert k.volume(k.intersect(c.build_body(p), probe)) < 1.0  # nothing inside the cabin

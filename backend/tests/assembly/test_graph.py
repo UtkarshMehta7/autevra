@@ -42,7 +42,18 @@ def test_wheelbase_moves_only_the_rear_axle_group() -> None:
 
 def test_impact_of_wheelbase() -> None:
     impact = graph.impact(["wheelbase"])
-    assert impact.rebuild == {"body", "frame", "glass", "head_lamps", "tail_lamps"}
+    assert impact.rebuild == {
+        "body",
+        "frame",
+        "glass",
+        "head_lamps",
+        "tail_lamps",
+        "seats",
+        "dashboard",
+        "display",
+        "steering_wheel",
+        "console",
+    }
     assert impact.move == {"rear_axle", "wheel_rl", "wheel_rr", "damper_rl", "damper_rr"}
 
 
@@ -75,6 +86,7 @@ NO_GEOMETRY = {
     "max_steer_angle", "vehicle_mass", "front_mass_distribution", "tyre_vertical_stiffness",
     "peak_power", "front_drive_share", "drivetrain_efficiency", "drag_coefficient",
     "rolling_resistance", "cg_height", "pitch_dynamic_index", "paint_colour", "paint_finish",
+    "interior_colour",
     *(f"{a}_{n}" for a in ("front", "rear")
       for n in ("damping_bump", "damping_rebound", "unsprung_mass", "bump_travel",
                 "rebound_travel")),

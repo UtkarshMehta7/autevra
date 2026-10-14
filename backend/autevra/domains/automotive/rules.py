@@ -326,3 +326,24 @@ def _cg_within_body(p: Values) -> str | None:
             f"{_mm(lo)}–{_mm(hi)} (ground clearance to half the overall height)"
         )
     return None
+
+
+@_rule(
+    "seat_rows_fit",
+    "The seat rows must fit in the cabin: a 350 mm dashboard zone plus 850 mm per row.",
+    "seat_rows",
+    "cabin_length",
+    "cabin_offset",
+    "body_style",
+)
+def _seat_rows_fit(p: Values) -> str | None:
+    from autevra.domains.automotive import interior
+
+    c = interior.cabin(p | {"body_floor": d.body_floor_height(p)})
+    need, room = interior.required_length(c.rows), c.cowl - c.rear
+    if need > room:
+        return (
+            f"{c.rows} seat rows need {_mm(need)} of cabin but the passenger space is "
+            f"{_mm(room)} long"
+        )
+    return None
