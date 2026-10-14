@@ -14,6 +14,19 @@ export type Animation =
       exaggeration: number;
     }
   | {
+      kind: "half_car";
+      label: string;
+      wheelbase: number; // mm
+      cgX: number; // mm, x of the sprung-mass centre (front axle at 0, rear at -wheelbase)
+      t: number[];
+      heave: number[]; // mm
+      pitch: number[]; // deg, ISO 8855: positive nose down
+      frontAxle: number[]; // mm
+      rearAxle: number[]; // mm
+      road: number[]; // mm under the front wheels
+      exaggeration: number;
+    }
+  | {
       kind: "longitudinal";
       label: string;
       tyreRadius: number; // mm
@@ -62,6 +75,7 @@ export function framePoses(
     }
     return out;
   }
+  if (anim.kind === "half_car") return halfCarPoses(anim, index, base, damperLength);
   const k = anim.exaggeration;
   const body = anim.body[index] * k, wheel = anim.wheel[index] * k;
   const xAxle = anim.axle === "front" ? 0 : -anim.wheelbase;
@@ -88,12 +102,54 @@ export function framePoses(
   return out;
 }
 
+/**
+ * Half car: the sprung parts heave and pitch about the sprung-mass centre, each axle and its
+ * wheels follow that axle's computed motion, and the dampers stretch between the two.
+ */
+function halfCarPoses(
+  anim: Extract<Animation, { kind: "half_car" }>, index: number,
+  base: Map<string, THREE.Matrix4>, damperLength: (id: string) => number,
+): Map<string, THREE.Matrix4> {
+  const out = new Map<string, THREE.Matrix4>();
+  const k = anim.exaggeration;
+  const heave = anim.heave[index] * k;
+  const theta = THREE.MathUtils.degToRad(anim.pitch[index] * k);
+  const axleZ = { front: anim.frontAxle[index] * k, rear: anim.rearAxle[index] * k };
+  const a = -anim.cgX, b = anim.cgX + anim.wheelbase;
+  const bodyAt = { front: heave - a * theta, rear: heave + b * theta };
+  const sprung = new THREE.Matrix4().makeTranslation(anim.cgX, 0, heave)
+    .multiply(new THREE.Matrix4().makeRotationY(theta)) // +Y rotation: nose down
+    .multiply(new THREE.Matrix4().makeTranslation(-anim.cgX, 0, 0));
+  for (const [id, m] of base) {
+    const axle = (["front", "rear"] as const).find((x) => id === `${x}_axle`
+      || CORNERS[x].some((c) => id === `wheel_${c}` || id === `damper_${c}`));
+    if (!axle) {
+      out.set(id, sprung.clone().multiply(m)); // body, glazing, lamps, frame
+      continue;
+    }
+    const lift = new THREE.Matrix4().makeTranslation(0, 0, axleZ[axle]);
+    if (id.startsWith("damper_")) {
+      const length = damperLength(id);
+      const stretch = length > 0 ? (length + bodyAt[axle] - axleZ[axle]) / length : 1;
+      out.set(id, lift.multiply(m.clone()).multiply(new THREE.Matrix4().makeScale(1, 1, stretch)));
+    } else {
+      out.set(id, lift.multiply(m.clone()));
+    }
+  }
+  return out;
+}
+
 export function readout(anim: Animation, index: number): string {
   const t = anim.t[index].toFixed(2);
   if (anim.kind === "longitudinal") {
     return `${anim.label} · t ${t} s · ${anim.speed[index].toFixed(1)} km/h · ${anim.distance[index].toFixed(1)} m`;
   }
   const f = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)} mm`;
+  if (anim.kind === "half_car") {
+    const p = anim.pitch[index];
+    return `${anim.label} · t ${t} s · heave ${f(anim.heave[index])} · pitch ${p >= 0 ? "+" : ""}${p.toFixed(2)}° (+ nose down)`
+      + (anim.exaggeration !== 1 ? ` · motion ×${anim.exaggeration}` : "");
+  }
   return `${anim.label} · t ${t} s · road ${f(anim.road[index])} · wheel ${f(anim.wheel[index])} · body ${f(anim.body[index])}`
     + (anim.exaggeration !== 1 ? ` · motion ×${anim.exaggeration}` : "")
     + " · other axle held (not simulated)";

@@ -307,6 +307,13 @@ function StudioView({ projectId, workspace, navigate }: {
       const tyre = project.derived.find((d) => d.id === "tyre_diameter")?.value ?? 650;
       setAnimation({ kind: "longitudinal", label: `${run.scenario.label}`, tyreRadius: tyre / 2,
         t: run.trace.t, distance: run.trace.distance_m, speed: run.trace.speed_kmh });
+    } else if (run.trace.heave_mm) {
+      const inputs = (run.config.solver_inputs ?? {}) as Record<string, number>;
+      setAnimation({ kind: "half_car", label: `half-car, ${run.scenario.label}`,
+        wheelbase: project.values.wheelbase, cgX: -(inputs.front_to_cg ?? 1.3) * 1000,
+        t: run.trace.t, heave: run.trace.heave_mm, pitch: run.trace.pitch_deg,
+        frontAxle: run.trace.front_axle_mm, rearAxle: run.trace.rear_axle_mm,
+        road: run.trace.road_front_mm, exaggeration: 3 });
     } else {
       setAnimation({ kind: "quarter_car", label: `${run.target} quarter-car, ${run.scenario.label}`,
         axle: run.target as "front" | "rear", wheelbase: project.values.wheelbase,

@@ -9,6 +9,7 @@ from collections.abc import Mapping
 
 from autevra.core.parameters import REGISTRY
 from autevra.domains.automotive import derived as d
+from autevra.domains.automotive.sim import half_car as hc
 from autevra.domains.automotive.sim import longitudinal as lg
 from autevra.domains.automotive.sim import quarter_car as qc
 from autevra.engineering.testing import (
@@ -178,6 +179,119 @@ QUARTER_CAR = TestDefinition(
 )
 
 
+# --- Half-car ride test (bounce and pitch) -----------------------------------------------
+
+
+def half_car_inputs(target: str) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(
+        (*quarter_car_inputs("front"), *quarter_car_inputs("rear"), "wheelbase",
+         "pitch_dynamic_index")
+    ))  # fmt: skip
+
+
+def half_car_params(values: Values) -> hc.Params:
+    """Whole-vehicle solver inputs (SI). The sprung-mass centre sits where the axle sprung
+    loads balance; the pitch inertia comes from the dynamic index."""
+    front, rear = (
+        2 * d.sprung_corner_mass(values, "front"),
+        2 * d.sprung_corner_mass(values, "rear"),
+    )
+    mass = front + rear
+    wheelbase = values["wheelbase"] / 1000.0
+    b = wheelbase * front / mass  # rear axle to the CG
+    a = wheelbase - b
+    return hc.Params(
+        sprung_mass=mass, front_to_cg=a, rear_to_cg=b,
+        pitch_inertia=hc.pitch_inertia(mass, a, b, values["pitch_dynamic_index"]),
+        front_unsprung_mass=values["front_unsprung_mass"],
+        rear_unsprung_mass=values["rear_unsprung_mass"],
+        front_spring_rate=values["front_spring_rate"] * 1000.0,
+        rear_spring_rate=values["rear_spring_rate"] * 1000.0,
+        front_damping_bump=values["front_damping_bump"],
+        front_damping_rebound=values["front_damping_rebound"],
+        rear_damping_bump=values["rear_damping_bump"],
+        rear_damping_rebound=values["rear_damping_rebound"],
+        tyre_stiffness=values["tyre_vertical_stiffness"] * 1000.0,
+    )  # fmt: skip
+
+
+def _run_half_car(values: Values, target: str, scenario: Scenario, quick: bool = False):  # type: ignore[no-untyped-def]
+    params = half_car_params(values)
+    config = hc.Config(duration=max(scenario.duration_s, 3.5), check_convergence=not quick,
+                       trace_points=2 if quick else 600)  # fmt: skip
+    result = hc.simulate(params, road(scenario), config)
+    bounce, pitch = hc.body_frequencies(params)
+    solver_inputs = {k: round(v, 6) for k, v in params.__dict__.items()} | {
+        "body_frequencies_Hz": [round(bounce, 4), round(pitch, 4)]
+    }
+    config_out = {"dt": config.dt, "duration": config.duration, "solver_inputs": solver_inputs}
+    return (result.metrics, result.numerics, result.solver, result.warnings,
+            {"trace": result.trace, "config": config_out})  # fmt: skip
+
+
+def explain_half_car_limit(criterion: CriterionResult, values: Values, target: str):  # type: ignore[no-untyped-def]
+    axle, _, rest = criterion.id.partition("_")
+    if axle not in ("front", "rear") or rest not in ("bump_travel", "rebound_travel"):
+        return None
+    inner = criterion.model_copy(update={"id": rest})
+    return explain_travel_limit(inner, values, axle)
+
+
+def vehicle_variables(target: str, values: Values, spread: float = 0.3):  # type: ignore[no-untyped-def]
+    """Springs and dampers of both axles, ±``spread`` around the design."""
+    return [v for axle in ("front", "rear") for v in corner_variables(axle, values, spread)]
+
+
+def _axle_criteria(axle: str) -> tuple[Criterion, ...]:
+    return (
+        Criterion(f"{axle}_bump_travel", f"{axle.title()} bump travel within the usable travel",
+                  f"{axle}_max_bump_travel", "<=", "mm",
+                  limit_from=f"{axle}_available_bump_travel", source="design"),
+        Criterion(f"{axle}_rebound_travel",
+                  f"{axle.title()} rebound travel within the usable travel",
+                  f"{axle}_max_rebound_travel", "<=", "mm",
+                  limit_from=f"{axle}_available_rebound_travel", source="design"),
+        Criterion(f"{axle}_tyre_contact", f"{axle.title()} tyres stay on the road",
+                  f"{axle}_min_tyre_load_ratio", ">", "", limit=0.0),
+    )  # fmt: skip
+
+
+HALF_CAR = TestDefinition(
+    id="half_car",
+    name="Half-car ride test (bounce and pitch)",
+    description="The whole vehicle over a road event, front axle first and the rear a "
+    "wheelbase later: body heave and pitch, travel on both axles, tyre contact.",
+    solver=hc.SOLVER_ID,
+    credibility=Credibility.NUMERICAL_SIMULATION,
+    targets=("vehicle",),
+    components={
+        "vehicle": (
+            "body",
+            "damper_fl",
+            "damper_fr",
+            "damper_rl",
+            "damper_rr",
+            "wheel_fl",
+            "wheel_fr",
+            "wheel_rl",
+            "wheel_rr",
+            "front_axle",
+            "rear_axle",
+        ),
+    },  # fmt: skip
+    inputs=half_car_inputs,
+    scenarios=QUARTER_CAR.scenarios,
+    criteria=(*_axle_criteria("front"), *_axle_criteria("rear")),
+    metrics=hc.METRICS,
+    assumptions=hc.ASSUMPTIONS,
+    run=_run_half_car,
+    solver_version=hc.SOLVER_VERSION,
+    explain_limit=explain_half_car_limit,
+    default_variables=vehicle_variables,
+    proxies={"front_tyre_contact": "lift_off_time", "rear_tyre_contact": "lift_off_time"},
+)
+
+
 # --- Ride modes (analytical) ------------------------------------------------------------
 
 
@@ -337,4 +451,4 @@ LONGITUDINAL = TestDefinition(
     solver_version=lg.SOLVER_VERSION,
 )
 
-DEFINITIONS: tuple[TestDefinition, ...] = (QUARTER_CAR, RIDE_MODES, LONGITUDINAL)
+DEFINITIONS: tuple[TestDefinition, ...] = (QUARTER_CAR, HALF_CAR, RIDE_MODES, LONGITUDINAL)
