@@ -15,6 +15,13 @@ from autevra.cad import kernel
 
 # Builder name -> function(inputs) -> shape. Filled by domain modules and plugins.
 BUILDERS: dict[str, Callable[[Mapping[str, float]], kernel.Shape]] = {}
+DEFAULT_ANGULAR = 0.3  # display mesh angular deflection, rad
+
+
+def mesh_angular(builder: Callable) -> float:
+    """A builder may declare ``mesh_angular`` for a coarser display mesh (a coil spring
+    does not need tyre-like smoothness); the B-rep and STEP export are unaffected."""
+    return float(getattr(builder, "mesh_angular", DEFAULT_ANGULAR))
 
 
 def geometry_key(builder: str, inputs: Mapping[str, float]) -> str:
@@ -35,6 +42,7 @@ class GeometryCache:
     def __init__(self, max_entries: int = 64) -> None:
         self._shapes: OrderedDict[str, kernel.Shape] = OrderedDict()
         self._meshes: dict[str, kernel.Mesh] = {}
+        self._builder_of: dict[str, str] = {}
         self.max_entries = max_entries
         self.stats = CacheStats()
 
@@ -45,15 +53,19 @@ class GeometryCache:
             self.stats.hits += 1
         else:
             self._shapes[key] = BUILDERS[builder](inputs)
+            self._builder_of[key] = builder
             self.stats.builds.append(builder)
             while len(self._shapes) > self.max_entries:
                 old, _ = self._shapes.popitem(last=False)
                 self._meshes.pop(old, None)
+                self._builder_of.pop(old, None)
         return key, self._shapes[key]
 
     def mesh(self, key: str) -> kernel.Mesh:
         if key not in self._meshes:
-            self._meshes[key] = kernel.tessellate(self._shapes[key])
+            builder = BUILDERS.get(self._builder_of.get(key, ""))
+            angular = mesh_angular(builder) if builder else DEFAULT_ANGULAR
+            self._meshes[key] = kernel.tessellate(self._shapes[key], angular=angular)
         return self._meshes[key]
 
     def reset_stats(self) -> None:

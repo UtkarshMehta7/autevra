@@ -377,3 +377,6 @@ def build_damper(p: Inputs) -> k.Shape:
         coil_r, high - low - wire + 2.0, SPRING_ACTIVE_COILS + 2.0, wire, low + wire / 2.0 - 1.0
     )
     return k.fuse(lower_eye, body, rod, upper_eye, *seats, coil)
+
+
+build_damper.mesh_angular = 0.5  # type: ignore[attr-defined]  (3x fewer coil triangles)
