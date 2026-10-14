@@ -64,3 +64,45 @@ export function rememberEmissive(material: THREE.MeshStandardMaterial): void {
 export function baseOpacity(material: THREE.Material): number {
   return (material.userData.baseOpacity as number | undefined) ?? 1;
 }
+
+let zebra: THREE.ShaderMaterial | null = null;
+
+/** Highlight-line (zebra) analysis material: black and white bands reflected from a
+ * striped environment fixed to the view. Smooth, continuous bands mean tangent- and
+ * curvature-continuous surfaces; kinks and steps in the bands show breaks. Honours the
+ * section plane. */
+export function zebraMaterial(): THREE.ShaderMaterial {
+  if (zebra) return zebra;
+  zebra = new THREE.ShaderMaterial({
+    clipping: true,
+    side: THREE.DoubleSide,
+    uniforms: { stripes: { value: 9.0 } },
+    vertexShader: `
+      #include <clipping_planes_pars_vertex>
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vNormal = normalize(normalMatrix * normal);
+        vView = normalize(-mvPosition.xyz);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <clipping_planes_vertex>
+      }`,
+    fragmentShader: `
+      #include <clipping_planes_pars_fragment>
+      uniform float stripes;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        #include <clipping_planes_fragment>
+        vec3 n = normalize(vNormal);
+        if (!gl_FrontFacing) n = -n;
+        vec3 r = reflect(-normalize(vView), n);
+        float t = fract(r.y * stripes);
+        float w = fwidth(r.y * stripes) * 1.5;
+        float band = smoothstep(0.5 - w, 0.5 + w, t) * (1.0 - smoothstep(1.0 - w, 1.0, t));
+        gl_FragColor = vec4(mix(vec3(0.06), vec3(0.96), band), 1.0);
+      }`,
+  });
+  return zebra;
+}

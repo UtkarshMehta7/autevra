@@ -19,12 +19,18 @@ Values = Mapping[str, float]
 TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
 
 
+# Shape controls: the sculpted lower body reads all of them, the greenhouse (and so the
+# glazing and the cabin) the haunch and the tumblehome.
+SHAPE = ("haunch", "nose_taper", "tail_taper", "sill_tuck", "body_roundness", "tumblehome")
+GREENHOUSE_SHAPE = ("haunch", "tumblehome")
+
 BODY_GEOMETRY = (
     "body_style", "wheelbase", "front_overhang", "rear_overhang", "body_width", "overall_height",
     "beltline_height", "ground_clearance", "rail_height", "cabin_length", "roof_length",
     "cabin_offset", "track_front", "track_rear", "arch_clearance", *TYRE, *d.CHASSIS_INPUTS,
     "head_lamp_style", "tail_lamp_style",  # the body is recessed for the lamps
     "roof_type",  # and opened for a panoramic roof or sunroof
+    *SHAPE,
 )  # fmt: skip
 
 
@@ -32,7 +38,7 @@ BODY_GEOMETRY = (
 GLASS_GEOMETRY = (
     "body_style", "wheelbase", "front_overhang", "rear_overhang", "body_width",
     "overall_height", "beltline_height", "ground_clearance", "rail_height", "cabin_length",
-    "roof_length", "cabin_offset", *d.CHASSIS_INPUTS,
+    "roof_length", "cabin_offset", *d.CHASSIS_INPUTS, *GREENHOUSE_SHAPE,
 )  # fmt: skip
 
 

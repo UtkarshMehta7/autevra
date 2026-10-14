@@ -12,6 +12,7 @@ interface Props {
 
 const GROUPS: [string, string][] = [
   ["body", "Body"],
+  ["shape", "Body shaping"],
   ["exterior", "Exterior options"],
   ["interior", "Interior"],
   ["chassis", "Chassis & powertrain"],

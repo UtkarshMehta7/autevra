@@ -12,7 +12,7 @@ def test_every_vehicle_class_is_a_template(client: TestClient) -> None:
     listed = client.get("/api/templates").json()
     ids = [t["id"] for t in listed]
     assert ids == ["city_car", "hatchback", "sedan", "suv", "pickup", "sports_car", "van",
-                   "box_truck"]  # fmt: skip
+                   "box_truck", "estate", "crossover", "mpv", "roadster", "supercar"]  # fmt: skip
     assert all(t["label"] and t["description"] for t in listed)
 
 

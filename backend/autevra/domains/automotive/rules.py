@@ -369,6 +369,33 @@ def _boot_spoiler_needs_a_boot(p: Values) -> str | None:
 
 
 @_rule(
+    "roof_options_need_a_roof",
+    "Roof rails, a roof spoiler and a glass roof need a fixed roof (not an open roadster).",
+    "body_style",
+    "roof_rails",
+    "rear_spoiler",
+    "roof_type",
+)
+def _roof_options_need_a_roof(p: Values) -> str | None:
+    from autevra.domains.automotive import builders, exterior
+
+    if builders.body_style(p) not in builders.OPEN_STYLES:
+        return None
+    fitted = [
+        name
+        for name, on in (
+            ("roof rails", int(round(p["roof_rails"])) != 0),
+            ("a roof spoiler", exterior.spoiler(p) == "roof"),
+            ("a glass roof", exterior.roof_type(p) != "solid"),
+        )
+        if on
+    ]
+    if fitted:
+        return f"an open roadster has no fixed roof for {' or '.join(fitted)}"
+    return None
+
+
+@_rule(
     "battery_under_floor",
     "A floor battery must fit between the ground-clearance line and the cabin floor.",
     "battery_capacity",
