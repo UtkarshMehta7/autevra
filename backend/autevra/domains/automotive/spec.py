@@ -322,6 +322,9 @@ class Check(BaseModel):
 # by the design rules in tests; they are not data for any real vehicle.
 TEMPLATES: dict[str, dict[str, float]] = {
     "city_car": {
+        "drag_coefficient": 0.33,
+        "rolling_resistance": 0.01,
+        "cg_height": 520,
         "body_style": 1,
         "wheelbase": 2450,
         "front_overhang": 700,
@@ -342,6 +345,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 61,
     },
     "hatchback": {
+        "drag_coefficient": 0.31,
+        "rolling_resistance": 0.01,
+        "cg_height": 540,
         "body_style": 1,
         "wheelbase": 2620,
         "front_overhang": 850,
@@ -362,6 +368,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 60,
     },
     "sedan": {
+        "drag_coefficient": 0.28,
+        "rolling_resistance": 0.01,
+        "cg_height": 530,
         "body_style": 0,
         "wheelbase": 2800,
         "front_overhang": 900,
@@ -382,6 +391,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "suv": {
+        "drag_coefficient": 0.36,
+        "rolling_resistance": 0.011,
+        "cg_height": 680,
         "body_style": 2,
         "wheelbase": 2850,
         "front_overhang": 920,
@@ -402,6 +414,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "pickup": {
+        "drag_coefficient": 0.45,
+        "rolling_resistance": 0.011,
+        "cg_height": 750,
         "body_style": 4,
         "wheelbase": 3200,
         "front_overhang": 950,
@@ -422,6 +437,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "sports_car": {
+        "drag_coefficient": 0.32,
+        "rolling_resistance": 0.011,
+        "cg_height": 450,
         "body_style": 3,
         "wheelbase": 2450,
         "front_overhang": 950,
@@ -442,6 +460,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 50,
     },
     "van": {
+        "drag_coefficient": 0.35,
+        "rolling_resistance": 0.01,
+        "cg_height": 700,
         "body_style": 5,
         "wheelbase": 3000,
         "front_overhang": 900,
@@ -462,6 +483,9 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "box_truck": {
+        "drag_coefficient": 0.6,
+        "rolling_resistance": 0.009,
+        "cg_height": 950,
         "body_style": 6,
         "wheelbase": 3500,
         "front_overhang": 800,
@@ -482,6 +506,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 45,
     },
 }
+# Template values that are typical figures for the class, not data for any vehicle.
+TYPICAL_ROAD_LOADS = ("drag_coefficient", "rolling_resistance", "cg_height")
 # Wheel travel to the bump stop and tyre-to-arch gap per class, mm (template values; the arch
 # gap is kept at least as large as the bump travel so the tyre clears the arch at full bump).
 TRAVEL = {
@@ -728,7 +754,11 @@ def generate(spec: VehicleSpec) -> Generated:
     sources = {}
     for k, v in TEMPLATES[cls].items():
         values[k] = v
-        sources[k] = f"{CLASS_LABELS[cls]} template"
+        sources[k] = (
+            f"typical for a {CLASS_LABELS[cls]} (not measured)"
+            if k in TYPICAL_ROAD_LOADS
+            else f"{CLASS_LABELS[cls]} template"
+        )
     if (seats := spec.get("seats")) is not None and seats != "skip":
         values["cabin_length"] = SEAT_CABIN[str(seats)]
         values["roof_length"] = min(values["roof_length"], values["cabin_length"] - 400)

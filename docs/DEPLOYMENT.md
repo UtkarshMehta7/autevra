@@ -135,6 +135,7 @@ The backend image turns these on (environment variables, any host can override t
 | `AUTEVRA_WRITE_LIMIT_PER_MINUTE` | `60` | Changes per client address per minute (reads are never limited); 429 with `Retry-After` |
 | `AUTEVRA_CONTACT_LIMIT_PER_HOUR` | `5` | Contact form messages per client address per hour |
 | `AUTEVRA_MAX_PROJECTS_PER_WORKSPACE` | `20` | Projects per browser workspace |
+| `AUTEVRA_WARM_UP` | `true` | Build the default design's geometry in the background at startup, so the first visitor after a wake-up waits less (the first build takes about 35 s at 0.1 CPU) |
 
 This is isolation between anonymous visitors, not authentication: there are no accounts,
 another browser starts an empty workspace, and clearing site data loses access. Projects

@@ -42,3 +42,13 @@ def test_a_project_starts_from_the_template_design(
 def test_an_unknown_template_is_refused(client: TestClient) -> None:
     reply = client.post("/api/projects", json={"name": "T", "template": "tank"})
     assert reply.status_code == 409 and "unknown template" in reply.json()["detail"]
+
+
+def test_road_loads_follow_the_class_and_say_they_are_typical() -> None:
+    from autevra.domains.automotive.spec import VehicleSpec, generate
+
+    drag = {t: TEMPLATES[t].values()["drag_coefficient"] for t in TEMPLATES}
+    assert drag["box_truck"] > drag["pickup"] > drag["suv"] > drag["sedan"]
+    spec = VehicleSpec()
+    spec.set("vehicle_class", "box_truck", source="default")
+    assert "not measured" in generate(spec).sources["drag_coefficient"]

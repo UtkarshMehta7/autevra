@@ -150,6 +150,10 @@ specification interview moves to Phase 5.
 
 - **Lamps.** Head lamps and tail lamps are their own components, flush in recesses on the front and rear faces of every body style (low on the cargo box of a box truck), so the vehicle extents and the STEP bounding box are unchanged.
 
+- **Road loads per class.** Each template sets a typical drag coefficient, rolling resistance and centre-of-gravity height for its class (a box truck at Cd 0.60, a sedan at 0.28); the specification marks them "typical, not measured". The longitudinal test therefore differs by class.
+- **Warm-up.** Hosted instances build the default geometry at startup (`AUTEVRA_WARM_UP`).
+- Checked on the live site (Chrome): a new project in a browser workspace, "make it a pickup" rebuilt body and glazing in 6.3 s on the free instance; the first model took 34 s.
+
 **Known limitations**
 - Shapes are still faceted (ruled lofts and prisms); no curved surfaces, doors or mirrors.
 - A van's greenhouse and a box truck's cargo box are sized from the overall dimensions, not from the cabin parameters.
