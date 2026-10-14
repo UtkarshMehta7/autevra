@@ -136,6 +136,15 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-14: suspension types and the industry feature survey
+
+- **Suspension types** per axle: front beam axle, MacPherson strut (knuckle, lower control arm, tie rod), double wishbone (upper and lower arms) or multi-link (five links); rear beam axle, twist beam (trailing arms and torsion beam), multi-link or double wishbone. Hubs and damper mounts are unchanged, so wheels, dampers and the ride simulations are unaffected; each independent corner carries a spring perch up to the damper mount. Templates set typical types per class; phrases such as "make the front suspension double wishbone".
+- **`docs/INDUSTRY_FEATURES.md`**: capability families of established vehicle-engineering tools (geometry, assembly and digital mock-up, vehicle systems, simulation, data and process) with Autevra's status for each and the upgrade plan derived from the gaps.
+- Checked in Chrome: the double wishbone isolated in the front view.
+
+**Known limitations**
+- The ride models treat every suspension type as a vertical corner: no camber, toe, roll centre or anti-geometry yet.
+
 ### 2026-10-14: chassis architectures, powertrains and electrical equipment
 
 - **Chassis architecture**: ladder frame (body on the rails), unibody (sills, crash rails and floor cross members within a 50 mm floor structure; floor 60 mm lower) or skateboard (perimeter tray around the floor battery, subframes at each end; floor on top of the pack). The floor height, and every body-mounted part, follows it.

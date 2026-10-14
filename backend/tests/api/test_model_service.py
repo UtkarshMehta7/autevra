@@ -24,7 +24,7 @@ def test_four_wheels_share_one_geometry() -> None:
     assert built.count("wheel") == 1 and built.count("damper") == 2  # four wheels share one
     assert {"body", "seats", "engine", "harness"} <= set(built)  # fmt: skip
     payload = mesh_payload(model, cache)
-    assert len(payload["geometries"]) == 22
+    assert len(payload["geometries"]) == 23
     assert len(payload["parts"]) == 28
 
 

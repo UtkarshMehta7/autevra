@@ -479,6 +479,18 @@ LANGUAGE = Language(
     unmodelled_limits=_UNMODELLED_LIMITS,
     spec_trigger=SPEC_TRIGGER,
     option_aliases={
+        "front_suspension": {
+            "Beam axle": ("solid axle", "beam", "rigid axle"),
+            "MacPherson strut": ("macpherson", "mcpherson", "strut", "struts"),
+            "Double wishbone": ("double wishbones", "wishbone", "wishbones", "a-arm", "a-arms"),
+            "Multi-link": ("multilink", "multi link"),
+        },
+        "rear_suspension": {
+            "Beam axle": ("solid axle", "live axle", "beam", "rigid axle"),
+            "Twist beam": ("torsion beam", "twist-beam", "twistbeam"),
+            "Multi-link": ("multilink", "multi link", "independent"),
+            "Double wishbone": ("double wishbones", "wishbone", "wishbones"),
+        },
         "chassis_type": {
             "Ladder frame": ("ladder", "body on frame", "body-on-frame", "separate chassis"),
             "Unibody": ("monocoque", "unit body", "integrated body"),

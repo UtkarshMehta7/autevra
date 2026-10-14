@@ -225,6 +225,34 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         description="Engine layout (combustion and hybrid).",
         aliases=("engine", "engine layout", "cylinders"),
     ),
+    _p(
+        id="front_suspension",
+        label="Front suspension",
+        group=Group.SUSPENSION,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=3,
+        step=1,
+        options=("Beam axle", "MacPherson strut", "Double wishbone", "Multi-link"),
+        description="Front suspension type (linkage geometry; the ride models treat every type "
+        "as a vertical corner).",
+        aliases=("front suspension", "front suspension type", "front axle type"),
+    ),
+    _p(
+        id="rear_suspension",
+        label="Rear suspension",
+        group=Group.SUSPENSION,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=3,
+        step=1,
+        options=("Beam axle", "Twist beam", "Multi-link", "Double wishbone"),
+        description="Rear suspension type (linkage geometry; the ride models treat every type "
+        "as a vertical corner).",
+        aliases=("rear suspension", "rear suspension type", "rear axle type"),
+    ),
     # --- Interior ---
     _p(
         id="seat_rows",

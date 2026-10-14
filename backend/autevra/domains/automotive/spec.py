@@ -322,6 +322,8 @@ class Check(BaseModel):
 # by the design rules in tests; they are not data for any real vehicle.
 TEMPLATES: dict[str, dict[str, float]] = {
     "city_car": {
+        "front_suspension": 1,
+        "rear_suspension": 1,
         "chassis_type": 1,
         "seat_rows": 2,
         "interior_trim": 0,
@@ -351,6 +353,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 61,
     },
     "hatchback": {
+        "front_suspension": 1,
+        "rear_suspension": 1,
         "chassis_type": 1,
         "seat_rows": 2,
         "interior_trim": 1,
@@ -380,6 +384,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 60,
     },
     "sedan": {
+        "front_suspension": 1,
+        "rear_suspension": 2,
         "chassis_type": 1,
         "seat_rows": 2,
         "interior_trim": 2,
@@ -409,6 +415,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "suv": {
+        "front_suspension": 1,
+        "rear_suspension": 2,
         "chassis_type": 1,
         "seat_rows": 2,
         "interior_trim": 1,
@@ -438,6 +446,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "pickup": {
+        "front_suspension": 2,
+        "rear_suspension": 0,
         "chassis_type": 0,
         "seat_rows": 2,
         "interior_trim": 1,
@@ -467,6 +477,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "sports_car": {
+        "front_suspension": 2,
+        "rear_suspension": 3,
         "chassis_type": 1,
         "seat_rows": 1,
         "interior_trim": 2,
@@ -496,6 +508,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 50,
     },
     "van": {
+        "front_suspension": 1,
+        "rear_suspension": 0,
         "chassis_type": 1,
         "seat_rows": 3,
         "interior_trim": 0,
@@ -525,6 +539,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "box_truck": {
+        "front_suspension": 0,
+        "rear_suspension": 0,
         "chassis_type": 0,
         "seat_rows": 1,
         "interior_trim": 0,

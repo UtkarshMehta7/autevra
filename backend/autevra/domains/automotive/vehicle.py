@@ -260,9 +260,13 @@ def _damper(cid: str, name: str, axle: str, side: str) -> ComponentDef:
 
 
 def _axle(cid: str, name: str, track: str, mount: str) -> ComponentDef:
+    axle = 0.0 if cid.startswith("front") else 1.0
+    kind = "front_suspension" if axle == 0.0 else "rear_suspension"
     return ComponentDef(
         id=cid, name=name, category="axle", builder="axle",
-        geometry=(track,), inputs=lambda p: {"track": p[track]},
+        geometry=(track, kind, "rail_spacing"),
+        inputs=lambda p: {"track": p[track], "suspension": p[kind], "axle": axle,
+                          "rail_spacing": p["rail_spacing"]},  # fmt: skip
         frames={"centre": (), "hub_left": (track,), "hub_right": (track,),
                 "shock_left": ("rail_spacing",), "shock_right": ("rail_spacing",)},
         interfaces=_axle_interfaces(track),
@@ -320,8 +324,8 @@ COMPONENTS: tuple[ComponentDef, ...] = (
         frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
         mate=Mate("vehicle", "origin", "origin"), color=_FRAME_COLOR, finish="metal",
     ),
-    _axle("front_axle", "Front axle", "track_front", "front_axle_mount"),
-    _axle("rear_axle", "Rear axle", "track_rear", "rear_axle_mount"),
+    _axle("front_axle", "Front suspension", "track_front", "front_axle_mount"),
+    _axle("rear_axle", "Rear suspension", "track_rear", "rear_axle_mount"),
     _wheel("wheel_fl", "Wheel front left", "front_axle", "left"),
     _wheel("wheel_fr", "Wheel front right", "front_axle", "right"),
     _wheel("wheel_rl", "Wheel rear left", "rear_axle", "left"),
