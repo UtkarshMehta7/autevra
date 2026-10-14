@@ -322,6 +322,11 @@ class Check(BaseModel):
 # by the design rules in tests; they are not data for any real vehicle.
 TEMPLATES: dict[str, dict[str, float]] = {
     "city_car": {
+        "roof_type": 0,
+        "roof_rails": 0,
+        "rear_spoiler": 0,
+        "mirror_type": 0,
+        "tow_bar": 0,
         "wheel_design": 4,
         "rim_finish": 5,
         "head_lamp_style": 2,
@@ -357,6 +362,11 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 61,
     },
     "hatchback": {
+        "roof_type": 2,
+        "roof_rails": 0,
+        "rear_spoiler": 1,
+        "mirror_type": 0,
+        "tow_bar": 0,
         "wheel_design": 1,
         "rim_finish": 1,
         "head_lamp_style": 0,
@@ -392,6 +402,11 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 60,
     },
     "sedan": {
+        "roof_type": 2,
+        "roof_rails": 0,
+        "rear_spoiler": 0,
+        "mirror_type": 0,
+        "tow_bar": 0,
         "wheel_design": 2,
         "rim_finish": 3,
         "head_lamp_style": 1,
@@ -427,6 +442,11 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "suv": {
+        "roof_type": 1,
+        "roof_rails": 1,
+        "rear_spoiler": 1,
+        "mirror_type": 0,
+        "tow_bar": 1,
         "wheel_design": 0,
         "rim_finish": 0,
         "head_lamp_style": 3,
@@ -462,6 +482,11 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "pickup": {
+        "roof_type": 0,
+        "roof_rails": 0,
+        "rear_spoiler": 0,
+        "mirror_type": 0,
+        "tow_bar": 1,
         "wheel_design": 0,
         "rim_finish": 2,
         "head_lamp_style": 1,
@@ -497,6 +522,11 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "sports_car": {
+        "roof_type": 0,
+        "roof_rails": 0,
+        "rear_spoiler": 2,
+        "mirror_type": 0,
+        "tow_bar": 0,
         "wheel_design": 3,
         "rim_finish": 4,
         "head_lamp_style": 1,
@@ -532,6 +562,11 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 50,
     },
     "van": {
+        "roof_type": 0,
+        "roof_rails": 2,
+        "rear_spoiler": 1,
+        "mirror_type": 0,
+        "tow_bar": 1,
         "wheel_design": 5,
         "rim_finish": 0,
         "head_lamp_style": 0,
@@ -567,6 +602,11 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "box_truck": {
+        "roof_type": 0,
+        "roof_rails": 0,
+        "rear_spoiler": 1,
+        "mirror_type": 0,
+        "tow_bar": 0,
         "wheel_design": 5,
         "rim_finish": 5,
         "head_lamp_style": 3,
@@ -605,7 +645,10 @@ TEMPLATES: dict[str, dict[str, float]] = {
 # Template values that are typical figures for the class, not data for any vehicle.
 TYPICAL_ROAD_LOADS = ("drag_coefficient", "rolling_resistance", "cg_height")
 APPEARANCE = ("paint_colour", "paint_finish", "interior_colour")  # template choices
-STYLING = ("wheel_design", "rim_finish", "head_lamp_style", "tail_lamp_style")
+STYLING = (
+    "wheel_design", "rim_finish", "head_lamp_style", "tail_lamp_style", "roof_type",
+    "roof_rails", "rear_spoiler", "mirror_type", "tow_bar",
+)  # fmt: skip
 # Wheel travel to the bump stop and tyre-to-arch gap per class, mm (template values; the arch
 # gap is kept at least as large as the bump travel so the tyre clears the arch at full bump).
 TRAVEL = {

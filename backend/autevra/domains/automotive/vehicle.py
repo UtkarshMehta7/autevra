@@ -24,6 +24,7 @@ BODY_GEOMETRY = (
     "beltline_height", "ground_clearance", "rail_height", "cabin_length", "roof_length",
     "cabin_offset", "track_front", "track_rear", "arch_clearance", *TYRE, *d.CHASSIS_INPUTS,
     "head_lamp_style", "tail_lamp_style",  # the body is recessed for the lamps
+    "roof_type",  # and opened for a panoramic roof or sunroof
 )  # fmt: skip
 
 
@@ -59,6 +60,23 @@ def _powertrain_inputs(p: Values) -> dict[str, float]:
     return {k: p[k] for k in keys} | {
         "tyre_radius": d.tyre_radius(p), "body_floor": d.body_floor_height(p),
     }  # fmt: skip
+
+
+def _option(cid: str, name: str, option: str, color: tuple[float, float, float], finish: str,
+            follows_body: bool = False, painted: bool = False) -> ComponentDef:  # fmt: skip
+    """An exterior option on the greenhouse, or on the body's side profile (spoilers);
+    painted options take the body colour."""
+    paint = {"appearance": _paint, "appearance_inputs": ("paint_colour", "paint_finish")}
+    base, inputs = (
+        (BODY_GEOMETRY, _body_inputs) if follows_body else (GLASS_GEOMETRY, _glass_inputs)
+    )
+    return ComponentDef(
+        id=cid, name=name, category="exterior", builder=cid,
+        geometry=(*base, option), inputs=lambda p: inputs(p) | {option: p[option]},
+        frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
+        mate=Mate("vehicle", "origin", "origin"), color=color, finish=finish,
+        **(paint if painted else {}),  # type: ignore[arg-type]
+    )  # fmt: skip
 
 
 def _equipment(cid: str, name: str, category: str, color: tuple[float, float, float],
@@ -338,6 +356,11 @@ COMPONENTS: tuple[ComponentDef, ...] = (
         mate=Mate("vehicle", "origin", "origin"), color=_TAIL_LAMP_COLOR,
         finish="lamp",
     ),
+    _option("mirrors", "Door mirrors", "mirror_type", _BODY_COLOR, "paint", painted=True),
+    _option("roof_rails", "Roof rails", "roof_rails", (0.55, 0.56, 0.58), "metal"),
+    _option("spoiler", "Rear spoiler", "rear_spoiler", _BODY_COLOR, "paint", follows_body=True,
+            painted=True),
+    _option("tow_bar", "Tow bar", "tow_bar", (0.10, 0.10, 0.11), "metal"),
     _interior("seats", "Seats", "seats", UPHOLSTERY[0], "leather", appearance=_upholstery,
               appearance_inputs=("interior_colour", "interior_trim")),
     _interior("dashboard", "Dashboard", "dashboard", (0.05, 0.052, 0.058), "trim"),

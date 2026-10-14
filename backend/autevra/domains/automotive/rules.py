@@ -350,6 +350,25 @@ def _seat_rows_fit(p: Values) -> str | None:
 
 
 @_rule(
+    "boot_spoiler_needs_a_boot",
+    "A boot lip or a rear wing needs a boot deck: a sedan or coupe body.",
+    "rear_spoiler",
+    "body_style",
+)
+def _boot_spoiler_needs_a_boot(p: Values) -> str | None:
+    from autevra.domains.automotive import builders, exterior
+
+    kind, style = exterior.spoiler(p), builders.body_style(p)
+    if kind in ("boot_lip", "wing") and style not in exterior.BOOT_STYLES:
+        label = "boot lip" if kind == "boot_lip" else "wing"
+        return (
+            f"a {label} needs a boot deck, and a {style.replace('_', ' ')} has none: "
+            "fit a roof spoiler instead"
+        )
+    return None
+
+
+@_rule(
     "battery_under_floor",
     "A floor battery must fit between the ground-clearance line and the cabin floor.",
     "battery_capacity",

@@ -7,11 +7,15 @@ export function formatValue(value: number, unit: string): string {
 
 export const CATEGORY_LABELS: Record<string, string> = {
   body: "Body",
+  exterior: "Exterior options",
   chassis: "Chassis",
   axle: "Axles",
   wheel: "Wheels",
   suspension: "Suspension",
   brakes: "Brakes",
+  interior: "Interior",
+  powertrain: "Powertrain",
+  electrical: "Electrical",
 };
 
 /** Parts grouped by category, in a stable display order. */

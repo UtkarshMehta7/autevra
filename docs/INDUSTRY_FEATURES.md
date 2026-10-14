@@ -47,6 +47,7 @@ Status: **have** (implemented and tested), **partial** (a working subset), **pla
 | Chassis architectures | **have** | Ladder frame, unibody, skateboard |
 | Suspension types (MacPherson, double wishbone, multi-link, twist beam) | **have** | Per axle, linkage geometry; ride models treat each as a vertical corner |
 | Wheel and rim design | **have** | Six rim designs, six finishes; tyre size drives the ride models |
+| Exterior options (roof, rails, spoilers, mirrors, towing) | **have** | Panoramic roof, sunroof, rails, crossbars, roof spoiler, boot lip, wing, mirrors or cameras, tow bar |
 | Powertrain packaging (engine, transmission, e-motors, battery) | **have** | Envelopes per configuration; no detailed components |
 | Electrical: harness routing, connectors, schematics | partial | Main harness trunk, HV cables, ECUs; no schematics or connector library |
 | Thermal systems (cooling circuits) | partial | Cooling module envelope only |
@@ -82,7 +83,7 @@ Status: **have** (implemented and tested), **partial** (a working subset), **pla
 
 1. ✅ **Suspension types** with their own geometry (MacPherson strut, double wishbone, multi-link, twist beam, beam axle), selectable per axle, with unsprung-mass defaults.
 2. ✅ **Wheel designs and lamp signatures**: spoke patterns and rim finishes; LED strip, matrix, round and split lamps; light bar or separate rear clusters.
-3. **Body options and shaping controls**: panoramic roof, roof rails, rear spoiler, mirrors, tow bar; bonnet height, screen rake, tumblehome and sill tuck as parameters.
+3. **Body options and shaping controls**: ✅ panoramic roof, roof rails, rear spoiler, mirrors, tow bar; next: bonnet height, screen rake, tumblehome and sill tuck as parameters.
 4. **Ergonomics**: a seated manikin from percentile dimensions, eye points, reach envelopes and vision checks.
 5. **Electrical schematics and harness routing** by zone, with connectors and a bill of materials.
 6. **Clearance matrix** between all equipment and body parts.

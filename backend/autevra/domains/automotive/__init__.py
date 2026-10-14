@@ -13,6 +13,7 @@ from autevra import extensions
 from autevra.domains.automotive import (
     builders,
     derived,
+    exterior,
     integration,
     interior,
     language,
@@ -71,6 +72,10 @@ PLUGIN = extensions.Plugin(
         "axle": suspension.build_suspension,
         "wheel": builders.build_wheel,
         "rim": styling.build_rim,
+        "mirrors": exterior.build_mirrors,
+        "roof_rails": exterior.build_roof_rails,
+        "spoiler": exterior.build_spoiler,
+        "tow_bar": exterior.build_tow_bar,
         "damper": builders.build_damper,
     },
     components=vehicle.COMPONENTS,

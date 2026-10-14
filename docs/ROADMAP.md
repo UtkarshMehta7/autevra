@@ -136,6 +136,18 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-15: exterior options
+
+- **Roof**: solid, panoramic glass or a sunroof over the front seats, cut from the roof panel so the glazing below shows; body extents unchanged.
+- **Roof rails**, with or without crossbars; **rear spoiler** as a roof spoiler (a cab-top air deflector on a box truck), a boot lip or a wing; **door mirrors** or camera pods; a **tow bar** with the ball at about 400 mm (a drop plate on high bodies). Mirrors and spoilers take the body colour.
+- New derived value **width over mirrors**; new design rule: a boot lip or a wing needs a sedan or coupe boot.
+- Templates fit typical options per class (panoramic roof and tow bar on the SUV, roof rack on the van, boot lip on the sports car, deflector on the box truck). Phrases: "fit a panoramic roof", "fit a roof rack", "fit a wing", "fit camera mirrors", "fit a tow bar", "remove the tow bar".
+- Component tree: every category has a heading (exterior options, interior, powertrain, electrical).
+- Checked in Chrome: panoramic roof, roof rack, wing and tow bar on a coupe from the command bar.
+
+**Known limitations**
+- Overall height stays to the roof panel and overall length excludes the tow bar; no aerodynamic effect of a spoiler and no towing capacity are modelled.
+
 ### 2026-10-15: wheel designs, rim finishes and lamp signatures
 
 - **Rims as their own parts**: each wheel is a tyre plus a rim, so the rim design and finish change without touching the tyre. Six designs (five-spoke, multi-spoke, twin-spoke, mesh, aero disc, steel with hub cap) and six finishes (silver, gunmetal, gloss black, diamond cut, bronze, white); the finish is appearance only and never rebuilds geometry.
