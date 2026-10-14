@@ -4,6 +4,7 @@ import threading
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from autevra import __version__, domains, extensions
 from autevra.ai.llm.clients import LLMClient, make_client
@@ -30,6 +31,8 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None) -
     app.state.settings = settings
     if settings.warm_up:
         threading.Thread(target=app.state.workspace.warm_up, daemon=True).start()
+    # Model payloads are mostly mesh numbers and compress about 3:1.
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
     # Added before CORS so that CORS stays outermost and 429 answers carry its headers.
     app.middleware("http")(access.rate_limiter(settings))
     app.add_middleware(

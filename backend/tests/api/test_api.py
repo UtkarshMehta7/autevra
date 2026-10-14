@@ -197,3 +197,8 @@ def test_warm_up_fills_the_geometry_cache(tmp_path: Path) -> None:
         builds = len(ws.cache.stats.builds)
         assert c.get(f"/api/projects/{pid}/model").status_code == 200
         assert len(ws.cache.stats.builds) == builds  # the default design was already built
+
+
+def test_model_payload_is_compressed(client: TestClient, project: str) -> None:
+    reply = client.get(f"/api/projects/{project}/model", headers={"Accept-Encoding": "gzip"})
+    assert reply.status_code == 200 and reply.headers["content-encoding"] == "gzip"

@@ -10,8 +10,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import cadquery as cq
+from OCP.BRep import BRep_Tool
 from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+from OCP.BRepMesh import BRepMesh_IncrementalMesh
+from OCP.BRepTools import BRepTools
 from OCP.gp import gp_Trsf
+from OCP.TopAbs import TopAbs_FACE, TopAbs_REVERSED
+from OCP.TopExp import TopExp_Explorer
+from OCP.TopLoc import TopLoc_Location
+from OCP.TopoDS import TopoDS
 
 Shape = cq.Shape
 Matrix = Sequence[Sequence[float]]  # 4 x 4, row-major, translation in the last column
@@ -170,11 +177,38 @@ class Mesh:
 
 
 def tessellate(shape: Shape, tolerance: float = 0.5, angular: float = 0.3) -> Mesh:
-    verts, tris = shape.tessellate(tolerance, angular)
-    return Mesh(
-        vertices=[c for v in verts for c in (v.x, v.y, v.z)],
-        indices=[i for t in tris for i in t],
-    )
+    """Triangle mesh of a shape (same result as ``cq.Shape.tessellate``, much faster).
+
+    CadQuery's version iterates OCCT arrays through Python iterators, which costs several
+    milliseconds per face; indexed access and a face explorer avoid that.
+    """
+    if not BRepTools.Triangulation_s(shape.wrapped, tolerance):
+        BRepMesh_IncrementalMesh(shape.wrapped, tolerance, True, angular)
+    vertices: list[float] = []
+    indices: list[int] = []
+    offset = 0
+    explorer = TopExp_Explorer(shape.wrapped, TopAbs_FACE)
+    while explorer.More():
+        face = TopoDS.Face_s(explorer.Current())
+        explorer.Next()
+        loc = TopLoc_Location()
+        poly = BRep_Tool.Triangulation_s(face, loc)
+        if poly is None:
+            continue
+        trsf = loc.Transformation()
+        for i in range(1, poly.NbNodes() + 1):
+            p = poly.Node(i).Transformed(trsf)
+            vertices += (p.X(), p.Y(), p.Z())
+        reverse = face.Orientation() == TopAbs_REVERSED
+        for i in range(1, poly.NbTriangles() + 1):
+            a, b, c = poly.Triangle(i).Get()
+            indices += (
+                (a + offset - 1, c + offset - 1, b + offset - 1)
+                if reverse
+                else (a + offset - 1, b + offset - 1, c + offset - 1)
+            )
+        offset += poly.NbNodes()
+    return Mesh(vertices=vertices, indices=indices)
 
 
 def location(matrix: Matrix) -> cq.Location:

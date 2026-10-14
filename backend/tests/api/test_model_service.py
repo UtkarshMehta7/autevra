@@ -69,3 +69,11 @@ def test_step_export_reflects_wheelbase(tmp_path: Path) -> None:
         "wheel_rl",
         "wheel_rr",
     }
+
+
+def test_coil_dampers_use_a_coarser_display_mesh() -> None:
+    from autevra.cad import cache as geometry
+    from autevra.domains.automotive import builders
+
+    assert geometry.mesh_angular(builders.build_damper) == 0.5
+    assert geometry.mesh_angular(builders.build_wheel) == geometry.DEFAULT_ANGULAR
