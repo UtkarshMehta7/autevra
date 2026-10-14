@@ -33,9 +33,9 @@ def test_two_box_styles_carry_the_roof_further_back_than_a_sedan() -> None:
     assert hatch.glass[0] < sedan.glass[0]
 
 
-def test_a_coupe_roof_is_shorter_than_the_sedan_roof() -> None:
+def test_a_coupe_rear_screen_runs_further_back_than_a_sedan_one() -> None:
     sedan, coupe = c.body_layout(_inputs("sedan")), c.body_layout(_inputs("coupe"))
-    assert coupe.roof[1] - coupe.roof[0] < sedan.roof[1] - sedan.roof[0]
+    assert coupe.roof[0] - coupe.glass[0] > 1.5 * (sedan.roof[0] - sedan.glass[0])
 
 
 def test_only_the_pickup_has_an_open_bed_behind_the_cab() -> None:

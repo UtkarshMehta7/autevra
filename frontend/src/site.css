@@ -105,3 +105,8 @@ a.brand { color: var(--text); text-decoration: none; }
 .backend-waking { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 50;
   max-width: calc(100vw - 32px); padding: 10px 14px; border-radius: 8px; font-size: 13px;
   background: var(--panel); color: var(--text); border: 1px solid var(--accent); box-shadow: 0 6px 24px #0006; }
+
+.style-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 16px; }
+.style-gallery figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.style-gallery img { display: block; width: 100%; height: auto; aspect-ratio: 462 / 192; object-fit: cover; }
+.style-gallery figcaption { padding: 8px 12px; font-size: 13px; color: var(--muted); }

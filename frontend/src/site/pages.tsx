@@ -17,6 +17,11 @@ function Section({ title, kicker, children, id }: {
   );
 }
 
+const BODY_GALLERY: [string, string][] = [
+  ["city_car", "City car"], ["hatchback", "Hatchback"], ["sedan", "Sedan"], ["suv", "SUV"],
+  ["coupe", "Sports car (fastback)"], ["pickup", "Pickup"], ["van", "Van"], ["box_truck", "Box truck"],
+];
+
 function Shot({ src, alt, caption }: { src: string; alt: string; caption: string }) {
   return (
     <figure className="shot">
@@ -66,7 +71,7 @@ export function Home() {
           <Link to="/studio" className="button large">Open Engineering Studio</Link>
         </div>
         <Shot src="/screenshots/studio-design.jpg" alt="The AUTEVRA engineering studio"
-          caption="The engineering studio: parametric CAD model, component tree, instructions and test bench (screenshot of this build)." />
+          caption="The engineering studio on the pickup template: parametric CAD model, component tree, instructions and parameters (screenshot of this build)." />
       </section>
 
       <Section kicker="What it is" title="An engineering record you can talk to">
@@ -94,6 +99,21 @@ export function Home() {
             rebuilt or moved, nothing else. The viewport can play back simulations from the
             solver's own output.</p>
           <Shot src="/screenshots/studio-assembly.jpg" alt="Integration checks" caption="Integration checks with exact clearances measured on the CAD solids." />
+        </div>
+      </Section>
+
+      <Section kicker="One parametric model" title="Eight vehicle templates, seven body styles">
+        <p className="narrow">Each template is the design the specification interview generates
+          for its class: body style, proportions, wheels, springs and dampers, rule-checked. The
+          body style is a parameter like any other ("make it a pickup"), so the same model becomes
+          a hatchback, an SUV, a pickup with an open bed or a box truck. Renders of this build.</p>
+        <div className="style-gallery">
+          {BODY_GALLERY.map(([file, label]) => (
+            <figure key={file}>
+              <img src={`/screenshots/body-${file}.jpg`} alt={`${label} template`} loading="lazy" />
+              <figcaption>{label}</figcaption>
+            </figure>
+          ))}
         </div>
       </Section>
 

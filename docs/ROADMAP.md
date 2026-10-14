@@ -154,6 +154,9 @@ specification interview moves to Phase 5.
 - **Warm-up.** Hosted instances build the default geometry at startup (`AUTEVRA_WARM_UP`).
 - Checked on the live site (Chrome): a new project in a browser workspace, "make it a pickup" rebuilt body and glazing in 6.3 s on the free instance; the first model took 34 s.
 
+- **Coupe as a real fastback**: full roof and a long, shallow rear screen (the first version had a short roof that read as a box on a deck; caught on the renders).
+- **Website**: a home-page gallery of the eight templates and a new studio hero, all renders of this build.
+
 **Known limitations**
 - Shapes are still faceted (ruled lofts and prisms); no curved surfaces, doors or mirrors.
 - A van's greenhouse and a box truck's cargo box are sized from the overall dimensions, not from the cabin parameters.

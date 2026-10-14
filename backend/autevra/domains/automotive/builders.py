@@ -112,12 +112,14 @@ def body_layout(p: Inputs) -> BodyLayout:
         return BodyLayout(style, profile, (back, cowl), roof, top)
 
     if style == "coupe":
+        # Fastback: a full roof, then a long, shallow rear screen running far towards the tail.
         tail = min(max(floor + 0.82 * depth, arch_top + 40.0), belt - 10.0)
         roof_front = cowl - rake
-        roof = clamp_roof(roof_front - 0.6 * p["roof_length"], roof_front)
-        profile = [*front_end, (front, nose_at(0.55)), (cowl, belt), (deck, belt),
+        roof = clamp_roof(roof_front - p["roof_length"], roof_front)
+        back = max(rear + 0.12 * length, min(deck, roof[0]) - 1.2 * glass_h)
+        profile = [*front_end, (front, nose_at(0.55)), (cowl, belt), (back, belt),
                    (rear, tail), (rear, tail_low)]  # fmt: skip
-        return BodyLayout(style, profile, (deck, cowl), roof, top)
+        return BodyLayout(style, profile, (back, cowl), roof, top)
 
     if style == "pickup":
         cab_rear = deck
