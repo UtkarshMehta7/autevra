@@ -162,8 +162,10 @@ specification interview moves to Phase 5.
 
 - **Materials.** Components declare a display finish (paint, glass, lamp, rubber, metal); the viewport renders each with a physically based material under a neutral studio environment, so glass reflects, lamps glow, tyres read as rubber and the chassis as metal. Display only: the CAD and STEP are unchanged.
 
+- **Softer forms.** The hood is a sampled curve from the nose to the windscreen base (rises quickly, flattens towards the screen) instead of a straight ramp, and the greenhouse corners are arcs instead of chamfers. Extents and window openings are unchanged.
+
 **Known limitations**
-- Shapes are still faceted (ruled lofts and prisms); no curved surfaces, doors or mirrors.
+- Shapes are still built from prisms and ruled lofts (curved in profile and plan, not true freeform surfaces); no doors or mirrors.
 - A van's greenhouse and a box truck's cargo box are sized from the overall dimensions, not from the cabin parameters.
 
 ### 2026-10-14: hosted demo live
