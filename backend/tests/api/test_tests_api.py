@@ -131,7 +131,7 @@ def test_integration_report(client: TestClient, project: str) -> None:
 
 def test_test_catalogue(client: TestClient) -> None:
     tests = {t["id"]: t for t in client.get("/api/tests").json()}
-    assert set(tests) == {"quarter_car", "ride_modes", "longitudinal"}
+    assert set(tests) == {"quarter_car", "half_car", "ride_modes", "longitudinal"}
     assert tests["ride_modes"]["criteria"] == []  # no invented pass/fail limits
     assert "front_damping_bump" in tests["quarter_car"]["inputs"]["front"]
 

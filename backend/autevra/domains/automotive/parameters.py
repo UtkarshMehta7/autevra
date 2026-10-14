@@ -475,6 +475,14 @@ DEFINITIONS += (
         aliases=("centre of gravity height", "center of gravity height", "cg height",
                  "cog height", "centre of gravity", "center of gravity"),
     ),
+    _p(
+        id="pitch_dynamic_index", label="Pitch dynamic index", group=Group.MASS,
+        unit=Unit.NONE, default=1.0, min=0.6, max=1.4, step=0.05,
+        description="Pitch radius of gyration squared over a·b (axle distances from the CG). "
+        "1.0 makes front and rear ride independent; cars are typically 0.8 to 1.2. Assumed, "
+        "not measured: used by the half-car test.",
+        aliases=("pitch dynamic index", "dynamic index", "pitch inertia index"),
+    ),
 )  # fmt: skip
 
 # Group aliases: one word that addresses several parameters at once.

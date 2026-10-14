@@ -43,3 +43,26 @@ describe("quarter-car playback", () => {
     expect(top - bottom).toBeCloseTo(300 + 10 - 30);
   });
 });
+
+describe("half-car playback", () => {
+  const half: Animation = {
+    kind: "half_car", label: "hump", wheelbase: 2700, cgX: -1200,
+    t: [0, 0.1], heave: [0, 10], pitch: [0, 0.5], frontAxle: [0, 20], rearAxle: [0, 5],
+    road: [0, 30], exaggeration: 1,
+  };
+
+  it("moves each axle by its own computed motion", () => {
+    const poses = framePoses(half, 1, base, () => 300);
+    expect(z(poses.get("wheel_fl")!) - 330).toBeCloseTo(20);
+    expect(z(poses.get("wheel_rl")!) - 330).toBeCloseTo(5);
+  });
+
+  it("heaves the body and pitches it nose down about the mass centre", () => {
+    const poses = framePoses(half, 1, base, () => 300);
+    const body = poses.get("body")!;
+    expect(z(body, new THREE.Vector3(-1200, 0, 0))).toBeCloseTo(10); // CG: heave only
+    const theta = THREE.MathUtils.degToRad(0.5);
+    expect(z(body, new THREE.Vector3(0, 0, 0))).toBeCloseTo(10 - 1200 * Math.sin(theta), 3);
+    expect(z(body, new THREE.Vector3(-2700, 0, 0))).toBeGreaterThan(10); // the tail rises
+  });
+});

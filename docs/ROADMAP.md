@@ -136,6 +136,18 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-14: half-car ride test (bounce and pitch)
+
+- **Solver** `autevra.half_car` 1.0.0: body heave and pitch (ISO 8855, positive nose down) on two axles, the rear meeting the road a wheelbase later; two-rate dampers, tyre lift-off, RK4 with a half-step convergence check; the pitch inertia comes from a new parameter, the **pitch dynamic index** (default 1.0, labelled assumed).
+- **Verification**: at dynamic index 1 the body point above each axle equals the verified quarter car to 1e-9 for step, hump and pothole (front directly, rear with the wheelbase delay); free pitch oscillation matches the exact 4-DOF eigenfrequency within 1 %; the quick closed-form body frequencies are within 5 %; flat road stays at equilibrium; the nose rises when the front meets a step.
+- **Test bench**: `half_car` test on the whole vehicle, same three road events, criteria for bump and rebound travel and tyre contact on both axles (limits from the design), diagnosis and optimisation hooks. "test the pitch over the hump", "run the half car test" and "test both axles" select it.
+- **Studio**: front and rear travel against their limits, heave with both road inputs, pitch, heave acceleration and tyre loads; 3D playback heaves and pitches the body about its mass centre while each axle follows its own solution.
+- Checked in Chrome on the SUV template: passed within the model, converged (0.003 % at half step), playback pitches nose down after the front axle crosses the hump.
+
+**Known limitations**
+- No roll (both corners of an axle move together) and no anti-dive or anti-squat geometry.
+- The dynamic index is an assumption until mass properties are measured or computed from the CAD.
+
 ### 2026-10-14: body styles and visitor workspaces
 
 - **Body styles.** A `body_style` choice parameter (sedan, hatchback, SUV, coupe, pickup, van, box truck) drives a different body construction instead of one three-box shape for every vehicle: two-box roofs that run to the tailgate, an upright SUV, a fastback coupe, a pickup cab with an open bed, a one-box van with a short nose, and a box truck with a cab and a separate cargo box. `body_layout` gives the proportions (tested without CAD); every style builds one valid solid with the design's extents on every class template.

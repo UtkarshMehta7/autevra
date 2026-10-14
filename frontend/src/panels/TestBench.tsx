@@ -41,6 +41,36 @@ function TraceCharts({ run, baseline }: { run: RunRecord; baseline: RunRecord | 
     );
   }
   const limit = (id: string) => run.criteria.find((c) => c.id === id)?.limit;
+  if (tr.heave_mm) {
+    const one = (label: string, key: string, color: string, dashed = false): Series[] => [
+      { label, values: tr[key], color, dashed },
+      ...(bt?.[key] ? [{ label: `${label} before`, values: bt[key], color: GREY, dashed: true }] : []),
+    ];
+    const travelLimits = (axle: string) => {
+      const b = limit(`${axle}_bump_travel`), r = limit(`${axle}_rebound_travel`);
+      return [...(b !== undefined ? [{ value: b, label: `${axle} bump ${fmt(b)}` }] : []),
+        ...(r !== undefined ? [{ value: -r, label: `${axle} rebound ${fmt(r)}` }] : [])];
+    };
+    return (
+      <div className="charts">
+        <LineChart title="Front wheel travel, + compression" unit="mm" t={tr.t} baselineT={bt?.t}
+          series={one("front", "front_travel_mm", BLUE)} limits={travelLimits("front")} />
+        <LineChart title="Rear wheel travel, + compression" unit="mm" t={tr.t} baselineT={bt?.t}
+          series={one("rear", "rear_travel_mm", AMBER)} limits={travelLimits("rear")} />
+        <LineChart title="Body heave and road (front, rear a wheelbase later)" unit="mm" t={tr.t}
+          baselineT={bt?.t} series={[{ label: "road front", values: tr.road_front_mm, color: AMBER },
+            { label: "road rear", values: tr.road_rear_mm, color: GREY, dashed: true },
+            ...one("heave", "heave_mm", BLUE)]} />
+        <LineChart title="Pitch, + nose down" unit="deg" t={tr.t} baselineT={bt?.t}
+          series={one("pitch", "pitch_deg", GREEN)} />
+        <LineChart title="Body heave acceleration" unit="m/s²" t={tr.t} baselineT={bt?.t}
+          series={one("heave", "heave_acc", BLUE)} />
+        <LineChart title="Tyre load / static load" unit="–" t={tr.t} baselineT={bt?.t}
+          series={[...one("front", "front_tyre_load_ratio", BLUE), ...one("rear", "rear_tyre_load_ratio", AMBER)]}
+          limits={[{ value: 0, label: "lift-off" }]} />
+      </div>
+    );
+  }
   const bump = limit("bump_travel"), rebound = limit("rebound_travel");
   const withBase = (label: string, key: string, color: string): Series[] => [
     { label, values: tr[key], color },
@@ -173,7 +203,7 @@ export function TestBench({
             </div>
             {run.warnings.length > 0 && <div className="warnings">{run.warnings.join(" · ")}</div>}
             <div className="bench-controls">
-              {(run.trace.body_mm || run.trace.speed_kmh) && (
+              {(run.trace.body_mm || run.trace.heave_mm || run.trace.speed_kmh) && (
                 <button onClick={() => onPlay(run)} title="Play the solver output in the 3D view">
                   Play in 3D
                 </button>
