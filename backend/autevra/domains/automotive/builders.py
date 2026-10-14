@@ -175,25 +175,31 @@ def body_profile(p: Inputs) -> list[tuple[float, float]]:
 
 
 PILLAR = 70.0  # pillar and roof-rail width left around the window openings, mm
-GLASS_INSET = 25.0  # glazing sits this far inside the greenhouse surface, mm
+GLASS_INSET = 8.0  # near-flush glazing: this far inside the greenhouse surface, mm
 
 
 def _greenhouse(p: Inputs, layout: BodyLayout, inset: float = 0.0) -> k.Shape:
-    """Ruled loft from the beltline outline to the roof outline; the corners are chamfered
-    so the glasshouse reads as rounded, and the roof is narrower (tumblehome)."""
+    """Smooth loft from the beltline outline through a slightly bowed mid section to the roof
+    outline: curved glass and pillars, rounded corners, a narrower roof (tumblehome)."""
     half_w = p["body_width"] / 2.0
     belt = p["beltline_height"]
+    top = layout.roof_z - inset
     cab_w, roof_w = half_w - 40.0 - inset, half_w - 150.0 - inset
 
-    def outline(
-        z: float, x: tuple[float, float], half_wid: float
-    ) -> list[tuple[float, float, float]]:
+    def outline(z: float, x: tuple[float, float], half_wid: float):  # type: ignore[no-untyped-def]
         r, f = x[0] + inset, x[1] - inset
-        c = min(0.18 * half_wid, 0.25 * (f - r) / 2.0)  # corner radius
-        return [(px, py, z) for px, py in _rounded_outline((r, f), half_wid, c, c, n=3)]
+        c = min(0.22 * half_wid, 0.3 * (f - r) / 2.0)  # corner radius
+        return k.rounded_rect((r, f), half_wid, c, c, z)
 
-    top = layout.roof_z - inset
-    return k.ruled_loft([outline(belt, layout.glass, cab_w), outline(top, layout.roof, roof_w)])
+    (g0, g1), (r0, r1) = layout.glass, layout.roof
+    mid = 0.45  # share of the way from the beltline to the roof
+    mid_x = (g0 + mid * (r0 - g0), g1 + mid * (r1 - g1))
+    mid_w = cab_w + mid * (roof_w - cab_w) + 12.0  # bowed out: curved side glass
+    return k.smooth_loft([
+        outline(belt, layout.glass, cab_w),
+        outline(belt + mid * (top - belt), mid_x, mid_w),
+        outline(top, layout.roof, roof_w),
+    ])  # fmt: skip
 
 
 def _window_frame(p: Inputs, layout: BodyLayout) -> k.Shape:
@@ -221,9 +227,10 @@ LAMP_DEPTH = 15.0  # lamps sit in recesses this deep, flush with the body face, 
 
 
 def lamp_boxes(p: Inputs, end: str) -> list[tuple[tuple[float, float], ...]]:
-    """(x, y, z) extents of the two lamps at the front ("head") or rear ("tail") face,
-    placed on the flat part of that face between the rounded corners. The body is
-    recessed by the same boxes, so the lamps are flush and the extents do not change."""
+    """(x, y, z) extents of the lamps: slim LED strips at the front ("head") joined by a thin
+    light line, and a full-width light bar at the rear ("tail"), on the flat part of each
+    face. The body is recessed by the same boxes, so the lamps are flush and the extents do
+    not change."""
     layout = body_layout(p)
     rear, front = -(p["wheelbase"] + p["rear_overhang"]), p["front_overhang"]
     half_w = p["body_width"] / 2.0
@@ -231,24 +238,27 @@ def lamp_boxes(p: Inputs, end: str) -> list[tuple[tuple[float, float], ...]]:
     if end == "head":
         bumper, nose = layout.profile[2][1], layout.profile[3][1]
         h = nose - bumper
-        z = (bumper + 0.45 * h, nose - 0.1 * h)
+        top = nose - 0.08 * h
+        strip = (top - max(0.16 * h, 30.0), top)
+        line = (top - 12.0, top)
         x = (front - LAMP_DEPTH, front)
-        y_in, y_out = 0.30 * half_w, 0.62 * half_w
-    else:
-        at_rear = [zz for xx, zz in layout.profile if abs(xx - rear) < 1e-6]
-        top, bottom = (max(at_rear), min(at_rear)) if at_rear else (floor, floor)
-        if layout.cargo is not None or top - bottom < 60.0:  # box truck: low on the box
-            bottom, top = floor + 0.25 * (belt - floor), floor + 0.55 * (belt - floor)
-        h = top - bottom
-        z = (top - 0.5 * h, top - 0.15 * h)
-        x = (rear, rear + LAMP_DEPTH)
-        y_in, y_out = 0.50 * half_w, 0.76 * half_w
-    return [(x, (y_in, y_out), z), (x, (-y_out, -y_in), z)]
+        return [
+            (x, (0.26 * half_w, 0.62 * half_w), strip),
+            (x, (-0.62 * half_w, -0.26 * half_w), strip),
+            (x, (-0.26 * half_w, 0.26 * half_w), line),
+        ]
+    at_rear = [zz for xx, zz in layout.profile if abs(xx - rear) < 1e-6]
+    top, bottom = (max(at_rear), min(at_rear)) if at_rear else (floor, floor)
+    if layout.cargo is not None or top - bottom < 60.0:  # box truck: low on the box
+        bottom, top = floor + 0.25 * (belt - floor), floor + 0.55 * (belt - floor)
+    h = top - bottom
+    bar = (top - 0.12 * h - max(0.14 * h, 35.0), top - 0.12 * h)
+    return [((rear, rear + LAMP_DEPTH), (-0.78 * half_w, 0.78 * half_w), bar)]
 
 
 def build_lamps(p: Inputs, end: str) -> k.Shape:
-    left, right = (k.box(*b) for b in lamp_boxes(p, end))
-    return k.fuse(left, right)
+    first, *rest = (k.box(*b) for b in lamp_boxes(p, end))
+    return k.fuse(first, *rest) if rest else first
 
 
 def build_head_lamps(p: Inputs) -> k.Shape:
@@ -270,13 +280,20 @@ def build_body(p: Inputs) -> k.Shape:
     square_back = layout.style in ("pickup", "van", "box_truck", "suv")
 
     side = k.prism_y(layout.profile, (-half_w, half_w))
-    plan = k.prism_z(
-        _rounded_outline(
-            (rear, front), half_w, 0.32 * half_w, (0.08 if square_back else 0.18) * half_w
-        ),
-        (floor - 1.0, belt + 1.0),
-    )
-    parts = [k.intersect(side, plan)]
+    # Sculpted sides: a loft through plan sections, tucked in at the sill, full width at the
+    # shoulder, easing in towards the beltline. Commercial bodies stay squarer.
+    commercial = layout.style in ("van", "box_truck")
+    sill, upper, waist = (30.0, 5.0, 15.0) if commercial else (70.0, 12.0, 45.0)
+    r_rear = 0.08 if square_back else 0.18
+    depth = belt - floor
+    sections = []
+    for z, inset in ((floor - 1.0, sill), (floor + 0.4 * depth, 0.0),
+                     (floor + 0.8 * depth, upper), (belt + 1.0, waist)):  # fmt: skip
+        w = half_w - inset
+        sections.append(k.rounded_rect((rear + 0.3 * inset, front - 0.3 * inset), w,
+                                       0.32 * w, r_rear * w, z))  # fmt: skip
+    # Ruled between the sections: crisp sill and shoulder lines, and cheap booleans.
+    parts = [k.intersect(side, k.smooth_loft(sections, ruled=True))]
 
     parts.append(_window_frame(p, layout))
     if layout.cargo is not None:
@@ -290,7 +307,6 @@ def build_body(p: Inputs) -> k.Shape:
         )
 
     lamps = [k.box(*b) for end in ("head", "tail") for b in lamp_boxes(p, end)]
-    body = k.cut(body, *lamps)
 
     # Wheel wells: cylinders around each wheel, cut from the tyre's inner face outwards.
     wheel_z = p["tyre_radius"]
@@ -300,7 +316,7 @@ def build_body(p: Inputs) -> k.Shape:
         inner = track / 2.0 - p["tyre_width"] / 2.0 - p["arch_clearance"]
         wells.append(k.cylinder_y(r, (inner, half_w + 1), x=x, z=wheel_z))
         wells.append(k.cylinder_y(r, (-half_w - 1, -inner), x=x, z=wheel_z))
-    return k.cut(body, *wells)
+    return k.cut(body, *wells, *lamps)  # one boolean for wells and lamp recesses
 
 
 def build_frame(p: Inputs) -> k.Shape:

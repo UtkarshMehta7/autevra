@@ -136,6 +136,14 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-14: modern bodywork
+
+- **Sculpted lower body**: a loft through exact plan sections (straight edges and corner arcs) tucked in at the sill, full width at the shoulder and easing in to the beltline, intersected with the side silhouette; ruled between sections, giving crisp sill and shoulder lines and booleans about five times cheaper than a smooth loft. Commercial bodies stay squarer.
+- **Curved glasshouse**: a smooth loft through the beltline, a slightly bowed mid section and the roof; glazing near flush (8 mm inside the surface instead of 25 mm).
+- **LED lighting**: slim head-lamp strips joined by a light line, and a full-width rear light bar, flush in recesses.
+- First attempt used closed splines through sampled outlines; they overshot by up to 40 mm (beyond the body width) and split the body into two solids; replaced by exact line-and-arc sections.
+- Cost: the default body builds in about 1.2 s on the Mac (it was 0.14 s), most of it cutting the windows out of the curved glasshouse.
+
 ### 2026-10-14: paint
 
 - **Paint colour** (12 colours) and **paint finish** (gloss, metallic, matte, pearl) are choice parameters. Components gain an `appearance` (colour and finish from declared parameters), separate from geometry, so a repaint rebuilds nothing (tested) and the viewer swaps only the material. "paint it red", "make it matte", "respray it in british racing green" and dropdowns set them; templates have characteristic colours.

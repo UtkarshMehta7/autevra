@@ -5,6 +5,7 @@ functions here, so swapping CadQuery for build123d or raw OCP stays local.
 Units are millimetres; axes follow ISO 8855 (X forward, Y left, Z up).
 """
 
+import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -99,6 +100,42 @@ def ruled_loft(sections: Sequence[Sequence[tuple[float, float, float]]]) -> Shap
     """Solid lofted through closed polygons (straight lines between sections)."""
     wires = [cq.Wire.makePolygon([cq.Vector(*p) for p in s], close=True) for s in sections]
     return cq.Solid.makeLoft(wires, ruled=True)
+
+
+def rounded_rect(
+    x: tuple[float, float], half_w: float, r_front: float, r_rear: float, z: float
+) -> cq.Wire:
+    """Closed plan outline at height ``z``: four straight edges and four exact corner arcs
+    (front corners of radius ``r_front`` at max x, rear corners ``r_rear``)."""
+    rear, front = x
+    rf, rr = max(r_front, 0.1), max(r_rear, 0.1)
+
+    def v(px: float, py: float) -> cq.Vector:
+        return cq.Vector(px, py, z)
+
+    def arc(cx: float, cy: float, r: float, a0: float) -> cq.Edge:
+        a = [math.radians(a0 + d) for d in (0.0, 45.0, 90.0)]
+        p0, pm, p1 = (v(cx + r * math.cos(t), cy + r * math.sin(t)) for t in a)
+        return cq.Edge.makeThreePointArc(p0, pm, p1)
+
+    edges = [
+        cq.Edge.makeLine(v(front, -half_w + rf), v(front, half_w - rf)),
+        arc(front - rf, half_w - rf, rf, 0.0),
+        cq.Edge.makeLine(v(front - rf, half_w), v(rear + rr, half_w)),
+        arc(rear + rr, half_w - rr, rr, 90.0),
+        cq.Edge.makeLine(v(rear, half_w - rr), v(rear, -half_w + rr)),
+        arc(rear + rr, -half_w + rr, rr, 180.0),
+        cq.Edge.makeLine(v(rear + rr, -half_w), v(front - rf, -half_w)),
+        arc(front - rf, -half_w + rf, rf, 270.0),
+    ]
+    return cq.Wire.assembleEdges(edges)
+
+
+def smooth_loft(sections: Sequence[cq.Wire], ruled: bool = False) -> Shape:
+    """Solid through exact section outlines (no overshoot within a section). Smooth between
+    sections, or ``ruled``: straight bands meeting in crisp character lines, and about five
+    times cheaper in later booleans. Sections need the same edge structure."""
+    return cq.Solid.makeLoft(list(sections), ruled=ruled)
 
 
 def prism_y(profile: Sequence[tuple[float, float]], y: tuple[float, float]) -> Shape:
