@@ -59,6 +59,7 @@ class ComponentDef:
     interfaces: Callable[[Values], dict[str, Matrix]] = lambda p: {}
     mate: Mate | None = None
     color: tuple[float, float, float] = (0.6, 0.6, 0.6)
+    finish: str = "paint"  # display material: paint | glass | lamp | rubber | metal
 
     def resolve_inputs(self, values: Values) -> dict[str, float]:
         return self.inputs(DeclaredView(values, self.geometry, self.id))

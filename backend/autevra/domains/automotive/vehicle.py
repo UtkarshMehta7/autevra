@@ -155,7 +155,7 @@ def _wheel(cid: str, name: str, axle: str, side: str) -> ComponentDef:
         id=cid, name=name, category="wheel", builder="wheel",
         geometry=TYRE, inputs=_wheel_inputs,
         frames={"hub": ()}, interfaces=_hub,
-        mate=Mate(axle, f"hub_{side}", "hub"), color=_WHEEL_COLOR,
+        mate=Mate(axle, f"hub_{side}", "hub"), color=_WHEEL_COLOR, finish="rubber",
     )  # fmt: skip
 
 
@@ -166,6 +166,7 @@ def _damper(cid: str, name: str, axle: str, side: str) -> ComponentDef:
         geometry=_damper_geometry(axle), inputs=_damper_inputs(axle),
         frames={"lower_eye": (), "upper_eye": upper}, interfaces=_damper_interfaces(axle),
         mate=Mate(f"{axle}_axle", f"shock_{side}", "lower_eye"), color=_DAMPER_COLOR,
+        finish="metal",
     )  # fmt: skip
 
 
@@ -176,7 +177,7 @@ def _axle(cid: str, name: str, track: str, mount: str) -> ComponentDef:
         frames={"centre": (), "hub_left": (track,), "hub_right": (track,),
                 "shock_left": ("rail_spacing",), "shock_right": ("rail_spacing",)},
         interfaces=_axle_interfaces(track),
-        mate=Mate("vehicle", mount, "centre"), color=_AXLE_COLOR,
+        mate=Mate("vehicle", mount, "centre"), color=_AXLE_COLOR, finish="metal",
     )  # fmt: skip
 
 
@@ -200,25 +201,27 @@ COMPONENTS: tuple[ComponentDef, ...] = (
         id="glass", name="Glazing", category="body", builder="glass",
         geometry=GLASS_GEOMETRY, inputs=_glass_inputs,
         frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
-        mate=Mate("vehicle", "origin", "origin"), color=_GLASS_COLOR,
+        mate=Mate("vehicle", "origin", "origin"), color=_GLASS_COLOR, finish="glass",
     ),
     ComponentDef(
         id="head_lamps", name="Head lamps", category="body", builder="head_lamps",
         geometry=BODY_GEOMETRY, inputs=_body_inputs,  # on the body faces
         frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
         mate=Mate("vehicle", "origin", "origin"), color=_HEAD_LAMP_COLOR,
+        finish="lamp",
     ),
     ComponentDef(
         id="tail_lamps", name="Tail lamps", category="body", builder="tail_lamps",
         geometry=BODY_GEOMETRY, inputs=_body_inputs,  # on the body faces
         frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
         mate=Mate("vehicle", "origin", "origin"), color=_TAIL_LAMP_COLOR,
+        finish="lamp",
     ),
     ComponentDef(
         id="frame", name="Ladder frame", category="chassis", builder="frame",
         geometry=FRAME_GEOMETRY, inputs=lambda p: {k: p[k] for k in FRAME_GEOMETRY},
         frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
-        mate=Mate("vehicle", "origin", "origin"), color=_FRAME_COLOR,
+        mate=Mate("vehicle", "origin", "origin"), color=_FRAME_COLOR, finish="metal",
     ),
     _axle("front_axle", "Front axle", "track_front", "front_axle_mount"),
     _axle("rear_axle", "Rear axle", "track_rear", "rear_axle_mount"),
