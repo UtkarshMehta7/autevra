@@ -38,6 +38,37 @@ def _glass_inputs(p: Values) -> dict[str, float]:
     return {k: p[k] for k in GLASS_GEOMETRY} | {"body_floor": d.body_floor_height(p)}
 
 
+# Interior parts follow the cabin (greenhouse) plus their own choices.
+INTERIOR_GEOMETRY = (*GLASS_GEOMETRY, "seat_rows", "interior_trim", "driving_side")
+
+
+def _interior_inputs(p: Values) -> dict[str, float]:
+    return {k: p[k] for k in INTERIOR_GEOMETRY} | {"body_floor": d.body_floor_height(p)}
+
+
+# Interior colour palette, in the order of the ``interior_colour`` options.
+UPHOLSTERY = (
+    (0.035, 0.036, 0.04), (0.28, 0.28, 0.27), (0.62, 0.56, 0.44), (0.42, 0.24, 0.11),
+    (0.30, 0.11, 0.04), (0.22, 0.02, 0.03),
+)  # fmt: skip
+_TRIM_FINISH = ("fabric", "leather", "leather")
+
+
+def _upholstery(p: Values) -> tuple[tuple[float, float, float], str]:
+    colour = UPHOLSTERY[min(max(int(round(p["interior_colour"])), 0), len(UPHOLSTERY) - 1)]
+    return colour, _TRIM_FINISH[min(max(int(round(p["interior_trim"])), 0), 2)]
+
+
+def _interior(cid: str, name: str, builder: str, color: tuple[float, float, float],
+              finish: str, **extra: object) -> ComponentDef:  # fmt: skip
+    return ComponentDef(
+        id=cid, name=name, category="interior", builder=builder,
+        geometry=INTERIOR_GEOMETRY, inputs=_interior_inputs,
+        frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
+        mate=Mate("vehicle", "origin", "origin"), color=color, finish=finish, **extra,  # type: ignore[arg-type]
+    )  # fmt: skip
+
+
 def _body_inputs(p: Values) -> dict[str, float]:
     keys = [k for k in BODY_GEOMETRY if k not in TYRE]
     return {k: p[k] for k in keys} | {
@@ -233,6 +264,12 @@ COMPONENTS: tuple[ComponentDef, ...] = (
         mate=Mate("vehicle", "origin", "origin"), color=_TAIL_LAMP_COLOR,
         finish="lamp",
     ),
+    _interior("seats", "Seats", "seats", UPHOLSTERY[0], "leather", appearance=_upholstery,
+              appearance_inputs=("interior_colour", "interior_trim")),
+    _interior("dashboard", "Dashboard", "dashboard", (0.05, 0.052, 0.058), "trim"),
+    _interior("display", "Display", "display", (0.02, 0.03, 0.05), "screen"),
+    _interior("steering_wheel", "Steering wheel", "steering_wheel", (0.03, 0.03, 0.035), "leather"),
+    _interior("console", "Centre console", "console", (0.05, 0.052, 0.058), "trim"),
     ComponentDef(
         id="frame", name="Ladder frame", category="chassis", builder="frame",
         geometry=FRAME_GEOMETRY, inputs=lambda p: {k: p[k] for k in FRAME_GEOMETRY},

@@ -53,12 +53,9 @@ def test_acceptance_increase_wheelbase_by_100_mm(
     assert reply["kind"] == "command"
     assert reply["result"]["values"]["wheelbase"] == 2800
     assert set(reply["result"]["impact"]["rebuild"]) == {
-        "body",
-        "frame",
-        "glass",
-        "head_lamps",
-        "tail_lamps",
-    }
+        "body", "frame", "glass", "head_lamps", "tail_lamps",
+        "seats", "dashboard", "display", "steering_wheel", "console",
+    }  # fmt: skip
     rear_group = {"rear_axle", "wheel_rl", "wheel_rr", "damper_rl", "damper_rr"}
     assert set(reply["result"]["impact"]["move"]) == rear_group
 
@@ -88,12 +85,14 @@ def test_acceptance_increase_wheelbase_by_100_mm(
 
 def test_model_deduplicates_and_skips_known_geometry(client: TestClient, project: str) -> None:
     model = _model(client, project)
-    assert len(model["parts"]) == 15
-    assert len(model["geometries"]) == 9  # body, glass, 2 lamps, frame, axle, wheel, 2 dampers
+    assert len(model["parts"]) == 20
+    assert (
+        len(model["geometries"]) == 14
+    )  # body, glass, 2 lamps, 5 interior, frame, axle, wheel, 2 dampers
     keys = ",".join(model["geometries"])
     partial = client.get(f"/api/projects/{project}/model", params={"known": keys}).json()
     assert partial["geometries"] == {}
-    assert len(partial["parts"]) == 15
+    assert len(partial["parts"]) == 20
 
 
 def test_typed_command_endpoint_and_rejection(client: TestClient, project: str) -> None:
@@ -166,7 +165,7 @@ def test_project_crud_and_404(client: TestClient) -> None:
 def test_catalogue(client: TestClient) -> None:
     body = client.get("/api/parameters").json()
     ids = [p["id"] for p in body["parameters"]]
-    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 52
+    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 56
 
 
 def test_state_survives_app_restart(tmp_path: Path) -> None:

@@ -5,7 +5,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { ModelPayload } from "../api/types";
 import { staleGeometry } from "../state/format";
 import { type Animation, frameIndex, framePoses, readout } from "./animation";
-import { baseEmissive, materialFor, rememberEmissive } from "./materials";
+import { baseEmissive, baseOpacity, materialFor, rememberEmissive } from "./materials";
 import {
   type DisplayMode, type SectionAxis, type StandardView, VIEWS, edgesOf, featureEdges, framing,
   measure, sectionPlane,
@@ -298,12 +298,14 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
     for (const [id, mesh] of c.meshes) {
       const mat = mesh.material as THREE.MeshStandardMaterial;
       const isBody = mesh.userData.category === "body";
-      const seeThrough = xray && isBody;
+      const own = baseOpacity(mat);
+      const opacity = xray && isBody ? Math.min(0.22, own) : own;
+      const transparent = opacity < 1;
       const side = section.axis === "off" ? THREE.FrontSide : THREE.DoubleSide; // see inside a cut
-      if (mat.transparent !== seeThrough || mat.side !== side) mat.needsUpdate = true;
-      mat.transparent = seeThrough;
-      mat.opacity = seeThrough ? 0.22 : 1;
-      mat.depthWrite = !seeThrough;
+      if (mat.transparent !== transparent || mat.side !== side) mat.needsUpdate = true;
+      mat.transparent = transparent;
+      mat.opacity = opacity;
+      mat.depthWrite = !transparent;
       mat.side = side;
       mat.visible = display !== "wireframe";
       if (id === selected) mat.emissive.set(0x3d6fb6);

@@ -9,6 +9,7 @@ from autevra.core.units import Unit
 
 class Group(StrEnum):
     BODY = "body"
+    INTERIOR = "interior"
     DIMENSIONS = "dimensions"
     CABIN = "cabin"
     WHEELS = "wheels"
@@ -168,6 +169,59 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         options=("Gloss", "Metallic", "Matte", "Pearl"),
         description="Paint finish: solid gloss, metallic flake, matte or pearlescent.",
         aliases=("paint finish", "finish"),
+    ),
+    # --- Interior ---
+    _p(
+        id="seat_rows",
+        label="Seat rows",
+        group=Group.INTERIOR,
+        unit=Unit.NONE,
+        default=2,
+        min=1,
+        max=3,
+        step=1,
+        description="Rows of seats in the cabin (two seats per row).",
+        aliases=("seat rows", "rows of seats", "seating rows", "rows"),
+    ),
+    _p(
+        id="interior_trim",
+        label="Interior trim",
+        group=Group.INTERIOR,
+        unit=Unit.NONE,
+        default=1,
+        min=0,
+        max=2,
+        step=1,
+        options=("Standard", "Comfort", "Premium"),
+        description="Trim level: Standard (fabric, plain seats), Comfort (bolstered seats, "
+        "centre console), Premium (leather, sculpted seats, wide display, ambient light).",
+        aliases=("interior trim", "trim level", "interior"),  # not "trim": it is a verb too
+    ),
+    _p(
+        id="interior_colour",
+        label="Interior colour",
+        group=Group.INTERIOR,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=5,
+        step=1,
+        options=("Charcoal", "Stone Grey", "Cream", "Tan", "Cognac", "Oxblood"),
+        description="Seat and trim colour (appearance only).",
+        aliases=("interior colour", "interior color", "upholstery", "seat colour", "seat color"),
+    ),
+    _p(
+        id="driving_side",
+        label="Driving side",
+        group=Group.INTERIOR,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=1,
+        step=1,
+        options=("Left-hand drive", "Right-hand drive"),
+        description="Side of the cabin the steering wheel is on.",
+        aliases=("driving side", "drive side", "steering side"),
     ),
     # --- Cabin ---
     _p(

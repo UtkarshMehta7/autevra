@@ -136,6 +136,19 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-14: interior
+
+- **Cabin**: the body has a passenger-space cavity open into the glasshouse, and the glazing is a 6 mm shell, so the interior shows through tinted, see-through glass (and in X-ray).
+- **Interior components** placed from the body style's greenhouse: seats (two per row, cushion on a base, backrest reclined 22°, headrest on posts or integrated for Premium, bolsters for Comfort and Premium), dashboard with knee recess, display (small, centre or Premium wide screen with an ambient light line), steering wheel on the driving side, centre console (Premium armrest).
+- **Parameters**: seat rows (1–3), interior trim (Standard, Comfort, Premium), interior colour (6), driving side (left- or right-hand drive). Plain English: "make the interior premium", "make it right-hand drive", "make the seats cognac". Leather and fabric materials; colour and trim colour changes rebuild nothing.
+- **Packaging**: rule `seat_rows_fit` (350 mm dashboard zone + 850 mm per row); seats scale to the cabin height to clear the roof liner by 60 mm (a test caught them passing through the roof of the high-floor body); derived **front headroom** from a stated seated-height allowance and an integration warning below 25 mm. The specification maps seats to rows; templates set rows, trim and colour.
+- Removed the bare alias "trim" from the trim level: "trim the nose by 50 mm" had become a trim-level command.
+- Checked in Chrome: premium tan interior through the glass and in X-ray.
+
+**Known limitations**
+- Seats and trim are packaging envelopes made of boxes, not seat designs; the headroom allowance is approximate, not a standard (SAE J1100-style) measurement.
+- The body-on-frame floor (on top of the rails) makes car cabins low; a low sports car shows negative headroom.
+
 ### 2026-10-14: CAD viewer tools
 
 - Display modes: shaded, shaded with edges (feature edges where faces meet at more than 28°), wireframe (edges only).

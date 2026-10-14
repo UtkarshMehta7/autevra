@@ -186,6 +186,13 @@ def frontal_area(p: Values) -> float:
     return FRONTAL_FILL * p["body_width"] * (p["overall_height"] - p["ground_clearance"]) / 1e6
 
 
+def front_headroom(p: Values) -> float:
+    """Roof liner above a large adult's head in the front row, mm (allowance-based)."""
+    from autevra.domains.automotive import interior  # (interior imports the builders)
+
+    return interior.front_headroom(p | {"body_floor": body_floor_height(p)})
+
+
 def power_to_weight(p: Values) -> float:
     """Peak power per tonne of vehicle mass, kW/t."""
     return p["peak_power"] / (p["vehicle_mass"] / 1000.0)
@@ -310,6 +317,14 @@ DEFINITIONS: dict[str, tuple[DerivedDef, Callable[[Values], float]]] = {
             aliases=("frontal area", "frontal area of the car"),
         ),
         frontal_area,
+    ),
+    "front_headroom": (
+        DerivedDef(
+            id="front_headroom", label="Front headroom", unit="mm",
+            controlled_by=("overall_height", "ground_clearance", "rail_height", "body_style"),
+            aliases=("headroom", "front headroom", "head room"),
+        ),
+        front_headroom,
     ),
     "power_to_weight": (
         DerivedDef(

@@ -64,3 +64,20 @@ NOT_CHECKED: tuple[str, ...] = (
     "Clearances are static (ride height, straight ahead); wheel travel and steering sweeps are "
     "covered by the suspension tests and a later steering sweep check.",
 )
+
+
+HEADROOM_MIN = 25.0  # mm, below this the check warns (allowance-based, not a regulation)
+
+
+def interior_checks(values: Values) -> list[Check]:
+    """Front-row headroom from the seated-height allowance (see ``interior``)."""
+    room = d.front_headroom(values)
+    ok = room >= HEADROOM_MIN
+    message = (
+        f"front headroom {room:.0f} mm"
+        + ("" if ok else f": a large adult's head is within {HEADROOM_MIN:.0f} mm of the roof"
+           if room >= 0 else ": a large adult's head would touch the roof")
+    )  # fmt: skip
+    return [Check("interior:front_headroom", "packaging", Status.PASS if ok else Status.WARNING,
+                  message, parameters=("overall_height", "ground_clearance", "rail_height"),
+                  measured=round(room, 1), limit=HEADROOM_MIN, unit="mm")]  # fmt: skip

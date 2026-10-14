@@ -3,7 +3,7 @@ import pytest
 from autevra.core.rules import validate
 from autevra.domains.automotive import spec as sp
 
-TYPICAL_SEATS = {"city_car": "4", "sports_car": "2", "van": "7"}
+TYPICAL_SEATS = {"city_car": "4", "sports_car": "2", "van": "7", "box_truck": "2"}
 
 
 def _spec(**answers: str | float) -> sp.VehicleSpec:
