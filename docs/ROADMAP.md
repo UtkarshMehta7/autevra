@@ -144,6 +144,8 @@ specification interview moves to Phase 5.
 - **Studio**: front and rear travel against their limits, heave with both road inputs, pitch, heave acceleration and tyre loads; 3D playback heaves and pitches the body about its mass centre while each axle follows its own solution.
 - Checked in Chrome on the SUV template: passed within the model, converged (0.003 % at half step), playback pitches nose down after the front axle crosses the hump.
 
+- Requirements can name the half-car metrics ("the peak pitch angle over the hump shall be below 1.5 deg", "require pitch acceleration under 40 deg/s2 over the pothole"); specification-style "shall" statements are requirements; "/s2" and "/s^2" are read as "/s²" so the exponent is never taken for the limit (it was).
+
 **Known limitations**
 - No roll (both corners of an axle move together) and no anti-dive or anti-squat geometry.
 - The dynamic index is an assumption until mass properties are measured or computed from the CAD.

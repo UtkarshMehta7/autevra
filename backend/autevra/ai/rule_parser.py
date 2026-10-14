@@ -131,6 +131,8 @@ _REQUIRE = re.compile(
     r"^(?:please )?(?:add (?:a )?requirement:?|requirement:|require|"
     r"we require|it must|the requirement is)\b\s*(?P<rest>.+)$"
 )
+# Specification style: "the peak pitch angle over the hump shall be below 1.5 deg".
+_SHALL = re.compile(r"^(?P<rest>.+\bshall\b.+)$")
 _AT_LEAST = (
     r"(?:at least|no less than|not less than|a minimum of|minimum|above|over|more than|"
     r"greater than|>=|>)"
@@ -233,6 +235,7 @@ def normalise(text: str) -> str:
     t = text.strip().lower()
     t = t.replace("”", '"').replace("“", '"').replace("’", "'")
     t = re.sub(r"(\d)\s*(?:''|inch)\b", r"\1 in", t)
+    t = re.sub(r"/\s*(s|sec)\s*(?:\^\s*2|2)\b", "/s²", t)  # m/s2, deg/s^2 -> /s²
     for pattern, replacement in language.normalisers():  # domain vocabulary
         t = re.sub(pattern, replacement, t)
     t = re.sub(r"[!.]+$", "", t)
@@ -568,7 +571,7 @@ def parse(text: str) -> Interpretation:
     spec_trigger = language.first("spec_trigger")
     if (spec_trigger and re.match(spec_trigger, t)) or t.startswith(("spec:", "specification:")):
         return Interpretation(Kind.SPEC)
-    if (req := _REQUIRE.match(t)) is not None:
+    if (req := _REQUIRE.match(t) or _SHALL.match(t)) is not None:
         return _parse_requirement(req.group("rest"))
     if (what_if := _PREVIEW.match(t)) is not None:
         inner = parse(what_if.group("rest"))
