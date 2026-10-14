@@ -8,6 +8,7 @@ from autevra.core.units import Unit
 
 
 class Group(StrEnum):
+    BODY = "body"
     DIMENSIONS = "dimensions"
     CABIN = "cabin"
     WHEELS = "wheels"
@@ -113,6 +114,21 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         aliases=("ground clearance", "ride height", "clearance"),
         increase_words=("raise", "lift"),
         decrease_words=("lower", "drop"),
+    ),
+    # --- Body ---
+    _p(
+        id="body_style",
+        label="Body style",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=6,
+        step=1,
+        options=("Sedan", "Hatchback", "SUV", "Coupe", "Pickup", "Van", "Box truck"),
+        description="Overall body form: three-box sedan, two-box hatchback or SUV, fastback "
+        "coupe, pickup with an open bed, one-box van, or box truck with a cargo box.",
+        aliases=("body style", "body type", "body shape", "body form", "style"),
     ),
     # --- Cabin ---
     _p(

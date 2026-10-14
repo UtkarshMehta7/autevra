@@ -463,6 +463,17 @@ LANGUAGE = Language(
     diagnose_words="lift|lifted",
     unmodelled_limits=_UNMODELLED_LIMITS,
     spec_trigger=SPEC_TRIGGER,
+    option_aliases={
+        "body_style": {
+            "Sedan": ("saloon", "three-box", "three box", "notchback"),
+            "Hatchback": ("hatch", "two-box", "two box", "estate", "wagon", "station wagon"),
+            "SUV": ("crossover", "4x4", "sport utility vehicle", "off-roader"),
+            "Coupe": ("coupé", "fastback", "sports car", "gt"),
+            "Pickup": ("pick-up", "pick up", "pickup truck", "ute"),
+            "Van": ("minivan", "mpv", "people carrier", "one-box", "one box", "panel van"),
+            "Box truck": ("truck", "lorry", "light truck", "delivery truck", "luton", "box van"),
+        }
+    },
     concepts=CONCEPTS,
     scope_words=SCOPE_WORDS,
     out_of_scope=OUT_OF_SCOPE,

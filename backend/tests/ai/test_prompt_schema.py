@@ -16,8 +16,9 @@ def test_prompt_lists_every_parameter_with_current_value() -> None:
     values = default_values() | {"wheelbase": 2800}
     messages = prompt.messages("stretch it between the axles", values)
     system = messages[0]["content"]
-    for pid in REGISTRY:
-        assert f"\n{pid} |" in system
+    for pid, spec in REGISTRY.items():
+        # Choice parameters (body style) are left to the deterministic parser.
+        assert (f"\n{pid} |" in system) != bool(spec.options)
     assert "wheelbase | mm | 2800 | 2000-3600 | Distance between front and rear axle" in system
     assert "overall_length | Overall length | 4700.0 mm" in system
     assert messages[-1] == {"role": "user", "content": "stretch it between the axles"}

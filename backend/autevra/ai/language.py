@@ -44,6 +44,8 @@ class Language:
     diagnose_words: str = ""  # extra words for "why did it ...": e.g. lift|lifted
     unmodelled_limits: Mapping[str, str] = field(default_factory=dict)
     spec_trigger: str = ""  # regex: a specification statement ("I want an electric SUV")
+    # Choice parameters: parameter id -> option label -> synonyms ("SUV" -> "crossover").
+    option_aliases: Mapping[str, Mapping[str, Sequence[str]]] = field(default_factory=dict)
     concepts: Sequence[Any] = ()  # ai.concepts.Concept
     scope_words: frozenset[str] = frozenset()
     out_of_scope: str = ""

@@ -31,7 +31,9 @@ G = d.G
 HP_KW = 0.745699872  # mechanical horsepower
 PS_KW = 0.73549875  # metric horsepower
 
-VehicleClass = Literal["city_car", "hatchback", "sedan", "suv", "pickup", "sports_car", "van"]
+VehicleClass = Literal[
+    "city_car", "hatchback", "sedan", "suv", "pickup", "sports_car", "van", "box_truck"
+]
 CLASS_LABELS = {
     "city_car": "city car",
     "hatchback": "hatchback",
@@ -40,6 +42,7 @@ CLASS_LABELS = {
     "pickup": "pickup",
     "sports_car": "sports car",
     "van": "van",
+    "box_truck": "box truck",
 }
 
 
@@ -231,6 +234,7 @@ _CLASS_WORDS = (
     (r"hatch(?:back)?", "hatchback"),
     (r"sedan|saloon", "sedan"),
     (r"suv|crossover|4x4", "suv"),
+    (r"box ?truck|light truck|delivery truck|lorry|luton", "box_truck"),
     (r"pick-?up|ute|truck", "pickup"),
     (r"sports? ?car|coupe|roadster|supercar", "sports_car"),
     (r"\bvan\b|minivan|mpv|people carrier", "van"),
@@ -317,6 +321,7 @@ class Check(BaseModel):
 # by the design rules in tests; they are not data for any real vehicle.
 TEMPLATES: dict[str, dict[str, float]] = {
     "city_car": {
+        "body_style": 1,
         "wheelbase": 2450,
         "front_overhang": 700,
         "rear_overhang": 600,
@@ -336,6 +341,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 61,
     },
     "hatchback": {
+        "body_style": 1,
         "wheelbase": 2620,
         "front_overhang": 850,
         "rear_overhang": 750,
@@ -355,6 +361,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 60,
     },
     "sedan": {
+        "body_style": 0,
         "wheelbase": 2800,
         "front_overhang": 900,
         "rear_overhang": 1050,
@@ -374,6 +381,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "suv": {
+        "body_style": 2,
         "wheelbase": 2850,
         "front_overhang": 920,
         "rear_overhang": 1000,
@@ -393,6 +401,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "pickup": {
+        "body_style": 4,
         "wheelbase": 3200,
         "front_overhang": 950,
         "rear_overhang": 1200,
@@ -412,6 +421,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "sports_car": {
+        "body_style": 3,
         "wheelbase": 2450,
         "front_overhang": 950,
         "rear_overhang": 850,
@@ -431,6 +441,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 50,
     },
     "van": {
+        "body_style": 5,
         "wheelbase": 3000,
         "front_overhang": 900,
         "rear_overhang": 1000,
@@ -449,6 +460,26 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "vehicle_mass": 2000,
         "front_mass_distribution": 55,
     },
+    "box_truck": {
+        "body_style": 6,
+        "wheelbase": 3500,
+        "front_overhang": 800,
+        "rear_overhang": 1400,
+        "body_width": 2050,
+        "overall_height": 2100,
+        "beltline_height": 1200,
+        "ground_clearance": 200,
+        "track_front": 1700,
+        "track_rear": 1700,
+        "rim_diameter": 16,
+        "tyre_width": 215,
+        "tyre_aspect_ratio": 75,
+        "cabin_length": 2600,
+        "roof_length": 1800,
+        "cabin_offset": 0,
+        "vehicle_mass": 3200,
+        "front_mass_distribution": 45,
+    },
 }
 # Wheel travel to the bump stop and tyre-to-arch gap per class, mm (template values; the arch
 # gap is kept at least as large as the bump travel so the tyre clears the arch at full bump).
@@ -460,6 +491,7 @@ TRAVEL = {
     "pickup": (100, 105),
     "sports_car": (50, 50),
     "van": (80, 85),
+    "box_truck": (100, 105),
 }
 # Unsprung mass per corner (front, rear), kg: light cars have light wheels, brakes and beams;
 # pickups carry a live rear axle (template values).
@@ -471,6 +503,7 @@ UNSPRUNG = {
     "pickup": (55, 75),
     "sports_car": (38, 40),
     "van": (45, 55),
+    "box_truck": (55, 90),
 }
 SEAT_CABIN = {"2": 1900, "4": 2300, "5": 2500, "7": 3000}  # cabin length at the beltline, mm
 # Target body-bounce (ride) frequencies for the front axle, Hz; the rear is set 10 % higher

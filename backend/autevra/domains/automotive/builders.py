@@ -13,6 +13,7 @@ Local frames:
 
 import math
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 from autevra.cad import kernel as k
 from autevra.domains.automotive.derived import AXLE_RADIUS, SPRING_ACTIVE_COILS, SPRING_SEAT_OFFSET
@@ -41,46 +42,160 @@ def _rounded_outline(
     return pts
 
 
-def body_profile(p: Inputs) -> list[tuple[float, float]]:
-    """Side profile (x, z) of the lower body: bumper, nose, hood rising to the windscreen
-    cowl, beltline, rear deck and tail. Proportions follow the design parameters."""
+# Body styles, in the order of the ``body_style`` parameter's options.
+BODY_STYLES = ("sedan", "hatchback", "suv", "coupe", "pickup", "van", "box_truck")
+
+
+def body_style(p: Inputs) -> str:
+    index = int(round(p.get("body_style", 0.0)))
+    return BODY_STYLES[min(max(index, 0), len(BODY_STYLES) - 1)]
+
+
+@dataclass(frozen=True)
+class BodyLayout:
+    """Where the parts of a body style sit (vehicle frame, mm). ``build_body`` turns it
+    into solids; tests check the proportions without building CAD."""
+
+    style: str
+    profile: list[tuple[float, float]]  # side profile (x, z) of the lower body
+    glass: tuple[float, float]  # greenhouse x extent at the beltline (rear, front)
+    roof: tuple[float, float]  # roof panel x extent (rear, front)
+    roof_z: float
+    bed: tuple[tuple[float, float], float] | None = None  # open bed: x extent, floor z
+    cargo: tuple[float, float] | None = None  # closed cargo box x extent (floor to roof)
+
+
+def body_layout(p: Inputs) -> BodyLayout:
+    """Proportions of each style from the design parameters.
+
+    Cabin length, roof length and cabin offset place the greenhouse for the car styles
+    and the cab of a pickup. A van's greenhouse spans the body and a box truck's cab is
+    sized from the cabin length; their windscreens rise from a short nose.
+    """
+    style = body_style(p)
     rear, front = -(p["wheelbase"] + p["rear_overhang"]), p["front_overhang"]
-    floor, belt = p["body_floor"], p["beltline_height"]
-    depth = belt - floor
+    length = front - rear
+    floor, belt, top = p["body_floor"], p["beltline_height"], p["overall_height"]
+    depth, glass_h = belt - floor, top - belt
     centre = (rear + front) / 2.0 + p["cabin_offset"]
+    arch_top = p["tyre_radius"] + p["arch_radius"]
+    under = min(0.06 * length, 220.0)
+    bumper = floor + 0.25 * depth
+    tail_low = floor + 0.3 * depth
+
+    def nose_at(share: float) -> float:  # hood height at the nose, above the front arch
+        return min(max(floor + share * depth, arch_top + 40.0), belt - 20.0)
+
     cowl = min(centre + p["cabin_length"] / 2.0, front - 150.0)  # windscreen base
     deck = max(centre - p["cabin_length"] / 2.0, rear + 150.0)  # rear screen base
-    arch_top = p["tyre_radius"] + p["arch_radius"]
-    # The hood stays above the front wheel arch, below the beltline.
-    nose = min(max(floor + 0.62 * depth, arch_top + 40.0), belt - 20.0)
-    tail = min(max(floor + 0.78 * depth, arch_top + 40.0), belt - 10.0)
-    bumper = floor + 0.25 * depth
-    under = min(0.06 * (front - rear), 220.0)
-    return [
-        (rear + under * 0.6, floor),
-        (front - under, floor),
-        (front, bumper),
-        (front, nose),
-        (cowl, belt),
-        (deck, belt),
-        (rear, tail),
-        (rear, floor + 0.3 * depth),
-    ]
+    rake = max((p["cabin_length"] - p["roof_length"]) / 2.0, 0.25 * glass_h)  # windscreen run
+    front_end = [(rear + under * 0.6, floor), (front - under, floor), (front, bumper)]
+
+    def clamp_roof(r0: float, r1: float) -> tuple[float, float]:
+        r1 = max(r1, r0 + 300.0)
+        return (r0, r1)
+
+    if style == "sedan":
+        tail = min(max(floor + 0.78 * depth, arch_top + 40.0), belt - 10.0)
+        roof = (centre - p["roof_length"] / 2.0, centre + p["roof_length"] / 2.0)
+        profile = [*front_end, (front, nose_at(0.62)), (cowl, belt), (deck, belt),
+                   (rear, tail), (rear, tail_low)]  # fmt: skip
+        return BodyLayout(style, profile, (deck, cowl), roof, top)
+
+    if style in ("hatchback", "suv"):
+        upright = style == "suv"
+        back = rear + 60.0
+        roof = clamp_roof(back + (0.12 if upright else 0.45) * glass_h, cowl - rake)
+        profile = [*front_end, (front, nose_at(0.8 if upright else 0.62)), (cowl, belt),
+                   (back, belt), (rear, belt - 60.0), (rear, tail_low)]  # fmt: skip
+        return BodyLayout(style, profile, (back, cowl), roof, top)
+
+    if style == "coupe":
+        tail = min(max(floor + 0.82 * depth, arch_top + 40.0), belt - 10.0)
+        roof_front = cowl - rake
+        roof = clamp_roof(roof_front - 0.6 * p["roof_length"], roof_front)
+        profile = [*front_end, (front, nose_at(0.55)), (cowl, belt), (deck, belt),
+                   (rear, tail), (rear, tail_low)]  # fmt: skip
+        return BodyLayout(style, profile, (deck, cowl), roof, top)
+
+    if style == "pickup":
+        cab_rear = deck
+        roof = clamp_roof(cab_rear + 40.0, cowl - rake)
+        bed_floor = min(max(floor + 0.3 * depth, arch_top + 20.0), belt - 120.0)
+        profile = [*front_end, (front, nose_at(0.75)), (cowl, belt), (rear, belt),
+                   (rear, tail_low)]  # fmt: skip
+        return BodyLayout(style, profile, (cab_rear, cowl), roof, top,
+                          bed=((rear + 50.0, cab_rear - 60.0), bed_floor))  # fmt: skip
+
+    # Van and box truck: short nose, long raked windscreen.
+    cowl = front - max(250.0, 0.45 * p["front_overhang"])
+    screen = 0.55 * glass_h
+    profile_front = [*front_end, (front, nose_at(0.75)), (cowl, belt)]
+    if style == "van":
+        profile = [*profile_front, (rear, belt), (rear, tail_low)]
+        roof = clamp_roof(rear + 60.0, cowl - screen)
+        return BodyLayout(style, profile, (rear + 40.0, cowl), roof, top)
+
+    cab_depth = min(max(0.5 * p["cabin_length"], 1300.0), 0.4 * length)
+    cab_rear = cowl - cab_depth
+    cab_top = top - 0.15 * glass_h  # the cargo box stands above the cab
+    profile = [*profile_front, (cab_rear, belt), (cab_rear, tail_low)]
+    roof = clamp_roof(cab_rear + 30.0, cowl - 0.45 * (cab_top - belt))
+    return BodyLayout(style, profile, (cab_rear, cowl), roof, cab_top,
+                      cargo=(rear, cab_rear - 80.0))  # fmt: skip
+
+
+def body_profile(p: Inputs) -> list[tuple[float, float]]:
+    """Side profile (x, z) of the lower body for the design's body style."""
+    return body_layout(p).profile
 
 
 def build_body(p: Inputs) -> k.Shape:
-    """Lower body (side profile x rounded plan view) with wheel wells, plus a raked,
-    tapered greenhouse. Extents: overhang to overhang, full width, floor to roof."""
+    """Lower body (side profile x rounded plan view) and a raked, tapered greenhouse, shaped
+    by the body style (an open bed for a pickup, a cargo box for a box truck), with wheel
+    wells. Extents: overhang to overhang, full width, floor to roof."""
+    layout = body_layout(p)
     rear, front = -(p["wheelbase"] + p["rear_overhang"]), p["front_overhang"]
     half_w = p["body_width"] / 2.0
-    floor, belt, roof = p["body_floor"], p["beltline_height"], p["overall_height"]
+    floor, belt = p["body_floor"], p["beltline_height"]
+    square_back = layout.style in ("pickup", "van", "box_truck", "suv")
 
-    side = k.prism_y(body_profile(p), (-half_w, half_w))
+    side = k.prism_y(layout.profile, (-half_w, half_w))
     plan = k.prism_z(
-        _rounded_outline((rear, front), half_w, 0.32 * half_w, 0.18 * half_w),
+        _rounded_outline(
+            (rear, front), half_w, 0.32 * half_w, (0.08 if square_back else 0.18) * half_w
+        ),
         (floor - 1.0, belt + 1.0),
     )
-    lower = k.intersect(side, plan)
+    parts = [k.intersect(side, plan)]
+
+    # Greenhouse: ruled loft from the beltline outline to the roof outline; the corners are
+    # chamfered so the glasshouse reads as rounded, and the roof is narrower (tumblehome).
+    cab_w, roof_w = half_w - 40.0, half_w - 150.0
+
+    def outline(
+        z: float, x: tuple[float, float], half_wid: float
+    ) -> list[tuple[float, float, float]]:
+        r, f = x
+        c = min(0.18 * half_wid, 0.25 * (f - r) / 2.0)  # corner chamfer
+        return [
+            (r, -half_wid + c, z), (r + c, -half_wid, z), (f - c, -half_wid, z),
+            (f, -half_wid + c, z), (f, half_wid - c, z), (f - c, half_wid, z),
+            (r + c, half_wid, z), (r, half_wid - c, z),
+        ]  # fmt: skip
+
+    parts.append(k.ruled_loft([
+        outline(belt, layout.glass, cab_w), outline(layout.roof_z, layout.roof, roof_w)
+    ]))  # fmt: skip
+    if layout.cargo is not None:
+        parts.append(k.box(layout.cargo, (-half_w, half_w), (floor, p["overall_height"])))
+    body = k.fuse(*parts)
+
+    if layout.bed is not None:
+        (b0, b1), bed_floor = layout.bed
+        body = k.cut(
+            body, k.box((b0, b1), (-half_w + 50.0, half_w - 50.0), (bed_floor, belt + 5.0))
+        )
 
     # Wheel wells: cylinders around each wheel, cut from the tyre's inner face outwards.
     wheel_z = p["tyre_radius"]
@@ -90,25 +205,7 @@ def build_body(p: Inputs) -> k.Shape:
         inner = track / 2.0 - p["tyre_width"] / 2.0 - p["arch_clearance"]
         wells.append(k.cylinder_y(r, (inner, half_w + 1), x=x, z=wheel_z))
         wells.append(k.cylinder_y(r, (-half_w - 1, -inner), x=x, z=wheel_z))
-    lower = k.cut(lower, *wells)
-
-    # Greenhouse: ruled loft from the beltline outline to the roof outline; the corners are
-    # chamfered so the glasshouse reads as rounded, and the roof is narrower (tumblehome).
-    centre = (rear + front) / 2.0 + p["cabin_offset"]
-    cab_half, roof_half = p["cabin_length"] / 2.0, p["roof_length"] / 2.0
-    cab_w, roof_w = half_w - 40.0, half_w - 150.0
-
-    def outline(z: float, half_len: float, half_wid: float) -> list[tuple[float, float, float]]:
-        c = min(0.18 * half_wid, 0.25 * half_len)  # corner chamfer
-        return [
-            (centre - half_len, -half_wid + c, z), (centre - half_len + c, -half_wid, z),
-            (centre + half_len - c, -half_wid, z), (centre + half_len, -half_wid + c, z),
-            (centre + half_len, half_wid - c, z), (centre + half_len - c, half_wid, z),
-            (centre - half_len + c, half_wid, z), (centre - half_len, half_wid - c, z),
-        ]  # fmt: skip
-
-    cabin = k.ruled_loft([outline(belt, cab_half, cab_w), outline(roof, roof_half, roof_w)])
-    return k.fuse(lower, cabin)
+    return k.cut(body, *wells)
 
 
 def build_frame(p: Inputs) -> k.Shape:

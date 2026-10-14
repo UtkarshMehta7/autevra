@@ -151,6 +151,8 @@ def _loop_message(result: eloop.LoopResult) -> str:
 def _format(pid: str, values: dict[str, float]) -> str:
     if pid in parameters.REGISTRY:
         spec = parameters.REGISTRY[pid]
+        if spec.options:
+            return f"{spec.label}: {spec.option(values[pid])}"
         return f"{spec.label}: {values[pid]:g} {spec.unit}"
     spec = derived.DERIVED[pid]
     return f"{spec.label}: {derived.compute(pid, values):.1f} {spec.unit}"

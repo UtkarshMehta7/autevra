@@ -16,6 +16,7 @@ export interface ParameterDef {
   max: number;
   step: number;
   description: string;
+  options?: string[]; // a choice: the value is the index of one of these labels
 }
 
 export interface DerivedValue {
