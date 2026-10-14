@@ -86,7 +86,7 @@ def test_model_deduplicates_and_skips_known_geometry(client: TestClient, project
     model = _model(client, project)
     assert len(model["parts"]) == 28
     assert (
-        len(model["geometries"]) == 22
+        len(model["geometries"]) == 23
     )  # body, glass, 2 lamps, 5 interior, frame, axle, wheel, 2 dampers
     keys = ",".join(model["geometries"])
     partial = client.get(f"/api/projects/{project}/model", params={"known": keys}).json()
@@ -164,7 +164,7 @@ def test_project_crud_and_404(client: TestClient) -> None:
 def test_catalogue(client: TestClient) -> None:
     body = client.get("/api/parameters").json()
     ids = [p["id"] for p in body["parameters"]]
-    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 60
+    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 62
 
 
 def test_state_survives_app_restart(tmp_path: Path) -> None:

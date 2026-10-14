@@ -58,6 +58,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for progress, known limitations and what 
 | [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) | Environment inspection, verified Apple Silicon compatibility matrix, risks and memory budget |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phased implementation plan and progress log (completed and remaining work) |
 | [docs/MODULES.md](docs/MODULES.md) | How each implemented module works |
+| [docs/INDUSTRY_FEATURES.md](docs/INDUSTRY_FEATURES.md) | Capability survey of established vehicle-engineering tools, Autevra's status per capability and the upgrade plan |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Hosted demo: Netlify (frontend), Render (API), Neon (Postgres); measured limits and steps |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow, branch and commit conventions |
 

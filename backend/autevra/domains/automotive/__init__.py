@@ -20,6 +20,7 @@ from autevra.domains.automotive import (
     powertrain,
     rules,
     spec,
+    suspension,
     vehicle,
 )
 from autevra.domains.automotive import tests as test_definitions
@@ -66,7 +67,7 @@ PLUGIN = extensions.Plugin(
             )
         },  # fmt: skip
         "frame": builders.build_frame,
-        "axle": builders.build_axle,
+        "axle": suspension.build_suspension,
         "wheel": builders.build_wheel,
         "damper": builders.build_damper,
     },

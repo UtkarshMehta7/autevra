@@ -10,7 +10,7 @@ def test_registry_matches_architecture_draft() -> None:
     assert v["rear_overhang"] == 1000
     assert v["rim_diameter"] == 17
     assert v["rail_width"] == 70 and v["rail_height"] == 110
-    assert len(REGISTRY) == 60
+    assert len(REGISTRY) == 62
 
 
 def test_defaults_lie_within_bounds() -> None:

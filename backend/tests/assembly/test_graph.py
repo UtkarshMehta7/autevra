@@ -78,7 +78,8 @@ def test_frame_spacing_rebuilds_the_frame_and_moves_the_dampers() -> None:
     impact = graph.impact(["rail_spacing"])
     # Conservative: on a ladder frame the floor battery sits between the rails, so the floor
     # height (and every body-mounted part) is declared to depend on the rail spacing.
-    assert "frame" in impact.rebuild and not {"wheel_fl", "front_axle"} & impact.rebuild
+    assert {"frame", "front_axle", "rear_axle"} <= impact.rebuild  # suspension pivots follow
+    assert not {"wheel_fl", "wheel_rr"} & impact.rebuild
     assert impact.move == {"damper_fl", "damper_fr", "damper_rl", "damper_rr"}
 
 
