@@ -41,7 +41,7 @@ def test_system_graph_and_rule_status(client: TestClient, project: str) -> None:
     assert kinds == {"mounted_to", "coincident", "load_path"}
     axle = next(n for n in graph["nodes"] if n["id"] == "rear_axle")
     hub = next(i for i in axle["interfaces"] if i["name"] == "hub_left")
-    assert hub["used_by"] == ["wheel_rl"]
+    assert hub["used_by"] == ["wheel_rl", "rim_rl"]
     rules = client.get(f"/api/projects/{project}/rules").json()
     assert all(r["passed"] for r in rules) and len(rules) > 20
 

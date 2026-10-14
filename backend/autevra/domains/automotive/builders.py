@@ -20,8 +20,6 @@ from autevra.domains.automotive.derived import AXLE_RADIUS, SPRING_ACTIVE_COILS,
 
 Inputs = Mapping[str, float]
 HUB_INSET = 60.0  # axle ends this far inboard of the wheel centre plane
-RIM_BARREL = 12.0  # radial thickness of the rim barrel
-SPOKES = 5
 
 
 def _rounded_outline(
@@ -82,6 +80,9 @@ class BodyLayout:
     cargo: tuple[float, float] | None = None  # closed cargo box x extent (floor to roof)
 
 
+MIN_GREENHOUSE = 600.0  # shortest greenhouse at the beltline, mm
+
+
 def body_layout(p: Inputs) -> BodyLayout:
     """Proportions of each style from the design parameters.
 
@@ -108,8 +109,11 @@ def body_layout(p: Inputs) -> BodyLayout:
         nose = (front, nose_at(share))
         return [nose, *_hood_curve(nose, (cowl, belt)), (cowl, belt)]
 
-    cowl = min(centre + p["cabin_length"] / 2.0, front - 150.0)  # windscreen base
-    deck = max(centre - p["cabin_length"] / 2.0, rear + 150.0)  # rear screen base
+    # Windscreen base and rear screen base; the greenhouse keeps at least MIN_GREENHOUSE
+    # however far the cabin offset pushes it towards either end.
+    cowl = min(max(centre + p["cabin_length"] / 2.0, rear + 150.0 + MIN_GREENHOUSE),
+               front - 150.0)  # fmt: skip
+    deck = min(max(centre - p["cabin_length"] / 2.0, rear + 150.0), cowl - MIN_GREENHOUSE)
     rake = max((p["cabin_length"] - p["roof_length"]) / 2.0, 0.25 * glass_h)  # windscreen run
     front_end = [(rear + under * 0.6, floor), (front - under, floor), (front, bumper)]
 
@@ -138,6 +142,8 @@ def body_layout(p: Inputs) -> BodyLayout:
         roof_front = cowl - rake
         roof = clamp_roof(roof_front - p["roof_length"], roof_front)
         back = max(rear + 0.12 * length, min(deck, roof[0]) - 1.2 * glass_h)
+        # A cabin pushed far back: the roof still starts ahead of the rear screen base.
+        roof = clamp_roof(max(roof[0], back + 0.25 * glass_h), max(roof[1], roof_front))
         profile = [*front_end, *hood(0.55), (back, belt),
                    (rear, tail), (rear, tail_low)]  # fmt: skip
         return BodyLayout(style, profile, (back, cowl), roof, top)
@@ -212,8 +218,9 @@ def _window_frame(p: Inputs, layout: BodyLayout) -> k.Shape:
     (g0, g1), (r0, r1) = layout.glass, layout.roof
     side = k.box((r0 + PILLAR, r1 - PILLAR), (-half_w - 10.0, half_w + 10.0), z)
     screens = [
-        k.box((r1 - 1.0, g1 + 10.0), (-roof_w + PILLAR, roof_w - PILLAR), z),  # windscreen
-        k.box((g0 - 10.0, r0 + 1.0), (-roof_w + PILLAR, roof_w - PILLAR), z),  # rear screen
+        k.box(x, (-roof_w + PILLAR, roof_w - PILLAR), z)
+        for x in ((r1 - 1.0, g1 + 10.0), (g0 - 10.0, r0 + 1.0))  # windscreen, rear screen
+        if x[1] - x[0] > 1.0
     ]
     return k.cut(_greenhouse(p, layout), side, *screens)
 
@@ -229,41 +236,10 @@ def build_glass(p: Inputs) -> k.Shape:
     return k.cut(outer, _greenhouse(p, layout, inset=GLASS_INSET + GLASS_THICKNESS))
 
 
-LAMP_DEPTH = 15.0  # lamps sit in recesses this deep, flush with the body face, mm
-
-
-def lamp_boxes(p: Inputs, end: str) -> list[tuple[tuple[float, float], ...]]:
-    """(x, y, z) extents of the lamps: slim LED strips at the front ("head") joined by a thin
-    light line, and a full-width light bar at the rear ("tail"), on the flat part of each
-    face. The body is recessed by the same boxes, so the lamps are flush and the extents do
-    not change."""
-    layout = body_layout(p)
-    rear, front = -(p["wheelbase"] + p["rear_overhang"]), p["front_overhang"]
-    half_w = p["body_width"] / 2.0
-    floor, belt = p["body_floor"], p["beltline_height"]
-    if end == "head":
-        bumper, nose = layout.profile[2][1], layout.profile[3][1]
-        h = nose - bumper
-        top = nose - 0.08 * h
-        strip = (top - max(0.16 * h, 30.0), top)
-        line = (top - 12.0, top)
-        x = (front - LAMP_DEPTH, front)
-        return [
-            (x, (0.26 * half_w, 0.62 * half_w), strip),
-            (x, (-0.62 * half_w, -0.26 * half_w), strip),
-            (x, (-0.26 * half_w, 0.26 * half_w), line),
-        ]
-    at_rear = [zz for xx, zz in layout.profile if abs(xx - rear) < 1e-6]
-    top, bottom = (max(at_rear), min(at_rear)) if at_rear else (floor, floor)
-    if layout.cargo is not None or top - bottom < 60.0:  # box truck: low on the box
-        bottom, top = floor + 0.25 * (belt - floor), floor + 0.55 * (belt - floor)
-    h = top - bottom
-    bar = (top - 0.12 * h - max(0.14 * h, 35.0), top - 0.12 * h)
-    return [((rear, rear + LAMP_DEPTH), (-0.78 * half_w, 0.78 * half_w), bar)]
-
-
 def build_lamps(p: Inputs, end: str) -> k.Shape:
-    first, *rest = (k.box(*b) for b in lamp_boxes(p, end))
+    from autevra.domains.automotive import styling
+
+    first, *rest = styling.lamp_solids(p, end, body_layout(p))
     return k.fuse(first, *rest) if rest else first
 
 
@@ -312,7 +288,9 @@ def build_body(p: Inputs) -> k.Shape:
             body, k.box((b0, b1), (-half_w + 50.0, half_w - 50.0), (bed_floor, belt + 5.0))
         )
 
-    lamps = [k.box(*b) for end in ("head", "tail") for b in lamp_boxes(p, end)]
+    from autevra.domains.automotive import interior, styling  # (they import this module)
+
+    lamps = [s for end in ("head", "tail") for s in styling.lamp_solids(p, end, layout)]
 
     # Wheel wells: cylinders around each wheel, cut from the tyre's inner face outwards.
     wheel_z = p["tyre_radius"]
@@ -322,8 +300,6 @@ def build_body(p: Inputs) -> k.Shape:
         inner = track / 2.0 - p["tyre_width"] / 2.0 - p["arch_clearance"]
         wells.append(k.cylinder_y(r, (inner, half_w + 1), x=x, z=wheel_z))
         wells.append(k.cylinder_y(r, (-half_w - 1, -inner), x=x, z=wheel_z))
-    from autevra.domains.automotive import interior  # (imports this module)
-
     cabin = k.box(*interior.cavity(p))  # the passenger space, open into the glasshouse
     return k.cut(body, *wells, *lamps, cabin)  # one boolean for wells, lamps and cabin
 
@@ -392,35 +368,13 @@ def build_axle(p: Inputs) -> k.Shape:
 
 
 def build_wheel(p: Inputs) -> k.Shape:
-    """Tyre and rim as one solid: filleted tyre ring, rim barrel and a spoked disc."""
+    """Tyre: a ring from the rim seat to the tread with filleted shoulders. The rim is a
+    separate part (``styling.build_rim``) so its design and finish can change on their own."""
     tyre_r = p["tyre_radius"]
     rim_r = p["rim_radius"]
-    width = p["tyre_width"]
-    sidewall = tyre_r - rim_r
-    half = width / 2.0
-
+    half = p["tyre_width"] / 2.0
     tyre = k.ring_y(tyre_r, rim_r, (-half, half))
-    tyre = k.fillet_circular_edges_outer(tyre, tyre_r, min(sidewall * 0.45, half * 0.6))
-
-    barrel = k.ring_y(rim_r, rim_r - RIM_BARREL, (-half * 0.95, half * 0.95))
-
-    disc_t = 18.0
-    disc_y = half * 0.95 - disc_t - 15.0  # dish: the face sits slightly inboard of the outer edge
-    disc = k.cylinder_y(rim_r - RIM_BARREL + 1, (disc_y, disc_y + disc_t))
-    hole_r = (rim_r - RIM_BARREL) * 0.22
-    pitch = (rim_r - RIM_BARREL) * 0.58
-    holes = [
-        k.cylinder_y(
-            hole_r,
-            (disc_y - 1, disc_y + disc_t + 1),
-            x=pitch * math.cos(2 * math.pi * i / SPOKES),
-            z=pitch * math.sin(2 * math.pi * i / SPOKES),
-        )
-        for i in range(SPOKES)
-    ]
-    hub_bore = k.cylinder_y(AXLE_RADIUS + 5, (disc_y - 1, disc_y + disc_t + 1))
-    disc = k.cut(disc, *holes, hub_bore)
-    return k.fuse(tyre, barrel, disc)
+    return k.fillet_circular_edges_outer(tyre, tyre_r, min((tyre_r - rim_r) * 0.45, half * 0.6))
 
 
 EYE_OUTER, EYE_INNER, EYE_WIDTH = 18.0, 8.0, 30.0

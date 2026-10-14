@@ -20,6 +20,7 @@ from autevra.domains.automotive import (
     powertrain,
     rules,
     spec,
+    styling,
     suspension,
     vehicle,
 )
@@ -69,6 +70,7 @@ PLUGIN = extensions.Plugin(
         "frame": builders.build_frame,
         "axle": suspension.build_suspension,
         "wheel": builders.build_wheel,
+        "rim": styling.build_rim,
         "damper": builders.build_damper,
     },
     components=vehicle.COMPONENTS,

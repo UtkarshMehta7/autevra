@@ -136,6 +136,17 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-15: wheel designs, rim finishes and lamp signatures
+
+- **Rims as their own parts**: each wheel is a tyre plus a rim, so the rim design and finish change without touching the tyre. Six designs (five-spoke, multi-spoke, twin-spoke, mesh, aero disc, steel with hub cap) and six finishes (silver, gunmetal, gloss black, diamond cut, bronze, white); the finish is appearance only and never rebuilds geometry.
+- **Lamp signatures**: head lamps as LED strips with a light line, segmented matrix units, round lamps or a split layout (running-light strip above the main lamp); tail lamps as a full-width light bar, separate corner clusters or vertical corner lamps. Lamps stay flush in recesses, so the body extents do not change.
+- Templates set typical styling per class. Phrases name the part ("fit mesh wheels", "make the rims bronze", "fit round headlights", "make the tail lights vertical"); "make it bronze" still means the paint.
+- Fixed two edge cases found by the random-design test: a cabin offset far towards the tail could give a greenhouse of negative length or a coupe roof that started behind the rear screen.
+- Checked in Chrome: mesh rims in diamond cut and round head lamps, set from the command bar.
+
+**Known limitations**
+- Lamps are styling envelopes (no photometry or regulation checks); rims have no structural or mass analysis beyond their volume.
+
 ### 2026-10-14: suspension types and the industry feature survey
 
 - **Suspension types** per axle: front beam axle, MacPherson strut (knuckle, lower control arm, tie rod), double wishbone (upper and lower arms) or multi-link (five links); rear beam axle, twist beam (trailing arms and torsion beam), multi-link or double wishbone. Hubs and damper mounts are unchanged, so wheels, dampers and the ride simulations are unaffected; each independent corner carries a spring perch up to the damper mount. Templates set typical types per class; phrases such as "make the front suspension double wishbone".

@@ -35,7 +35,8 @@ def test_wheelbase_moves_only_the_rear_axle_group() -> None:
     before = graph.place_all(p)
     after = graph.place_all(p | {"wheelbase": 2800})
     moved = {c for c in before if not np.allclose(before[c], after[c])}
-    assert moved == {"rear_axle", "wheel_rl", "wheel_rr", "damper_rl", "damper_rr"}
+    assert moved == {"rear_axle", "wheel_rl", "wheel_rr", "rim_rl", "rim_rr", "damper_rl",
+                     "damper_rr"}  # fmt: skip
     for cid in ("wheel_rl", "damper_rr"):
         assert after[cid][:3, 3] - before[cid][:3, 3] == pytest.approx([-100, 0, 0])
 
@@ -54,13 +55,14 @@ def test_impact_of_wheelbase() -> None:
         impact.rebuild
         == {"body", "frame", "glass", "head_lamps", "tail_lamps"} | INTERIOR | EQUIPMENT
     )
-    assert impact.move == {"damper_rl", "damper_rr", "rear_axle", "wheel_rl", "wheel_rr"}
+    assert impact.move == {"damper_rl", "damper_rr", "rear_axle", "wheel_rl", "wheel_rr",
+                           "rim_rl", "rim_rr"}  # fmt: skip
     assert not {"wheel_fl", "front_axle"} & (impact.rebuild | impact.move)  # the front stays
 
 
 def test_impact_of_rim_rebuilds_wheels_and_body_and_moves_axles() -> None:
     impact = graph.impact(["rim_diameter"])
-    wheels = {"wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr"}
+    wheels = {f"{part}_{c}" for part in ("wheel", "rim") for c in ("fl", "fr", "rl", "rr")}
     dampers = {"damper_fl", "damper_fr", "damper_rl", "damper_rr"}
     # dampers: length between mounts; equipment: placed from the wheel-centre height
     assert impact.rebuild == {"body", "head_lamps", "tail_lamps"} | wheels | dampers | EQUIPMENT
@@ -71,7 +73,7 @@ def test_impact_of_rim_rebuilds_wheels_and_body_and_moves_axles() -> None:
 def test_impact_of_front_track() -> None:
     impact = graph.impact(["track_front"])
     assert impact.rebuild == {"body", "head_lamps", "tail_lamps", "front_axle"}
-    assert impact.move == {"wheel_fl", "wheel_fr"}
+    assert impact.move == {"wheel_fl", "wheel_fr", "rim_fl", "rim_fr"}
 
 
 def test_frame_spacing_rebuilds_the_frame_and_moves_the_dampers() -> None:
@@ -90,7 +92,7 @@ NO_GEOMETRY = {
     "max_steer_angle", "vehicle_mass", "front_mass_distribution", "tyre_vertical_stiffness",
     "peak_power", "drivetrain_efficiency", "drag_coefficient",
     "rolling_resistance", "cg_height", "pitch_dynamic_index", "paint_colour", "paint_finish",
-    "interior_colour",
+    "interior_colour", "rim_finish",
     *(f"{a}_{n}" for a in ("front", "rear")
       for n in ("damping_bump", "damping_rebound", "unsprung_mass", "bump_travel",
                 "rebound_travel")),

@@ -46,6 +46,10 @@ class Language:
     spec_trigger: str = ""  # regex: a specification statement ("I want an electric SUV")
     # Choice parameters: parameter id -> option label -> synonyms ("SUV" -> "crossover").
     option_aliases: Mapping[str, Mapping[str, Sequence[str]]] = field(default_factory=dict)
+    # Choice parameters of one part: parameter id -> nouns for that part (regex alternation),
+    # e.g. "wheels|rims". These parameters are set only when the part is named ("fit mesh
+    # wheels", "make the rims bronze"), never by "make it ...", which means the vehicle.
+    option_nouns: Mapping[str, str] = field(default_factory=dict)
     concepts: Sequence[Any] = ()  # ai.concepts.Concept
     scope_words: frozenset[str] = frozenset()
     out_of_scope: str = ""

@@ -16,16 +16,18 @@ pytestmark = pytest.mark.cad
 def test_four_wheels_share_one_geometry() -> None:
     cache = GeometryCache()
     model = build_model(default_values(), cache)
-    wheels = {p.geometry for p in model.parts if p.category == "wheel"}
-    assert len(wheels) == 1
+    tyres = {p.geometry for p in model.parts if p.id.startswith("wheel_")}
+    rims = {p.geometry for p in model.parts if p.id.startswith("rim_")}
+    assert len(tyres) == 1 and len(rims) == 1
     # body, frame, one axle shape (equal tracks), one wheel shape, and one damper per axle
     # (front and rear spring rates differ, so their coils differ)
     built = sorted(cache.stats.builds)
-    assert built.count("wheel") == 1 and built.count("damper") == 2  # four wheels share one
+    assert built.count("wheel") == 1 and built.count("rim") == 1  # four wheels share one
+    assert built.count("damper") == 2
     assert {"body", "seats", "engine", "harness"} <= set(built)  # fmt: skip
     payload = mesh_payload(model, cache)
-    assert len(payload["geometries"]) == 23
-    assert len(payload["parts"]) == 28
+    assert len(payload["geometries"]) == 24
+    assert len(payload["parts"]) == 32
 
 
 def test_wheelbase_change_rebuilds_only_body_and_frame() -> None:

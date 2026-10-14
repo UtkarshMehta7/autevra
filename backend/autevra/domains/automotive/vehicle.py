@@ -23,6 +23,7 @@ BODY_GEOMETRY = (
     "body_style", "wheelbase", "front_overhang", "rear_overhang", "body_width", "overall_height",
     "beltline_height", "ground_clearance", "rail_height", "cabin_length", "roof_length",
     "cabin_offset", "track_front", "track_rear", "arch_clearance", *TYRE, *d.CHASSIS_INPUTS,
+    "head_lamp_style", "tail_lamp_style",  # the body is recessed for the lamps
 )  # fmt: skip
 
 
@@ -248,6 +249,32 @@ def _wheel(cid: str, name: str, axle: str, side: str) -> ComponentDef:
     )  # fmt: skip
 
 
+RIM_GEOMETRY = (*TYRE, "wheel_design")
+RIM_FINISHES = (
+    ((0.72, 0.73, 0.75), "metal"), ((0.26, 0.27, 0.29), "metal"),
+    ((0.025, 0.025, 0.03), "paint_gloss"), ((0.86, 0.87, 0.88), "polished"),
+    ((0.42, 0.30, 0.16), "paint_metallic"), ((0.88, 0.88, 0.87), "paint_gloss"),
+)  # fmt: skip
+
+
+def _rim_finish(p: Values) -> tuple[tuple[float, float, float], str]:
+    return RIM_FINISHES[min(max(int(round(p["rim_finish"])), 0), len(RIM_FINISHES) - 1)]
+
+
+def _rim_inputs(p: Values) -> dict[str, float]:
+    return _wheel_inputs(p) | {"wheel_design": p["wheel_design"]}
+
+
+def _rim(cid: str, name: str, axle: str, side: str) -> ComponentDef:
+    return ComponentDef(
+        id=cid, name=name, category="wheel", builder="rim",
+        geometry=RIM_GEOMETRY, inputs=_rim_inputs,
+        frames={"hub": ()}, interfaces=_hub,
+        mate=Mate(axle, f"hub_{side}", "hub"), color=RIM_FINISHES[0][0], finish="metal",
+        appearance=_rim_finish, appearance_inputs=("rim_finish",),
+    )  # fmt: skip
+
+
 def _damper(cid: str, name: str, axle: str, side: str) -> ComponentDef:
     upper = (f"{axle}_shock_mount_height", *TYRE)
     return ComponentDef(
@@ -330,6 +357,10 @@ COMPONENTS: tuple[ComponentDef, ...] = (
     _wheel("wheel_fr", "Wheel front right", "front_axle", "right"),
     _wheel("wheel_rl", "Wheel rear left", "rear_axle", "left"),
     _wheel("wheel_rr", "Wheel rear right", "rear_axle", "right"),
+    _rim("rim_fl", "Rim front left", "front_axle", "left"),
+    _rim("rim_fr", "Rim front right", "front_axle", "right"),
+    _rim("rim_rl", "Rim rear left", "rear_axle", "left"),
+    _rim("rim_rr", "Rim rear right", "rear_axle", "right"),
     _damper("damper_fl", "Damper front left", "front", "left"),
     _damper("damper_fr", "Damper front right", "front", "right"),
     _damper("damper_rl", "Damper rear left", "rear", "left"),

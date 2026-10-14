@@ -17,7 +17,7 @@ from autevra.core.parameters import ParameterDef
 from autevra.core.rules import Rule
 from autevra.core.units import Unit
 from autevra.domains.automotive import derived as d
-from autevra.domains.automotive.builders import RIM_BARREL
+from autevra.domains.automotive.styling import RIM_BARREL
 from autevra.engineering.integration import Clearance
 from autevra.engineering.testing import Credibility, Scenario, TestDefinition
 from autevra.extensions import Plugin

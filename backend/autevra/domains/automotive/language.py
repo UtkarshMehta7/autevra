@@ -478,7 +478,47 @@ LANGUAGE = Language(
     diagnose_words="lift|lifted",
     unmodelled_limits=_UNMODELLED_LIMITS,
     spec_trigger=SPEC_TRIGGER,
+    option_nouns={
+        "wheel_design": r"wheels?|rims?|alloys|alloy wheels",
+        "rim_finish": r"wheels?|rims?|alloys|alloy wheels",
+        "head_lamp_style": r"head ?lamps?|head ?lights?|front lamps|front lights|lamps|lights",
+        "tail_lamp_style": r"tail ?lamps?|tail ?lights?|rear lamps|rear lights",
+    },
     option_aliases={
+        "wheel_design": {
+            "Five-spoke": ("five spoke", "5 spoke", "5-spoke", "star"),
+            "Multi-spoke": (
+                "multi spoke",
+                "multispoke",
+                "ten spoke",
+                "10 spoke",
+                "10-spoke",
+                "fine spoke",
+            ),
+            "Twin-spoke": ("twin spoke", "double spoke", "split spoke", "y spoke", "y-spoke"),
+            "Mesh": ("cross spoke", "lattice", "bbs style"),
+            "Aero disc": ("aero", "aero disc", "aerodynamic", "covered", "turbine", "disc"),
+            "Steel": ("steelies", "steel wheels", "plain steel", "basic"),
+        },
+        "rim_finish": {
+            "Silver": ("silver", "bright silver", "painted silver"),
+            "Gunmetal": ("gun metal", "anthracite", "dark grey", "dark gray", "graphite"),
+            "Gloss black": ("black", "piano black", "blacked out"),
+            "Diamond cut": ("diamond-cut", "machined", "polished", "two-tone", "two tone"),
+            "Bronze": ("gold", "satin bronze", "champagne"),
+            "White": ("white", "matte white"),
+        },
+        "head_lamp_style": {
+            "LED strip": ("strip", "slim", "led strips", "light strip", "light line"),
+            "Matrix LED": ("matrix", "adaptive", "pixel", "segmented"),
+            "Round": ("round", "circular", "retro", "classic"),
+            "Split": ("split", "split level", "split-level", "stacked"),
+        },
+        "tail_lamp_style": {
+            "Light bar": ("light bar", "full width", "full-width", "bar", "lightbar"),
+            "Separate clusters": ("clusters", "separate", "corner clusters", "two clusters"),
+            "Vertical": ("vertical", "upright", "tall"),
+        },
         "front_suspension": {
             "Beam axle": ("solid axle", "beam", "rigid axle"),
             "MacPherson strut": ("macpherson", "mcpherson", "strut", "struts"),
