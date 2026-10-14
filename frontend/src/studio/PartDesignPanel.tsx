@@ -11,16 +11,18 @@ const FEATURE_DEFAULTS: Record<string, Omit<PartFeature, "id" | "type">> = {
   revolve: { points: [[0, 0], [40, 0], [40, 100], [0, 100]], angle: 360 },
   loft: { sections: [{ z: 0, width: 100, height: 100, radius: 20 }, { z: 200, width: 60, height: 60, radius: 20 }], ruled: false },
   sweep: { path: [[0, 0, 0], [300, 0, 0], [300, 200, 0]], radius: 15, wall: 2, bend_radius: 40 },
+  wing: { naca: "2412", root_chord: 1600, tip_chord: 800, span: 5000, sweep: 5, dihedral: 3, twist: -2, both_sides: true },
   shell: { thickness: 3, open_towards: "+z" },
   fillet: { radius: 3 },
   mirror: { plane: "xz" },
   linear_pattern: { count: 3, step: [150, 0, 0] },
   circular_pattern: { count: 6, axis: "z", angle: 360 },
 };
-const SOLIDS = ["box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep"];
+const SOLIDS = ["box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep", "wing"];
 const LABELS: Record<string, string> = {
   box: "Box", cylinder: "Cylinder", sphere: "Sphere", extrude: "Extrude sketch",
-  revolve: "Revolve profile", loft: "Loft sections", sweep: "Sweep tube", shell: "Shell",
+  revolve: "Revolve profile", loft: "Loft sections", sweep: "Sweep tube",
+  wing: "Wing (NACA aerofoil)", shell: "Shell",
   fillet: "Fillet edges", mirror: "Mirror", linear_pattern: "Linear pattern",
   circular_pattern: "Circular pattern",
 };
@@ -47,6 +49,7 @@ const PRESETS: Record<string, PartDoc> = {
     { id: "skin", type: "loft", at: { ry: 90 }, sections: [
       { z: 0, width: 200, height: 200, radius: 99 }, { z: 2000, width: 2400, height: 2600, radius: 1150 },
       { z: 14000, width: 2400, height: 2600, radius: 1150 }, { z: 18000, width: 600, height: 900, radius: 290 }] }] },
+  "Light aircraft (aerospace)": {"name": "Light aircraft", "color": [0.85, 0.86, 0.88], "finish": "paint", "features": [{"id": "fuselage", "type": "loft", "at": {"ry": -90}, "sections": [{"z": 0, "width": 300, "height": 300, "radius": 149}, {"z": 1500, "width": 1200, "height": 1400, "radius": 550}, {"z": 4500, "width": 1200, "height": 1400, "radius": 550}, {"z": 8000, "width": 200, "height": 400, "radius": 90}]}, {"id": "wing", "type": "wing", "naca": "2412", "root_chord": 1600, "tip_chord": 1000, "span": 4500, "sweep": 2, "dihedral": 5, "twist": -2, "at": {"x": -2200, "z": -350}}, {"id": "tailplane", "type": "wing", "naca": "0010", "root_chord": 900, "tip_chord": 600, "span": 1600, "sweep": 8, "dihedral": 0, "twist": 0, "at": {"x": -6900, "z": 150}}, {"id": "fin", "type": "wing", "naca": "0010", "root_chord": 1100, "tip_chord": 600, "span": 1300, "sweep": 30, "dihedral": 0, "twist": 0, "both_sides": false, "at": {"x": -6800, "z": 250, "rx": 90}}]},
   "Turbine disc (propulsion)": { name: "Turbine disc", features: [
     { id: "disc", type: "revolve", points: [[30, -20], [300, -8], [300, 8], [30, 20]] },
     { id: "blade", type: "box", size: [80, 6, 40], at: { x: 330, rx: 20 } },
@@ -124,6 +127,11 @@ function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: 
         if (typeof value === "boolean") {
           return <label key={key}>{key.replace("_", " ")}<input type="checkbox" checked={value}
             onChange={(e) => set(key, e.target.checked)} /></label>;
+        }
+        if (typeof value === "string") {
+          return <label key={key}>{key.replace("_", " ")}<input key={value} defaultValue={value} size={6}
+            onBlur={(e) => { if (e.target.value !== value) set(key, e.target.value); }}
+            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} /></label>;
         }
         if (typeof value === "number") {
           return <label key={key}>{key.replace("_", " ")}<Num value={value} onCommit={(v) => set(key, v)} /></label>;

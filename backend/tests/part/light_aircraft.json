@@ -1,0 +1,14 @@
+{"name": "Light aircraft", "color": [0.85, 0.86, 0.88], "finish": "paint", "features": [
+  {"id": "fuselage", "type": "loft", "at": {"ry": -90}, "sections": [
+    {"z": 0, "width": 300, "height": 300, "radius": 149},
+    {"z": 1500, "width": 1200, "height": 1400, "radius": 550},
+    {"z": 4500, "width": 1200, "height": 1400, "radius": 550},
+    {"z": 8000, "width": 200, "height": 400, "radius": 90}]},
+  {"id": "wing", "type": "wing", "naca": "2412", "root_chord": 1600, "tip_chord": 1000,
+   "span": 4500, "sweep": 2, "dihedral": 5, "twist": -2, "at": {"x": -2200, "z": -350}},
+  {"id": "tailplane", "type": "wing", "naca": "0010", "root_chord": 900, "tip_chord": 600,
+   "span": 1600, "sweep": 8, "dihedral": 0, "twist": 0, "at": {"x": -6900, "z": 150}},
+  {"id": "fin", "type": "wing", "naca": "0010", "root_chord": 1100, "tip_chord": 600,
+   "span": 1300, "sweep": 30, "dihedral": 0, "twist": 0, "both_sides": false,
+   "at": {"x": -6800, "z": 250, "rx": 90}}
+]}

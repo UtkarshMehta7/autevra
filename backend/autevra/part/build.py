@@ -88,7 +88,61 @@ def _solid(feat: f.Box | f.Cylinder | f.Sphere | f.Extrude | f.Revolve | f.Loft 
             return cq.Solid.makeLoft(wires, ruled=feat.ruled)
         case f.Sweep():
             return _sweep(feat)
+        case f.Wing():
+            return _wing(feat)
     raise ValueError(f"unknown feature type {feat.type}")
+
+
+def naca4(code: str, n: int = 40) -> list[tuple[float, float]]:
+    """Unit-chord NACA four-digit section, (x, z) from the trailing edge over the upper
+    surface to the leading edge and back along the lower surface (x from 0 at the leading
+    edge to 1 at the trailing edge). Standard thickness distribution (open trailing edge)
+    and mean camber line; points spaced by cosine for a well-resolved leading edge."""
+    m, p, t = int(code[0]) / 100.0, int(code[1]) / 10.0, int(code[2:]) / 100.0
+    xs = [0.5 * (1.0 - math.cos(math.pi * i / n)) for i in range(n + 1)]
+    upper, lower = [], []
+    for x in xs:
+        yt = 5.0 * t * (0.2969 * math.sqrt(x) - 0.1260 * x - 0.3516 * x**2 + 0.2843 * x**3
+                        - 0.1015 * x**4)  # fmt: skip
+        if m == 0.0:
+            yc, dyc = 0.0, 0.0
+        elif x < p:
+            yc, dyc = m / p**2 * (2 * p * x - x**2), 2 * m / p**2 * (p - x)
+        else:
+            yc = m / (1 - p) ** 2 * ((1 - 2 * p) + 2 * p * x - x**2)
+            dyc = 2 * m / (1 - p) ** 2 * (p - x)
+        th = math.atan(dyc)
+        upper.append((x - yt * math.sin(th), yc + yt * math.cos(th)))
+        lower.append((x + yt * math.sin(th), yc - yt * math.cos(th)))
+    return [*reversed(upper), *lower[1:]]
+
+
+def _section(code: str, chord: float, x_le: float, y: float, z: float, twist: float) -> cq.Wire:
+    """One aerofoil wire at span station y: chord running aft (-X) from the leading edge at
+    x_le, rotated by ``twist`` degrees about the quarter chord (nose up positive)."""
+    c, s = math.cos(math.radians(twist)), math.sin(math.radians(twist))
+    pts = []
+    for u, w in naca4(code):
+        dx, dz = (0.25 - u) * chord, w * chord  # relative to the quarter chord, X forward
+        pts.append(cq.Vector(x_le - 0.25 * chord + dx * c - dz * s, y, z + dx * s + dz * c))
+    edges = [cq.Edge.makeSpline(pts)]
+    if (pts[0] - pts[-1]).Length > 1e-6:  # close the (thin) open trailing edge
+        edges.append(cq.Edge.makeLine(pts[-1], pts[0]))
+    return cq.Wire.assembleEdges(edges)
+
+
+def _wing(feat: f.Wing) -> k.Shape:
+    sweep, dihedral = math.radians(feat.sweep), math.radians(feat.dihedral)
+    root = _section(feat.naca, feat.root_chord, 0.0, 0.0, 0.0, 0.0)
+
+    def tip(side: float) -> cq.Wire:
+        return _section(feat.naca, feat.tip_chord, -feat.span * math.tan(sweep),
+                        side * feat.span, feat.span * math.tan(dihedral), feat.twist)  # fmt: skip
+
+    # Both sides as one loft through the root (no boolean across the shared root face,
+    # which the kernel does not fuse exactly for spline surfaces).
+    wires = [tip(-1.0), root, tip(1.0)] if feat.both_sides else [root, tip(1.0)]
+    return cq.Solid.makeLoft(wires, ruled=True)
 
 
 def _sweep(feat: f.Sweep) -> k.Shape:

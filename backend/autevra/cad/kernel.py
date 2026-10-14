@@ -190,8 +190,16 @@ def _clean(shape: Shape) -> Shape:
     return shape
 
 
-def volume(shape: Shape) -> float:
-    return shape.Volume()
+def volume(shape: Shape, tolerance: float = 1e-6) -> float:
+    """Enclosed volume, mm^3. Integrated to a relative ``tolerance``: the default OCCT
+    estimate (``Shape.Volume()``) is fast but can be off by over 20 % on B-spline faces
+    (a lofted NACA wing measured 486 against 614 litres analytic)."""
+    from OCP.BRepGProp import BRepGProp
+    from OCP.GProp import GProp_GProps
+
+    props = GProp_GProps()
+    BRepGProp.VolumeProperties_s(shape.wrapped, props, tolerance, True)
+    return props.Mass()
 
 
 def is_valid(shape: Shape) -> bool:
