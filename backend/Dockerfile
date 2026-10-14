@@ -26,7 +26,8 @@ ENV AUTEVRA_DATA_DIR=/data PATH="/app/.venv/bin:$PATH" MALLOC_ARENA_MAX=2
 # sees only its own projects, and changes are rate limited. docker-compose.yml (local)
 # turns these off; any host can override them.
 ENV AUTEVRA_WORKSPACE_ISOLATION=true AUTEVRA_WRITE_LIMIT_PER_MINUTE=60 \
-    AUTEVRA_CONTACT_LIMIT_PER_HOUR=5 AUTEVRA_MAX_PROJECTS_PER_WORKSPACE=20
+    AUTEVRA_CONTACT_LIMIT_PER_HOUR=5 AUTEVRA_MAX_PROJECTS_PER_WORKSPACE=20 \
+    AUTEVRA_WARM_UP=true
 USER autevra
 VOLUME /data
 EXPOSE 8000

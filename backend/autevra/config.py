@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     write_limit_per_minute: int = 0
     contact_limit_per_hour: int = 0
     max_projects_per_workspace: int = 0
+    # Build the default geometry in the background at startup (hosted instances).
+    warm_up: bool = False
 
     # Plugins: comma-separated module paths, e.g. "autevra.contrib.brake_discs", plus any
     # installed package that declares the "autevra.plugins" entry-point group.

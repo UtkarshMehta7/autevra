@@ -182,3 +182,18 @@ def test_state_survives_app_restart(tmp_path: Path) -> None:
         assert state["values"]["wheelbase"] == 2800 and state["can_undo"]
         _instruct(c, pid, "undo")
         assert c.get(f"/api/projects/{pid}").json()["values"]["wheelbase"] == 2700
+
+
+def test_warm_up_fills_the_geometry_cache(tmp_path: Path) -> None:
+    from autevra.config import Settings
+    from autevra.main import create_app
+
+    app = create_app(Settings(data_dir=tmp_path / "d", llm_provider="off"))
+    ws = app.state.workspace
+    ws.warm_up()
+    assert "body" in ws.cache.stats.builds
+    with TestClient(app) as c:
+        pid = c.post("/api/projects", json={"name": "W"}).json()["id"]
+        builds = len(ws.cache.stats.builds)
+        assert c.get(f"/api/projects/{pid}/model").status_code == 200
+        assert len(ws.cache.stats.builds) == builds  # the default design was already built

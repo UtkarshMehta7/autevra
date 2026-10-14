@@ -1,5 +1,7 @@
 """FastAPI application factory."""
 
+import threading
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -26,6 +28,8 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None) -
     app = FastAPI(title="Autevra", version=__version__)
     app.state.workspace = Workspace(Database(url), settings.data_dir, llm)
     app.state.settings = settings
+    if settings.warm_up:
+        threading.Thread(target=app.state.workspace.warm_up, daemon=True).start()
     # Added before CORS so that CORS stays outermost and 429 answers carry its headers.
     app.middleware("http")(access.rate_limiter(settings))
     app.add_middleware(

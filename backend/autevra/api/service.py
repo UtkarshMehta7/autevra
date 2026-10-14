@@ -4,6 +4,7 @@ All mutations and CAD builds run under one lock: the kernel is used from a
 single thread at a time and jobs stay sequential (8 GB memory budget).
 """
 
+import logging
 import threading
 import time
 from collections.abc import Iterable
@@ -1205,6 +1206,15 @@ class Workspace:
             out = self.add_requirement(project_id, schemas.RequirementIn(**body))
             keys.append(out.requirement.key)
         return schemas.SpecApplied(result=result, requirements=keys)
+
+    def warm_up(self) -> None:
+        """Build the default design's geometry into the cache, so a fresh (or just woken)
+        hosted instance answers the first visitor sooner. Failures are only logged."""
+        try:
+            with self._lock:
+                model_service.build_model(parameters.default_values(), self.cache)
+        except Exception:  # noqa: BLE001  (best effort; requests rebuild on demand)
+            logging.getLogger(__name__).exception("geometry warm-up failed")
 
     def integration(self, project_id: str) -> schemas.IntegrationOut:
         values = self.project(project_id).values
