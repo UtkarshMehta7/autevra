@@ -11,6 +11,7 @@ interface Props {
 }
 
 const GROUPS: [string, string][] = [
+  ["body", "Body"],
   ["dimensions", "Dimensions"],
   ["cabin", "Cabin"],
   ["wheels", "Wheels & tyres"],
@@ -21,7 +22,28 @@ const GROUPS: [string, string][] = [
   ["powertrain", "Powertrain & road loads"],
 ];
 
+function ChoiceInput({ def, value, onSet }: {
+  def: ParameterDef; value: number; onSet: (v: number) => void;
+}) {
+  return (
+    <label className="param" title={def.description}>
+      <span>{def.label}</span>
+      <select value={Math.round(value)} onChange={(e) => onSet(Number(e.target.value))}>
+        {def.options!.map((option, i) => <option key={option} value={i}>{option}</option>)}
+      </select>
+      <em />
+    </label>
+  );
+}
+
 function ParameterInput({ def, value, onSet }: {
+  def: ParameterDef; value: number; onSet: (v: number) => void;
+}) {
+  if (def.options?.length) return <ChoiceInput def={def} value={value} onSet={onSet} />;
+  return <NumberInput def={def} value={value} onSet={onSet} />;
+}
+
+function NumberInput({ def, value, onSet }: {
   def: ParameterDef; value: number; onSet: (v: number) => void;
 }) {
   const [text, setText] = useState(String(value));

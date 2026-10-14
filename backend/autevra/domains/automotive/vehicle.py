@@ -20,7 +20,7 @@ TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
 
 
 BODY_GEOMETRY = (
-    "wheelbase", "front_overhang", "rear_overhang", "body_width", "overall_height",
+    "body_style", "wheelbase", "front_overhang", "rear_overhang", "body_width", "overall_height",
     "beltline_height", "ground_clearance", "rail_height", "cabin_length", "roof_length",
     "cabin_offset", "track_front", "track_rear", "arch_clearance", *TYRE,
 )  # fmt: skip

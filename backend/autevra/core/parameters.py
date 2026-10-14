@@ -25,6 +25,13 @@ class ParameterDef(BaseModel):
     aliases: tuple[str, ...] = Field(default=())
     increase_words: tuple[str, ...] = Field(default=())
     decrease_words: tuple[str, ...] = Field(default=())
+    # A choice instead of a quantity: the value is the index of one of these labels
+    # (min 0, max len - 1, step 1). Empty for ordinary numeric parameters.
+    options: tuple[str, ...] = Field(default=())
+
+    def option(self, value: float) -> str:
+        """Label of the option a value selects (for choice parameters)."""
+        return self.options[min(max(int(round(value)), 0), len(self.options) - 1)]
 
 
 # Registries (filled by domain modules and plugins).

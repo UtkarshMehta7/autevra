@@ -41,7 +41,8 @@ def _examples() -> list[tuple[str, dict]]:
 
 def _parameter_table(values: Mapping[str, float]) -> str:
     lines = ["id | unit | current | range | meaning | also called"]
-    for spec in REGISTRY.values():
+    # Choice parameters (body style) are handled by the deterministic parser, not the model.
+    for spec in (d for d in REGISTRY.values() if not d.options):
         aliases = ", ".join(spec.aliases)
         lines.append(
             f"{spec.id} | {spec.unit} | {values[spec.id]:g} | "

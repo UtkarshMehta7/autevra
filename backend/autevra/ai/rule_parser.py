@@ -508,6 +508,51 @@ def _parse_query(text: str) -> Interpretation:
     return Interpretation(Kind.QUERY, query=target.ids)
 
 
+_CHOICE_VERB = (
+    r"(?:make it|make this|make the (?:car|vehicle|body|design)|turn it into|turn this into|"
+    r"convert it (?:in)?to|convert to|change it (?:in)?to|switch (?:it )?to|"
+    r"(?:change|set|switch) (?:the )?(?:{alias}) to|(?:{alias}))"
+)
+
+
+def _option_words(spec_id: str) -> list[tuple[str, int]]:
+    """(phrase, option index) for a choice parameter, longest phrase first."""
+    spec = REGISTRY[spec_id]
+    extra: dict[str, list[str]] = {}
+    for lang in language.LANGUAGES:
+        for label, words in lang.option_aliases.get(spec_id, {}).items():
+            extra.setdefault(label, []).extend(words)
+    out = []
+    for i, label in enumerate(spec.options):
+        for phrase in (label, *extra.get(label, ())):
+            out.append((phrase.lower(), i))
+    return sorted(out, key=lambda x: -len(x[0]))
+
+
+def _parse_choice(t: str) -> Interpretation | None:
+    """ "make it a pickup", "change the body style to SUV": set a choice parameter."""
+    for spec in REGISTRY.values():
+        if not spec.options:
+            continue
+        aliases = "|".join(re.escape(a) for a in (*spec.aliases, spec.label.lower()))
+        options = "|".join(re.escape(w) for w, _ in _option_words(spec.id))
+        verb = _CHOICE_VERB.format(alias=aliases)
+        m = re.match(
+            rf"^(?:please )?{verb}(?: (?:an?|the))? (?P<option>{options})"
+            rf"(?: (?:body|style|shape|form|version))?[.!]?$",
+            t,
+        )
+        if m is None:
+            continue
+        index = dict(_option_words(spec.id))[m.group("option")]
+        change = Change(parameter=spec.id, operation=Operation.SET, value=float(index))
+        command = SetParameters(changes=(change,), source=Source.RULES, instruction=t)
+        return Interpretation(
+            Kind.COMMAND, command=command, assumptions=[f"{spec.label}: {spec.options[index]}"]
+        )
+    return None
+
+
 def parse(text: str) -> Interpretation:
     t = normalise(text)
     if not t:
@@ -532,6 +577,8 @@ def parse(text: str) -> Interpretation:
                 Kind.PREVIEW, command=inner.command, assumptions=inner.assumptions
             )
         return inner
+    if (choice := _parse_choice(t)) is not None:
+        return choice
     if _diagnose_words().search(t):
         return Interpretation(Kind.DIAGNOSE, tests=_test_request(t))
     if _optimize_words().search(t) and (objective := _objective(t)) is not None:

@@ -136,6 +136,18 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-14: body styles and visitor workspaces
+
+- **Body styles.** A `body_style` choice parameter (sedan, hatchback, SUV, coupe, pickup, van, box truck) drives a different body construction instead of one three-box shape for every vehicle: two-box roofs that run to the tailgate, an upright SUV, a fastback coupe, a pickup cab with an open bed, a one-box van with a short nose, and a box truck with a cab and a separate cargo box. `body_layout` gives the proportions (tested without CAD); every style builds one valid solid with the design's extents on every class template.
+- Choice parameters: `ParameterDef.options`; a dropdown in the property editor; the deterministic parser sets them ("make it a pickup", "change the body style to SUV", "turn it into a lorry") with synonyms from the domain language; they are left out of the LLM prompt.
+- The specification interview picks the style from the vehicle class and gains a **box truck** class (template, travel and unsprung masses).
+- **Visitor workspaces and rate limits** (PR #16): see `DEPLOYMENT.md`, "Public safety defaults".
+- Checked in Chrome on the local studio: sedan, pickup, box truck, van and hatchback render as distinct bodies from plain-English instructions.
+
+**Known limitations**
+- Shapes are still faceted (ruled lofts and prisms); no surfaces, glazing, lights or doors.
+- A van's greenhouse and a box truck's cargo box are sized from the overall dimensions, not from the cabin parameters.
+
 ### 2026-10-14: hosted demo live
 
 - Live: <https://autevra.netlify.app> (Netlify) with the API at <https://autevra.onrender.com> (Render free web service, Docker) and Postgres on Neon. Both hosts deploy `main` on merge.
