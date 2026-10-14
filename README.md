@@ -23,9 +23,10 @@ every visitor. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Status
 
-**Phases 1–9 are implemented**: the five engineering phases below, the website /
+**Phases 1–11 are implemented**: the five engineering phases below, the website /
 workspace / routed studio, the shared engineering core with the automotive domain module,
-and a hosted demo (Netlify, Render, Neon).
+a hosted demo (Netlify, Render, Neon) with per-browser workspaces, seven body styles with
+eight vehicle templates, and the half-car (bounce and pitch) ride test.
 
 - **Parametric vehicle.** Body with wheel wells and cabin, hollow ladder frame, beam axles, wheels and four coil-over dampers, in real CadQuery/Open CASCADE geometry. It is edited through typed, validated commands from the property editor, the API or plain English, with undo/redo, persistence and STEP export.
 - **Local language model (optional).** A local model proposes changes the deterministic parser cannot resolve, and every proposal needs confirmation.
@@ -64,10 +65,10 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for progress, known limitations and what 
 
 1. ✅ **Automotive AI, fully local**: a deterministic automotive command parser plus an optional small quantised LLM (Ollama or llama.cpp). No hosted AI APIs.
 2. **Specification interview**: adaptive questions on vehicle type, powertrain, power, torque, dimensions, drivetrain, materials, suspension, budget and use, with conflict detection.
-3. ✅ **Real parametric CAD**: B-rep geometry on Open CASCADE (via CadQuery), exportable to STEP.
+3. ✅ **Real parametric CAD**: B-rep geometry on Open CASCADE (via CadQuery), exportable to STEP; seven body styles (sedan, hatchback, SUV, coupe, pickup, van, box truck) with glazing and lamps, and eight rule-checked vehicle templates.
 4. ✅ **Natural-language editing**: instructions become validated commands with feature history, undo and redo.
 5. ✅ **Component integration**: a connected assembly with interfaces, coordinate frames, dependencies and clearance checks; only affected components are rebuilt.
-6. **Engineering simulation**: ✅ quarter-car ride (step, hump, pothole) with verified numerics; next half-car and full vehicle, braking, cornering, powertrain and tyres; later structural, thermal, fatigue, aero and crash.
+6. **Engineering simulation**: ✅ quarter-car ride (step, hump, pothole), ✅ half-car bounce and pitch (verified against the quarter car and the exact eigenfrequencies), ✅ longitudinal acceleration and braking; next full vehicle with roll, cornering and tyres; later structural, thermal, fatigue, aero and crash.
 7. ✅ **Simulation automation**: describe a test in words, run it, compare against requirements, diagnose failures, optimise and iterate, with results labelled as analytical estimate, numerical simulation or experimentally validated.
 8. **3D workspace**: viewport, component tree, property editor, AI panel, spec forms, simulation controls, telemetry and reports.
 
