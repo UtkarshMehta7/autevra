@@ -300,8 +300,12 @@ def build_body(p: Inputs) -> k.Shape:
         inner = track / 2.0 - p["tyre_width"] / 2.0 - p["arch_clearance"]
         wells.append(k.cylinder_y(r, (inner, half_w + 1), x=x, z=wheel_z))
         wells.append(k.cylinder_y(r, (-half_w - 1, -inner), x=x, z=wheel_z))
+    from autevra.domains.automotive import exterior
+
     cabin = k.box(*interior.cavity(p))  # the passenger space, open into the glasshouse
-    return k.cut(body, *wells, *lamps, cabin)  # one boolean for wells, lamps and cabin
+    opening = exterior.roof_opening(p, layout)  # panoramic roof or sunroof
+    roof = [k.box(*opening)] if opening is not None else []
+    return k.cut(body, *wells, *lamps, cabin, *roof)  # one boolean for all the openings
 
 
 def _ladder(p: Inputs, z: tuple[float, float]) -> k.Shape:

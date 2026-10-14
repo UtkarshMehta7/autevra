@@ -26,8 +26,8 @@ def test_four_wheels_share_one_geometry() -> None:
     assert built.count("damper") == 2
     assert {"body", "seats", "engine", "harness"} <= set(built)  # fmt: skip
     payload = mesh_payload(model, cache)
-    assert len(payload["geometries"]) == 24
-    assert len(payload["parts"]) == 32
+    assert len(payload["geometries"]) == 25
+    assert len(payload["parts"]) == 33
 
 
 def test_wheelbase_change_rebuilds_only_body_and_frame() -> None:

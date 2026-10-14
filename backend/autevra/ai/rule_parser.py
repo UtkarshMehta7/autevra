@@ -559,6 +559,17 @@ def _parse_choice(t: str) -> Interpretation | None:
             rf"^(?:please )?{verb}(?: (?:an?|the|some))? (?P<option>{options}){suffix}[.!]?$",
             t,
         )
+        removable = nouns and spec.options[0] in ("None", "Solid")  # option 0 is "without"
+        if m is None and removable:
+            gone = re.match(
+                rf"^(?:please )?(?:remove|delete|take off|drop) (?:the |its )?(?:{nouns})[.!]?$", t
+            )
+            if gone is not None:
+                change = Change(parameter=spec.id, operation=Operation.SET, value=0.0)
+                command = SetParameters(changes=(change,), source=Source.RULES, instruction=t)
+                return Interpretation(
+                    Kind.COMMAND, command=command, assumptions=[f"{spec.label}: {spec.options[0]}"]
+                )
         if m is None:
             continue
         index = dict(_option_words(spec.id))[m.group("option")]

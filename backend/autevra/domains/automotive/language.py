@@ -483,6 +483,11 @@ LANGUAGE = Language(
         "rim_finish": r"wheels?|rims?|alloys|alloy wheels",
         "head_lamp_style": r"head ?lamps?|head ?lights?|front lamps|front lights|lamps|lights",
         "tail_lamp_style": r"tail ?lamps?|tail ?lights?|rear lamps|rear lights",
+        "roof_type": r"roof|roof panel|sunroof|sun roof|glass roof|panoramic roof",
+        "roof_rails": r"roof rails|roof bars|roof rack|rails",
+        "rear_spoiler": r"rear spoiler|spoiler|rear wing",
+        "mirror_type": r"door mirrors|wing mirrors|side mirrors|mirrors",
+        "tow_bar": r"tow ?bar|tow hitch|trailer hitch",
     },
     option_aliases={
         "wheel_design": {
@@ -518,6 +523,36 @@ LANGUAGE = Language(
             "Light bar": ("light bar", "full width", "full-width", "bar", "lightbar"),
             "Separate clusters": ("clusters", "separate", "corner clusters", "two clusters"),
             "Vertical": ("vertical", "upright", "tall"),
+        },
+        "roof_type": {
+            "Solid": ("solid", "metal", "steel"),
+            "Panoramic glass": ("panoramic", "panoramic glass", "glass", "panorama"),
+            "Sunroof": ("sunroof", "sun roof", "moonroof", "moon roof"),
+        },
+        "roof_rails": {
+            "None": ("no",),
+            "Rails": ("roof rails", "rails"),
+            "Rails with crossbars": (
+                "crossbars",
+                "cross bars",
+                "roof bars",
+                "roof rack",
+                "rails and crossbars",
+            ),
+        },
+        "rear_spoiler": {
+            "None": ("no",),
+            "Roof spoiler": ("roof spoiler", "spoiler", "air deflector", "deflector"),
+            "Boot lip": ("boot lip", "lip", "lip spoiler", "trunk lip", "ducktail"),
+            "Wing": ("wing", "rear wing", "gt wing"),
+        },
+        "mirror_type": {
+            "Conventional": ("conventional", "normal", "glass"),
+            "Camera": ("camera", "digital", "virtual", "camera pods"),
+        },
+        "tow_bar": {
+            "None": ("no",),
+            "Fitted": ("tow bar", "towbar", "tow hitch", "trailer hitch", "towing hitch"),
         },
         "front_suspension": {
             "Beam axle": ("solid axle", "beam", "rigid axle"),

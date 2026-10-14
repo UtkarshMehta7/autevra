@@ -9,6 +9,7 @@ from autevra.core.units import Unit
 
 class Group(StrEnum):
     BODY = "body"
+    EXTERIOR = "exterior"
     INTERIOR = "interior"
     CHASSIS = "chassis"
     DIMENSIONS = "dimensions"
@@ -211,6 +212,73 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
             "rear lamp style",
             "tail lamp design",
         ),  # fmt: skip
+    ),
+    # --- Exterior options ---
+    _p(
+        id="roof_type",
+        label="Roof panel",
+        group=Group.EXTERIOR,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=2,
+        step=1,
+        options=("Solid", "Panoramic glass", "Sunroof"),
+        description="Roof panel: solid, a panoramic glass roof or a sunroof over the front seats.",
+        aliases=("roof type", "roof panel"),
+    ),
+    _p(
+        id="roof_rails",
+        label="Roof rails",
+        group=Group.EXTERIOR,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=2,
+        step=1,
+        options=("None", "Rails", "Rails with crossbars"),
+        description="Roof rails, optionally with crossbars (overall height is to the roof panel).",
+        aliases=("roof rails", "roof bars", "roof rack"),
+    ),
+    _p(
+        id="rear_spoiler",
+        label="Rear spoiler",
+        group=Group.EXTERIOR,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=3,
+        step=1,
+        options=("None", "Roof spoiler", "Boot lip", "Wing"),
+        description="Rear spoiler (styling envelope; no aerodynamic effect is modelled). A boot "
+        "lip or a wing needs a sedan or coupe boot.",
+        aliases=("rear spoiler", "spoiler", "rear wing"),
+    ),
+    _p(
+        id="mirror_type",
+        label="Door mirrors",
+        group=Group.EXTERIOR,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=1,
+        step=1,
+        options=("Conventional", "Camera"),
+        description="Door mirrors or camera pods (body width excludes them).",
+        aliases=("door mirrors", "mirrors", "wing mirrors", "side mirrors", "mirror type"),
+    ),
+    _p(
+        id="tow_bar",
+        label="Tow bar",
+        group=Group.EXTERIOR,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=1,
+        step=1,
+        options=("None", "Fitted"),
+        description="Tow bar with the ball at about 400 mm (no towing capacity is modelled).",
+        aliases=("tow bar", "towbar", "tow hitch", "trailer hitch", "towing hitch"),
     ),
     # --- Chassis and powertrain ---
     _p(

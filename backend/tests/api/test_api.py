@@ -84,14 +84,14 @@ def test_acceptance_increase_wheelbase_by_100_mm(
 
 def test_model_deduplicates_and_skips_known_geometry(client: TestClient, project: str) -> None:
     model = _model(client, project)
-    assert len(model["parts"]) == 32
+    assert len(model["parts"]) == 33
     assert (
-        len(model["geometries"]) == 24
-    )  # body, glass, 2 lamps, 5 interior, frame, axle, tyre, rim, 2 dampers, equipment
+        len(model["geometries"]) == 25
+    )  # body, glass, 2 lamps, mirrors, 5 interior, frame, axle, tyre, rim, 2 dampers, equipment
     keys = ",".join(model["geometries"])
     partial = client.get(f"/api/projects/{project}/model", params={"known": keys}).json()
     assert partial["geometries"] == {}
-    assert len(partial["parts"]) == 32
+    assert len(partial["parts"]) == 33
 
 
 def test_typed_command_endpoint_and_rejection(client: TestClient, project: str) -> None:
@@ -164,7 +164,7 @@ def test_project_crud_and_404(client: TestClient) -> None:
 def test_catalogue(client: TestClient) -> None:
     body = client.get("/api/parameters").json()
     ids = [p["id"] for p in body["parameters"]]
-    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 66
+    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 71
 
 
 def test_state_survives_app_restart(tmp_path: Path) -> None:

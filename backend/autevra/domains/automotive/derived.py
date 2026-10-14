@@ -275,6 +275,13 @@ def front_headroom(p: Values) -> float:
     return interior.front_headroom(p | {"body_floor": body_floor_height(p)})
 
 
+def width_over_mirrors(p: Values) -> float:
+    """Width across the door mirrors (or camera pods), mm."""
+    from autevra.domains.automotive import exterior
+
+    return exterior.width_over_mirrors(p)
+
+
 def power_to_weight(p: Values) -> float:
     """Peak power per tonne of vehicle mass, kW/t."""
     return p["peak_power"] / (p["vehicle_mass"] / 1000.0)
@@ -424,6 +431,14 @@ DEFINITIONS: dict[str, tuple[DerivedDef, Callable[[Values], float]]] = {
             aliases=("headroom", "front headroom", "head room"),
         ),
         front_headroom,
+    ),
+    "width_over_mirrors": (
+        DerivedDef(
+            id="width_over_mirrors", label="Width over mirrors", unit="mm",
+            controlled_by=("body_width", "mirror_type"),
+            aliases=("width over mirrors", "width with mirrors", "width including mirrors"),
+        ),
+        width_over_mirrors,
     ),
     "power_to_weight": (
         DerivedDef(
