@@ -60,8 +60,8 @@ def target_hint(words: list[str], ids: tuple[str, ...]) -> tuple[str, ...] | Non
 
 
 TEST_WORDS = (
-    r"quarter[- ]car|pothole|hump|speed bump|ride modes?|acceleration|braking|"
-    r"stopping|0-100|natural frequenc(?:y|ies)|modal"
+    r"quarter[- ]car|half[- ]car|pitch(?:ing)?|pothole|hump|speed bump|ride modes?|"
+    r"acceleration|braking|stopping|0-100|natural frequenc(?:y|ies)|modal"
 )
 
 _ACCEL = re.compile(r"\baccelerat|\b0\s*(?:-|to)\s*100\b|\bsprint\b")
@@ -78,6 +78,8 @@ def test_request(text: str) -> TestRequest:
         return TestRequest("longitudinal", "vehicle", scenario)
     words = set(words_of(text))
     test_id = "ride_modes" if re.search(r"ride modes?|natural frequenc|modal", text) else None
+    if re.search(r"half[- ]car|\bpitch(?:ing)?\b|both axles|whole (?:car|vehicle)", text):
+        test_id = "half_car"
     scenario = None
     if re.search(r"\bpotholes?\b", text):
         scenario = "pothole_50"
@@ -94,6 +96,8 @@ def test_request(text: str) -> TestRequest:
         if words & {"contact", "lift", "lifted", "grip"}
         else None
     )
+    if test_id == "half_car":
+        return TestRequest("half_car", "vehicle", scenario, focus)
     return TestRequest(test_id or "quarter_car", target, None if test_id else scenario, focus)
 
 
