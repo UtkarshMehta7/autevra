@@ -42,6 +42,23 @@ def _rounded_outline(
     return pts
 
 
+def _hood_curve(
+    start: tuple[float, float], end: tuple[float, float], n: int = 6
+) -> list[tuple[float, float]]:
+    """Points strictly between ``start`` (nose) and ``end`` (windscreen base) on a quadratic
+    curve that rises quickly from the nose and flattens towards the windscreen."""
+    (x0, z0), (x1, z1) = start, end
+    cx, cz = x0 + 0.35 * (x1 - x0), z1
+    out = []
+    for i in range(1, n):
+        t = i / n
+        out.append((
+            (1 - t) ** 2 * x0 + 2 * (1 - t) * t * cx + t**2 * x1,
+            (1 - t) ** 2 * z0 + 2 * (1 - t) * t * cz + t**2 * z1,
+        ))  # fmt: skip
+    return out
+
+
 # Body styles, in the order of the ``body_style`` parameter's options.
 BODY_STYLES = ("sedan", "hatchback", "suv", "coupe", "pickup", "van", "box_truck")
 
@@ -87,6 +104,10 @@ def body_layout(p: Inputs) -> BodyLayout:
     def nose_at(share: float) -> float:  # hood height at the nose, above the front arch
         return min(max(floor + share * depth, arch_top + 40.0), belt - 20.0)
 
+    def hood(share: float) -> list[tuple[float, float]]:  # nose, curved hood, windscreen base
+        nose = (front, nose_at(share))
+        return [nose, *_hood_curve(nose, (cowl, belt)), (cowl, belt)]
+
     cowl = min(centre + p["cabin_length"] / 2.0, front - 150.0)  # windscreen base
     deck = max(centre - p["cabin_length"] / 2.0, rear + 150.0)  # rear screen base
     rake = max((p["cabin_length"] - p["roof_length"]) / 2.0, 0.25 * glass_h)  # windscreen run
@@ -99,7 +120,7 @@ def body_layout(p: Inputs) -> BodyLayout:
     if style == "sedan":
         tail = min(max(floor + 0.78 * depth, arch_top + 40.0), belt - 10.0)
         roof = (centre - p["roof_length"] / 2.0, centre + p["roof_length"] / 2.0)
-        profile = [*front_end, (front, nose_at(0.62)), (cowl, belt), (deck, belt),
+        profile = [*front_end, *hood(0.62), (deck, belt),
                    (rear, tail), (rear, tail_low)]  # fmt: skip
         return BodyLayout(style, profile, (deck, cowl), roof, top)
 
@@ -107,7 +128,7 @@ def body_layout(p: Inputs) -> BodyLayout:
         upright = style == "suv"
         back = rear + 60.0
         roof = clamp_roof(back + (0.12 if upright else 0.45) * glass_h, cowl - rake)
-        profile = [*front_end, (front, nose_at(0.8 if upright else 0.62)), (cowl, belt),
+        profile = [*front_end, *hood(0.8 if upright else 0.62),
                    (back, belt), (rear, belt - 60.0), (rear, tail_low)]  # fmt: skip
         return BodyLayout(style, profile, (back, cowl), roof, top)
 
@@ -117,7 +138,7 @@ def body_layout(p: Inputs) -> BodyLayout:
         roof_front = cowl - rake
         roof = clamp_roof(roof_front - p["roof_length"], roof_front)
         back = max(rear + 0.12 * length, min(deck, roof[0]) - 1.2 * glass_h)
-        profile = [*front_end, (front, nose_at(0.55)), (cowl, belt), (back, belt),
+        profile = [*front_end, *hood(0.55), (back, belt),
                    (rear, tail), (rear, tail_low)]  # fmt: skip
         return BodyLayout(style, profile, (back, cowl), roof, top)
 
@@ -125,7 +146,7 @@ def body_layout(p: Inputs) -> BodyLayout:
         cab_rear = deck
         roof = clamp_roof(cab_rear + 40.0, cowl - rake)
         bed_floor = min(max(floor + 0.3 * depth, arch_top + 20.0), belt - 120.0)
-        profile = [*front_end, (front, nose_at(0.75)), (cowl, belt), (rear, belt),
+        profile = [*front_end, *hood(0.75), (rear, belt),
                    (rear, tail_low)]  # fmt: skip
         return BodyLayout(style, profile, (cab_rear, cowl), roof, top,
                           bed=((rear + 50.0, cab_rear - 60.0), bed_floor))  # fmt: skip
@@ -133,7 +154,7 @@ def body_layout(p: Inputs) -> BodyLayout:
     # Van and box truck: short nose, long raked windscreen.
     cowl = front - max(250.0, 0.45 * p["front_overhang"])
     screen = 0.55 * glass_h
-    profile_front = [*front_end, (front, nose_at(0.75)), (cowl, belt)]
+    profile_front = [*front_end, *hood(0.75)]  # hood() reads the van/truck cowl above
     if style == "van":
         profile = [*profile_front, (rear, belt), (rear, tail_low)]
         roof = clamp_roof(rear + 60.0, cowl - screen)
@@ -168,12 +189,8 @@ def _greenhouse(p: Inputs, layout: BodyLayout, inset: float = 0.0) -> k.Shape:
         z: float, x: tuple[float, float], half_wid: float
     ) -> list[tuple[float, float, float]]:
         r, f = x[0] + inset, x[1] - inset
-        c = min(0.18 * half_wid, 0.25 * (f - r) / 2.0)  # corner chamfer
-        return [
-            (r, -half_wid + c, z), (r + c, -half_wid, z), (f - c, -half_wid, z),
-            (f, -half_wid + c, z), (f, half_wid - c, z), (f - c, half_wid, z),
-            (r + c, half_wid, z), (r, half_wid - c, z),
-        ]  # fmt: skip
+        c = min(0.18 * half_wid, 0.25 * (f - r) / 2.0)  # corner radius
+        return [(px, py, z) for px, py in _rounded_outline((r, f), half_wid, c, c, n=3)]
 
     top = layout.roof_z - inset
     return k.ruled_loft([outline(belt, layout.glass, cab_w), outline(top, layout.roof, roof_w)])
