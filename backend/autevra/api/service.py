@@ -20,6 +20,7 @@ from autevra.ai.llm.clients import DisabledClient, LLMClient
 from autevra.ai.rule_parser import Kind, TestRequest
 from autevra.api import model_service, schemas
 from autevra.assembly import graph
+from autevra.cad import kernel
 from autevra.cad.cache import GeometryCache
 from autevra.core import derived, parameters, templates
 from autevra.core.commands import Change, CommandError, Operation, SetParameters, Source
@@ -33,7 +34,9 @@ from autevra.engineering import optimize as opt
 from autevra.engineering import requirements as rqm
 from autevra.engineering import testing as tst
 from autevra.engineering import trace as tracing
+from autevra.part.features import PartDoc
 from autevra.storage.database import Database
+from autevra.storage.parts import PartRepository
 from autevra.storage.repository import ProjectInfo, ProjectRepository
 from autevra.storage.runs import (
     RunNotFoundError,
@@ -1314,16 +1317,72 @@ class Workspace:
         )
 
     # --- geometry ---
-    def model(self, project_id: str, known: set[str]) -> dict:
+    def _full_model(self, project_id: str) -> model_service.VehicleModel:
         values = self.project(project_id).values
+        parts = self._part_docs(project_id)
+        model = model_service.build_model(values, self.cache)
+        return model_service.add_parts(model, parts, self.cache)
+
+    def model(self, project_id: str, known: set[str]) -> dict:
         with self._lock:
-            model = model_service.build_model(values, self.cache)
-            return model_service.mesh_payload(model, self.cache, skip=known)
+            return model_service.mesh_payload(self._full_model(project_id), self.cache, skip=known)
 
     def export_step(self, project_id: str) -> Path:
-        values = self.project(project_id).values
         with self._lock:
-            model = model_service.build_model(values, self.cache)
             return model_service.export_step(
-                model, self.data_dir / "exports" / f"{project_id}.step"
+                self._full_model(project_id), self.data_dir / "exports" / f"{project_id}.step"
             )
+
+    # --- Part Design ---
+    MAX_PARTS = 50  # per project
+
+    def _part_docs(self, project_id: str) -> list[tuple[str, PartDoc]]:
+        with self.db.session() as s:
+            rows = PartRepository(s).list(project_id)
+        return [(pid, PartDoc.model_validate_json(doc)) for pid, doc in rows]
+
+    def _part_out(self, project_id: str, part_id: str) -> schemas.PartOut:
+        with self.db.session() as s:
+            doc_json, can_undo, can_redo = PartRepository(s).get(project_id, part_id)
+        doc = PartDoc.model_validate_json(doc_json)
+        with self._lock:
+            _, report = model_service.build_part(doc, self.cache)
+        shape = report.shape
+        return schemas.PartOut(
+            id=part_id, document=doc, can_undo=can_undo, can_redo=can_redo,
+            built=report.built,
+            errors=[schemas.FeatureErrorOut(feature=e.feature, message=e.message)
+                    for e in report.errors],
+            volume=kernel.volume(shape) if shape is not None else None,
+            bounds=kernel.bounds(shape) if shape is not None else None,
+        )  # fmt: skip
+
+    def parts(self, project_id: str) -> list[schemas.PartOut]:
+        self.project(project_id)  # 404 for an unknown project
+        with self.db.session() as s:
+            ids = [pid for pid, _ in PartRepository(s).list(project_id)]
+        return [self._part_out(project_id, pid) for pid in ids]
+
+    def create_part(self, project_id: str, doc: PartDoc) -> schemas.PartOut:
+        self.project(project_id)
+        with self.db.session() as s:
+            repo = PartRepository(s)
+            if repo.count(project_id) >= self.MAX_PARTS:
+                raise CommandError(f"a project holds at most {self.MAX_PARTS} parts")
+            part_id = repo.create(project_id, doc.model_dump_json())
+        return self._part_out(project_id, part_id)
+
+    def update_part(self, project_id: str, part_id: str, doc: PartDoc) -> schemas.PartOut:
+        with self.db.session() as s:
+            PartRepository(s).update(project_id, part_id, doc.model_dump_json())
+        return self._part_out(project_id, part_id)
+
+    def step_part(self, project_id: str, part_id: str, back: bool) -> schemas.PartOut:
+        with self.db.session() as s:
+            if not PartRepository(s).step(project_id, part_id, back):
+                raise CommandError("nothing to undo" if back else "nothing to redo")
+        return self._part_out(project_id, part_id)
+
+    def delete_part(self, project_id: str, part_id: str) -> None:
+        with self.db.session() as s:
+            PartRepository(s).delete(project_id, part_id)

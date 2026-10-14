@@ -28,6 +28,8 @@ import type {
   LLMStatus,
   ModelPayload,
   ParameterDef,
+  PartDoc,
+  PartOut,
   DerivedValue,
   ProjectState,
   ProjectSummary,
@@ -242,5 +244,13 @@ export const api = {
   specReset: (id: string) => request<SpecState>(`/projects/${id}/spec`, { method: "DELETE" }),
   specDesign: (id: string) => post<SpecDesign>(`/projects/${id}/spec/design`),
   specApply: (id: string) => post<{ result: CommandResult; requirements: string[] }>(`/projects/${id}/spec/apply`),
+  parts: (id: string) => request<PartOut[]>(`/projects/${id}/parts`),
+  createPart: (id: string, doc: PartDoc) => post<PartOut>(`/projects/${id}/parts`, doc),
+  updatePart: (id: string, part: string, doc: PartDoc) =>
+    request<PartOut>(`/projects/${id}/parts/${part}`, { method: "PUT", body: JSON.stringify(doc) }),
+  undoPart: (id: string, part: string) => post<PartOut>(`/projects/${id}/parts/${part}/undo`),
+  redoPart: (id: string, part: string) => post<PartOut>(`/projects/${id}/parts/${part}/redo`),
+  deletePart: (id: string, part: string) =>
+    request<void>(`/projects/${id}/parts/${part}`, { method: "DELETE" }),
   integration: (id: string) => request<IntegrationReport>(`/projects/${id}/integration`),
 };

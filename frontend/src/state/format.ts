@@ -16,6 +16,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   interior: "Interior",
   powertrain: "Powertrain",
   electrical: "Electrical",
+  custom: "Part Design",
 };
 
 /** Parts grouped by category, in a stable display order. */

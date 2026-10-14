@@ -62,6 +62,21 @@ class GeometryCache:
                 self._builder_of.pop(old, None)
         return key, self._shapes[key]
 
+    def custom(self, key: str, build: Callable[[], kernel.Shape | None]) -> kernel.Shape | None:
+        """A shape that is not made by a registered builder (a Part Design part), cached
+        under a caller-chosen key (a hash of its document)."""
+        if key in self._shapes:
+            self._shapes.move_to_end(key)
+            self.stats.hits += 1
+        else:
+            self._shapes[key] = build()
+            self.stats.builds.append("part")
+            while len(self._shapes) > self.max_entries:
+                old, _ = self._shapes.popitem(last=False)
+                self._meshes.pop(old, None)
+                self._builder_of.pop(old, None)
+        return self._shapes[key]
+
     def mesh(self, key: str) -> kernel.Mesh:
         if key not in self._meshes:
             builder = BUILDERS.get(self._builder_of.get(key, ""))

@@ -17,6 +17,7 @@ from autevra.engineering.optimize import StudyResult
 from autevra.engineering.requirements import Requirement, Verification
 from autevra.engineering.testing import Comparison, RunRecord, RunStatus
 from autevra.engineering.trace import ImpactPreview
+from autevra.part.features import PartDoc
 
 
 class ProjectCreate(BaseModel):
@@ -364,3 +365,21 @@ class RuleStatus(BaseModel):
 class RunIndexItem(RunSummary):
     project_id: str
     project_name: str
+
+
+class FeatureErrorOut(BaseModel):
+    feature: str
+    message: str
+
+
+class PartOut(BaseModel):
+    """A Part Design part with its build report."""
+
+    id: str
+    document: PartDoc
+    can_undo: bool
+    can_redo: bool
+    built: list[str]  # ids of the features applied, in order
+    errors: list[FeatureErrorOut]  # at most one: the feature where the build stopped
+    volume: float | None  # mm^3, of the built solid
+    bounds: tuple[tuple[float, float, float], tuple[float, float, float]] | None  # part frame

@@ -17,6 +17,8 @@ from autevra.engineering import optimize as opt
 from autevra.engineering import testing as tst
 from autevra.engineering.diagnosis import Diagnosis
 from autevra.engineering.trace import ImpactPreview
+from autevra.part.features import FEATURE_TYPES, PartDoc
+from autevra.storage.parts import PartNotFoundError
 from autevra.storage.repository import ProjectNotFoundError
 from autevra.storage.runs import RunNotFoundError
 
@@ -505,6 +507,58 @@ def spec_apply(project_id: str, ws: WorkspaceDep) -> schemas.SpecApplied:
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
+# --- Part Design ---
+
+
+@router.get("/part-features")
+def part_features() -> dict:
+    """The feature types and the JSON schema of a part document (for editors and tools)."""
+    return {"types": list(FEATURE_TYPES), "schema": PartDoc.model_json_schema()}
+
+
+@router.get("/projects/{project_id}/parts", response_model=list[schemas.PartOut])
+def list_parts(project_id: str, ws: WorkspaceDep) -> list[schemas.PartOut]:
+    return ws.parts(project_id)
+
+
+@router.post("/projects/{project_id}/parts", response_model=schemas.PartOut, status_code=201)
+def create_part(project_id: str, body: PartDoc, ws: WorkspaceDep) -> schemas.PartOut:
+    try:
+        return ws.create_part(project_id, body)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+@router.put("/projects/{project_id}/parts/{part_id}", response_model=schemas.PartOut)
+def update_part(project_id: str, part_id: str, body: PartDoc, ws: WorkspaceDep) -> schemas.PartOut:
+    return ws.update_part(project_id, part_id, body)
+
+
+@router.post("/projects/{project_id}/parts/{part_id}/undo", response_model=schemas.PartOut)
+def undo_part(project_id: str, part_id: str, ws: WorkspaceDep) -> schemas.PartOut:
+    try:
+        return ws.step_part(project_id, part_id, back=True)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+@router.post("/projects/{project_id}/parts/{part_id}/redo", response_model=schemas.PartOut)
+def redo_part(project_id: str, part_id: str, ws: WorkspaceDep) -> schemas.PartOut:
+    try:
+        return ws.step_part(project_id, part_id, back=False)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+@router.delete("/projects/{project_id}/parts/{part_id}", status_code=204)
+def delete_part(project_id: str, part_id: str, ws: WorkspaceDep) -> None:
+    ws.delete_part(project_id, part_id)
+
+
+def part_not_found_handler(_request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": f"part '{exc}' not found"})
+
+
 def run_not_found_handler(_request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": f"'{exc}' not found"})
 
@@ -523,4 +577,5 @@ EXCEPTION_HANDLERS = {
     ProjectNotFoundError: not_found_handler,
     ProposalNotFoundError: proposal_not_found_handler,
     RunNotFoundError: run_not_found_handler,
+    PartNotFoundError: part_not_found_handler,
 }

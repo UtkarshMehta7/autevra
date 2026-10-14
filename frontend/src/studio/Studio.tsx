@@ -22,6 +22,7 @@ import { geometryCache, Viewport } from "../viewport/Viewport";
 import { AiEngineeringPanel } from "./AiEngineeringPanel";
 import { DigitalPanel } from "./DigitalPanel";
 import { ManufacturingPanel } from "./ManufacturingPanel";
+import { PartDesignPanel } from "./PartDesignPanel";
 import { SystemsPanel } from "./SystemsPanel";
 import { WORKSPACES, type WorkspaceId } from "./workspaces";
 
@@ -424,6 +425,9 @@ function StudioView({ projectId, workspace, navigate }: {
             onDelete={(rid) => requirementAction(() => api.deleteRequirement(project.id, rid))}
             onVerify={() => requirementAction(() => api.verifyRequirements(project.id))}
             onImport={(xml) => requirementAction(() => api.importReqif(project.id, xml))} />
+        )}
+        {project && !collapsed && workspace === "part-design" && (
+          <PartDesignPanel projectId={project.id} onModelChanged={() => refresh(project.id)} />
         )}
         {project && !collapsed && workspace === "assembly" && (
           <div className="split">

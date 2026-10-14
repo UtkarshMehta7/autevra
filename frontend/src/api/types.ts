@@ -535,3 +535,28 @@ export interface DesignTemplate {
   label: string;
   description: string;
 }
+
+/** A Part Design feature (see backend autevra/part/features.py): typed by ``type``. */
+export type PartFeature = { id: string; type: string; name?: string; suppressed?: boolean;
+  op?: "add" | "cut" | "intersect"; [field: string]: unknown };
+
+export interface Placement { x?: number; y?: number; z?: number; rx?: number; ry?: number; rz?: number }
+
+export interface PartDoc {
+  name: string;
+  features: PartFeature[];
+  at?: Placement;
+  color?: [number, number, number];
+  finish?: string;
+}
+
+export interface PartOut {
+  id: string;
+  document: PartDoc;
+  can_undo: boolean;
+  can_redo: boolean;
+  built: string[];
+  errors: { feature: string; message: string }[];
+  volume: number | null;
+  bounds: [[number, number, number], [number, number, number]] | null;
+}
