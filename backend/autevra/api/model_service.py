@@ -36,9 +36,10 @@ def build_model(values: Mapping[str, float], cache: GeometryCache) -> VehicleMod
             continue
         key, shape = cache.shape(c.builder, c.resolve_inputs(values))
         shapes[key] = shape
+        color, finish = c.resolve_appearance(values)
         parts.append(PlacedPart(
             id=c.id, name=c.name, category=c.category, geometry=key,
-            matrix=tf.to_list(world[c.id]), color=c.color, finish=c.finish,
+            matrix=tf.to_list(world[c.id]), color=color, finish=finish,
         ))  # fmt: skip
     return VehicleModel(parts=parts, shapes=shapes)
 

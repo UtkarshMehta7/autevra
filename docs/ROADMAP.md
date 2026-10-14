@@ -136,6 +136,12 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-14: paint
+
+- **Paint colour** (12 colours) and **paint finish** (gloss, metallic, matte, pearl) are choice parameters. Components gain an `appearance` (colour and finish from declared parameters), separate from geometry, so a repaint rebuilds nothing (tested) and the viewer swaps only the material. "paint it red", "make it matte", "respray it in british racing green" and dropdowns set them; templates have characteristic colours.
+- "paint it red" moves from the unmodelled examples to the rules-tier evaluation (still 100 %); the "appearance" unmodelled concept becomes "roof and aero options" (sunroof, roof rack, spoiler), which are still not modelled.
+- Checked in Chrome: "paint it electric blue" repainted in 47 ms with no rebuild and no geometry download.
+
 ### 2026-10-14: half-car ride test (bounce and pitch)
 
 - **Solver** `autevra.half_car` 1.0.0: body heave and pitch (ISO 8855, positive nose down) on two axles, the rear meeting the road a wheelbase later; two-rate dampers, tyre lift-off, RK4 with a half-step convergence check; the pitch inertia comes from a new parameter, the **pitch dynamic index** (default 1.0, labelled assumed).

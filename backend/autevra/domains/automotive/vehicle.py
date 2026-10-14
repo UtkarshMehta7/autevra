@@ -141,6 +141,21 @@ def _hub(p: Values) -> dict[str, Matrix]:
 
 
 _BODY_COLOR = (0.62, 0.70, 0.80)
+# Paint palette, in the order of the ``paint_colour`` options (linear RGB for the viewer).
+PAINT = (
+    (0.86, 0.87, 0.88), (0.55, 0.57, 0.60), (0.16, 0.17, 0.19), (0.02, 0.022, 0.025),
+    (0.55, 0.02, 0.025), (0.02, 0.06, 0.22), (0.02, 0.22, 0.70), (0.02, 0.10, 0.05),
+    (0.80, 0.18, 0.02), (0.88, 0.58, 0.02), (0.60, 0.48, 0.32), (0.22, 0.12, 0.06),
+)  # fmt: skip
+PAINT_FINISHES = ("gloss", "metallic", "matte", "pearl")
+
+
+def _paint(p: Values) -> tuple[tuple[float, float, float], str]:
+    colour = PAINT[min(max(int(round(p["paint_colour"])), 0), len(PAINT) - 1)]
+    finish = PAINT_FINISHES[min(max(int(round(p["paint_finish"])), 0), len(PAINT_FINISHES) - 1)]
+    return colour, f"paint_{finish}"
+
+
 _FRAME_COLOR = (0.30, 0.32, 0.36)
 _GLASS_COLOR = (0.08, 0.11, 0.15)
 _HEAD_LAMP_COLOR = (0.93, 0.92, 0.82)
@@ -196,6 +211,7 @@ COMPONENTS: tuple[ComponentDef, ...] = (
                    for name, (axle, _) in SHOCK_TOWERS.items()}},
         interfaces=_body_interfaces,
         mate=Mate("vehicle", "origin", "origin"), color=_BODY_COLOR,
+        appearance=_paint, appearance_inputs=("paint_colour", "paint_finish"),
     ),
     ComponentDef(
         id="glass", name="Glazing", category="body", builder="glass",

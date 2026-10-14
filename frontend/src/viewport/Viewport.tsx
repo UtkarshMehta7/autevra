@@ -192,6 +192,14 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
         c.meshes.set(part.id, mesh);
         c.root.add(mesh);
       }
+      const look = `${part.finish}|${part.color.join(",")}`;
+      if (mesh.userData.look !== undefined && mesh.userData.look !== look) {
+        (mesh.material as THREE.Material).dispose(); // repainted: same geometry, new material
+        const material = materialFor(part.finish, part.color);
+        rememberEmissive(material);
+        mesh.material = material;
+      }
+      mesh.userData.look = look;
       mesh.geometry = geometry;
       mesh.userData.category = part.category;
       const m = part.matrix;

@@ -60,6 +60,15 @@ class ComponentDef:
     mate: Mate | None = None
     color: tuple[float, float, float] = (0.6, 0.6, 0.6)
     finish: str = "paint"  # display material: paint | glass | lamp | rubber | metal
+    # Colour and finish that follow the design (paint colour, trim); reads only the declared
+    # ``appearance_inputs``. Appearance never changes geometry, so it never rebuilds CAD.
+    appearance: Callable[[Values], tuple[tuple[float, float, float], str]] | None = None
+    appearance_inputs: tuple[str, ...] = ()
+
+    def resolve_appearance(self, values: Values) -> tuple[tuple[float, float, float], str]:
+        if self.appearance is None:
+            return self.color, self.finish
+        return self.appearance(DeclaredView(values, self.appearance_inputs, self.id))
 
     def resolve_inputs(self, values: Values) -> dict[str, float]:
         return self.inputs(DeclaredView(values, self.geometry, self.id))

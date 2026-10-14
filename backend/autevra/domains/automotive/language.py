@@ -325,22 +325,10 @@ CONCEPTS: tuple[Concept, ...] = (
         "Phase 5 (steering); max steer angle is editable now",
     ),
     Concept(
-        "appearance",
-        (
-            "colour",
-            "color",
-            "paint",
-            "red",
-            "blue",
-            "black",
-            "white",
-            "silver",
-            "chrome",
-            "glossy",
-            "matte",
-        ),
-        ("material appearance",),
-        "later (appearance is kept separate from engineering geometry)",
+        "roof_and_aero_options",
+        ("sunroof", "panoramic roof", "moonroof", "roof rack", "roof bars", "spoiler", "wing"),
+        ("roof opening size", "roof load", "downforce"),
+        "later (body options)",
     ),
 )
 
@@ -491,6 +479,26 @@ LANGUAGE = Language(
     unmodelled_limits=_UNMODELLED_LIMITS,
     spec_trigger=SPEC_TRIGGER,
     option_aliases={
+        "paint_colour": {
+            "Arctic White": ("white", "pearl white", "snow white"),
+            "Lunar Silver": ("silver",),
+            "Graphite Grey": ("grey", "gray", "gunmetal", "dark grey", "dark gray"),
+            "Obsidian Black": ("black",),
+            "Racing Red": ("red",),
+            "Deep Ocean Blue": ("navy", "dark blue", "navy blue"),
+            "Electric Blue": ("blue", "bright blue"),
+            "Forest Green": ("green", "racing green", "british racing green"),
+            "Sunset Orange": ("orange",),
+            "Solar Yellow": ("yellow",),
+            "Champagne": ("gold", "beige"),
+            "Satin Bronze": ("bronze", "brown"),
+        },
+        "paint_finish": {
+            "Gloss": ("glossy", "solid", "shiny"),
+            "Metallic": ("metal flake",),
+            "Matte": ("matt", "satin", "flat"),
+            "Pearl": ("pearlescent", "pearl effect"),
+        },
         "body_style": {
             "Sedan": ("saloon", "three-box", "three box", "notchback"),
             "Hatchback": ("hatch", "two-box", "two box", "estate", "wagon", "station wagon"),
@@ -499,7 +507,7 @@ LANGUAGE = Language(
             "Pickup": ("pick-up", "pick up", "pickup truck", "ute"),
             "Van": ("minivan", "mpv", "people carrier", "one-box", "one box", "panel van"),
             "Box truck": ("truck", "lorry", "light truck", "delivery truck", "luton", "box van"),
-        }
+        },
     },
     concepts=CONCEPTS,
     scope_words=SCOPE_WORDS,

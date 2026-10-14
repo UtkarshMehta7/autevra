@@ -134,7 +134,7 @@ def test_queries(text: str, ids: tuple[str, ...]) -> None:
         ("increase the wheelbase", "By how much"),
         ("set the wheelbase", "What value"),
         ("increase the wheelbse by 100 mm", "Did you mean"),
-        ("paint it red", "could not find a design parameter"),
+        ("add a sunroof", "could not find a design parameter"),
         ("", "What would you like"),
     ],
 )

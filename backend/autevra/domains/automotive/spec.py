@@ -322,6 +322,8 @@ class Check(BaseModel):
 # by the design rules in tests; they are not data for any real vehicle.
 TEMPLATES: dict[str, dict[str, float]] = {
     "city_car": {
+        "paint_colour": 0,
+        "paint_finish": 0,
         "drag_coefficient": 0.33,
         "rolling_resistance": 0.01,
         "cg_height": 520,
@@ -345,6 +347,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 61,
     },
     "hatchback": {
+        "paint_colour": 6,
+        "paint_finish": 1,
         "drag_coefficient": 0.31,
         "rolling_resistance": 0.01,
         "cg_height": 540,
@@ -368,6 +372,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 60,
     },
     "sedan": {
+        "paint_colour": 3,
+        "paint_finish": 1,
         "drag_coefficient": 0.28,
         "rolling_resistance": 0.01,
         "cg_height": 530,
@@ -391,6 +397,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "suv": {
+        "paint_colour": 2,
+        "paint_finish": 1,
         "drag_coefficient": 0.36,
         "rolling_resistance": 0.011,
         "cg_height": 680,
@@ -414,6 +422,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "pickup": {
+        "paint_colour": 5,
+        "paint_finish": 1,
         "drag_coefficient": 0.45,
         "rolling_resistance": 0.011,
         "cg_height": 750,
@@ -437,6 +447,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 57,
     },
     "sports_car": {
+        "paint_colour": 4,
+        "paint_finish": 3,
         "drag_coefficient": 0.32,
         "rolling_resistance": 0.011,
         "cg_height": 450,
@@ -460,6 +472,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 50,
     },
     "van": {
+        "paint_colour": 0,
+        "paint_finish": 0,
         "drag_coefficient": 0.35,
         "rolling_resistance": 0.01,
         "cg_height": 700,
@@ -483,6 +497,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "front_mass_distribution": 55,
     },
     "box_truck": {
+        "paint_colour": 0,
+        "paint_finish": 0,
         "drag_coefficient": 0.6,
         "rolling_resistance": 0.009,
         "cg_height": 950,
@@ -508,6 +524,7 @@ TEMPLATES: dict[str, dict[str, float]] = {
 }
 # Template values that are typical figures for the class, not data for any vehicle.
 TYPICAL_ROAD_LOADS = ("drag_coefficient", "rolling_resistance", "cg_height")
+APPEARANCE = ("paint_colour", "paint_finish")  # template choices, not engineering values
 # Wheel travel to the bump stop and tyre-to-arch gap per class, mm (template values; the arch
 # gap is kept at least as large as the bump travel so the tyre clears the arch at full bump).
 TRAVEL = {
@@ -757,6 +774,8 @@ def generate(spec: VehicleSpec) -> Generated:
         sources[k] = (
             f"typical for a {CLASS_LABELS[cls]} (not measured)"
             if k in TYPICAL_ROAD_LOADS
+            else f"{CLASS_LABELS[cls]} template colour"
+            if k in APPEARANCE
             else f"{CLASS_LABELS[cls]} template"
         )
     if (seats := spec.get("seats")) is not None and seats != "skip":
