@@ -4,6 +4,7 @@ import type {
   ComponentTestStatus,
   Diagnosis,
   ImpactPreview,
+  DesignTemplate,
   DomainDef,
   IntegrationReport,
   RuleStatus,
@@ -171,8 +172,9 @@ const post = <T>(path: string, body?: unknown) =>
 export const api = {
   catalogue: () => request<{ parameters: ParameterDef[]; derived: DerivedValue[] }>("/parameters"),
   listProjects: () => request<ProjectSummary[]>("/projects"),
-  createProject: (name: string, domain = "automotive") =>
-    post<ProjectState>("/projects", { name, domain }),
+  createProject: (name: string, domain = "automotive", template?: string) =>
+    post<ProjectState>("/projects", { name, domain, template }),
+  templates: () => request<DesignTemplate[]>("/templates"),
   renameProject: (id: string, name: string) =>
     request<ProjectState>(`/projects/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
   deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: "DELETE" }),

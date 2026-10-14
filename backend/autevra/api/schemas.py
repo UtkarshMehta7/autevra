@@ -22,6 +22,13 @@ from autevra.engineering.trace import ImpactPreview
 class ProjectCreate(BaseModel):
     name: str = Field(default="Untitled vehicle", min_length=1, max_length=200)
     domain: str = "automotive"
+    template: str | None = None  # start from a design template (see GET /api/templates)
+
+
+class TemplateOut(BaseModel):
+    id: str
+    label: str
+    description: str
 
 
 class ProjectRename(BaseModel):

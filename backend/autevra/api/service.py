@@ -20,7 +20,7 @@ from autevra.ai.rule_parser import Kind, TestRequest
 from autevra.api import model_service, schemas
 from autevra.assembly import graph
 from autevra.cad.cache import GeometryCache
-from autevra.core import derived, parameters
+from autevra.core import derived, parameters, templates
 from autevra.core.commands import Change, CommandError, Operation, SetParameters, Source
 from autevra.core.design import ApplyResult, CommandRejectedError, DesignState
 from autevra.core.rules import validate
@@ -185,13 +185,22 @@ class Workspace:
 
     # --- projects ---
     def create_project(
-        self, name: str, domain: str = "automotive", owner: str | None = None
+        self,
+        name: str,
+        domain: str = "automotive",
+        owner: str | None = None,
+        template: str | None = None,
     ) -> schemas.ProjectState:
         if not domains.can_host_projects(domain):
             raise CommandError(f"the '{domain}' domain is not available for projects yet")
+        state = None
+        if template is not None:
+            if template not in templates.TEMPLATES:
+                raise CommandError(f"unknown template '{template}'")
+            state = DesignState(values=templates.TEMPLATES[template].values())
         with self.db.session() as s:
             repo = ProjectRepository(s)
-            info = repo.create(name, domain=domain, owner=owner)
+            info = repo.create(name, state, domain=domain, owner=owner)
             return _state(info, repo.load(info.id))
 
     def duplicate_project(

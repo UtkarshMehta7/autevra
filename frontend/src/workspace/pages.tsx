@@ -70,11 +70,15 @@ export function Projects() {
   const navigate = useNavigate();
   const [projects, reload, error] = useLoad(api.listProjects);
   const [name, setName] = useState("");
+  const [templates] = useLoad(api.templates);
+  const [template, setTemplate] = useState("");
   const [renaming, setRenaming] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [confirm, setConfirm] = useState<ProjectSummary | null>(null);
   const create = async () => {
-    const p = await api.createProject(name.trim() || `Vehicle ${(projects?.length ?? 0) + 1}`);
+    const chosen = templates?.find((t) => t.id === template);
+    const fallback = chosen ? chosen.label : `Vehicle ${(projects?.length ?? 0) + 1}`;
+    const p = await api.createProject(name.trim() || fallback, "automotive", chosen?.id);
     navigate(`/studio/${p.id}/design`);
   };
   return (
@@ -84,6 +88,10 @@ export function Projects() {
       <Problem error={error} />
       <form className="bench-controls" onSubmit={(e) => { e.preventDefault(); create(); }}>
         <input placeholder="New project name" value={name} onChange={(e) => setName(e.target.value)} />
+        <select value={template} onChange={(e) => setTemplate(e.target.value)} aria-label="Start from">
+          <option value="">Default design (sedan)</option>
+          {(templates ?? []).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
         <button className="primary" type="submit">Create automotive project</button>
       </form>
       <table className="site-table">
@@ -126,6 +134,8 @@ export function Projects() {
 }
 
 export function Models() {
+  const navigate = useNavigate();
+  const [templates] = useLoad(api.templates);
   const [tests] = useLoad(api.tests);
   const [catalogue] = useLoad(api.catalogue);
   const [plugins] = useLoad(api.plugins);
@@ -136,9 +146,23 @@ export function Models() {
       <h1>Models and templates</h1>
       <div className="ws-grid">
         <section className="ws-card">
-          <h2>Automotive vehicle template</h2>
-          <p>Ladder-frame vehicle: body, frame, two beam axles, four wheels, four coil-over
-            dampers. Seven class templates (city car to van) come from the specification interview.</p>
+          <h2>Vehicle templates</h2>
+          <p className="hint">Each is the design the specification interview generates for the
+            class: body style, proportions, wheels, springs and dampers, rule-checked.</p>
+          <ul className="plain">{(templates ?? []).map((t) => (
+            <li key={t.id}>
+              <button onClick={async () => {
+                const p = await api.createProject(t.label, "automotive", t.id);
+                navigate(`/studio/${p.id}/design`);
+              }}>Start</button> <strong>{t.label}</strong>
+              <small className="hint"> {t.description}</small>
+            </li>
+          ))}</ul>
+        </section>
+        <section className="ws-card">
+          <h2>Automotive vehicle model</h2>
+          <p>Ladder-frame vehicle: body with glazing, frame, two beam axles, four wheels, four
+            coil-over dampers, in seven body styles.</p>
           <ul className="plain">{[...groups].map(([g, n]) => <li key={g}>{g}: {n} parameters</li>)}</ul>
         </section>
         <section className="ws-card">

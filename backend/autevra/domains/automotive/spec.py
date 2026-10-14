@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 
 from autevra.core.parameters import REGISTRY, default_values
 from autevra.core.rules import Violation, validate
+from autevra.core.templates import Template
 from autevra.domains.automotive import derived as d
 
 G = d.G
@@ -815,3 +816,36 @@ def generate(spec: VehicleSpec) -> Generated:
         requirements=requirements,
         missing=missing,
     )
+
+
+# --- Project templates ----------------------------------------------------------------
+
+CLASS_DESCRIPTIONS = {
+    "city_car": "Short two-box hatch for town: small wheels, light, front-heavy.",
+    "hatchback": "Compact family two-box with a tailgate.",
+    "sedan": "Three-box saloon with a separate boot.",
+    "suv": "Tall, upright two-box with more ground clearance and wheel travel.",
+    "pickup": "Cab and open cargo bed on a long wheelbase, live rear axle masses.",
+    "sports_car": "Low fastback coupe, wide and stiff.",
+    "van": "One-box people or panel van with a short nose.",
+    "box_truck": "Light truck: cab and a separate cargo box, long wheelbase, heavy rear.",
+}
+
+
+def template_values(cls: str) -> dict[str, float]:
+    """The design the specification interview generates for a class with defaults only."""
+    spec = VehicleSpec()
+    spec.set("vehicle_class", cls, source="default")
+    return generate(spec).values
+
+
+def project_templates() -> list[Template]:
+    return [
+        Template(
+            id=cls,
+            label=label[0].upper() + label[1:],
+            description=CLASS_DESCRIPTIONS[cls],
+            values=lambda cls=cls: template_values(cls),
+        )
+        for cls, label in CLASS_LABELS.items()
+    ]
