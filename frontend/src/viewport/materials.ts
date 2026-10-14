@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 export type Finish =
   | "paint" | "paint_gloss" | "paint_metallic" | "paint_matte" | "paint_pearl"
-  | "glass" | "lamp" | "rubber" | "metal" | "leather" | "fabric" | "trim" | "screen";
+  | "glass" | "lamp" | "rubber" | "metal" | "polished" | "leather" | "fabric" | "trim" | "screen";
 
 /** Physically based display material for a part's finish (display only; no CAD meaning). */
 export function materialFor(finish: string | undefined, color: [number, number, number]) {
@@ -31,6 +31,8 @@ export function materialFor(finish: string | undefined, color: [number, number, 
         emissive: c, emissiveIntensity: 0.55 });
     case "rubber":
       return new THREE.MeshStandardMaterial({ color: c, roughness: 0.92, metalness: 0 });
+    case "polished": // diamond-cut or polished alloy
+      return new THREE.MeshStandardMaterial({ color: c, roughness: 0.12, metalness: 1 });
     case "metal":
       return new THREE.MeshStandardMaterial({ color: c, roughness: 0.38, metalness: 0.75 });
     case "paint_metallic":

@@ -519,6 +519,12 @@ _CHOICE_VERB = (
     r"paint it|paint the (?:car|vehicle|body)|respray it(?: in)?|colou?r it|"
     r"(?:change|set|switch) (?:the )?(?:{alias}) to|make the (?:{alias})|(?:{alias}))"
 )
+# For a choice that belongs to one part (wheels, lamps): the part must be named.
+_PART_CHOICE_VERB = (
+    r"(?:fit it with|fit|give it|put on|"
+    r"(?:change|set|switch) (?:the )?(?:{alias}|{nouns}) to|make the (?:{alias}|{nouns})|"
+    r"paint the (?:{nouns})|(?:{alias}))"
+)
 
 
 def _option_words(spec_id: str) -> list[tuple[str, int]]:
@@ -542,10 +548,15 @@ def _parse_choice(t: str) -> Interpretation | None:
             continue
         aliases = "|".join(re.escape(a) for a in (*spec.aliases, spec.label.lower()))
         options = "|".join(re.escape(w) for w, _ in _option_words(spec.id))
-        verb = _CHOICE_VERB.format(alias=aliases)
+        nouns = language.merged("option_nouns").get(spec.id)
+        if nouns:
+            verb = _PART_CHOICE_VERB.format(alias=aliases, nouns=nouns)
+            suffix = rf"(?: (?:{nouns}))?(?: (?:design|style|signature|finish))?"
+        else:
+            verb = _CHOICE_VERB.format(alias=aliases)
+            suffix = r"(?: (?:body|style|shape|form|version))?"
         m = re.match(
-            rf"^(?:please )?{verb}(?: (?:an?|the))? (?P<option>{options})"
-            rf"(?: (?:body|style|shape|form|version))?[.!]?$",
+            rf"^(?:please )?{verb}(?: (?:an?|the|some))? (?P<option>{options}){suffix}[.!]?$",
             t,
         )
         if m is None:
