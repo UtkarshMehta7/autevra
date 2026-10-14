@@ -17,7 +17,7 @@
 {"tier": "rules", "text": "make it longer", "expect": {"action": "clarify"}}
 {"tier": "rules", "text": "lower the car", "expect": {"action": "clarify"}}
 {"tier": "rules", "text": "make the suspension softer", "expect": {"action": "clarify"}}
-{"tier": "rules", "text": "paint it red", "expect": {"action": "clarify"}}
+{"tier": "rules", "text": "paint it red", "expect": {"set": {"paint_colour": 4}}}
 {"tier": "rules", "text": "write me a poem about the sea", "expect": {"action": "out_of_scope"}}
 {"tier": "rules", "text": "what's the capital of France?", "expect": {"action": "out_of_scope"}}
 {"tier": "rules", "text": "undo", "expect": {"action": "undo"}}

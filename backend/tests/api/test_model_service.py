@@ -77,3 +77,20 @@ def test_coil_dampers_use_a_coarser_display_mesh() -> None:
 
     assert geometry.mesh_angular(builders.build_damper) == 0.5
     assert geometry.mesh_angular(builders.build_wheel) == geometry.DEFAULT_ANGULAR
+
+
+def test_repainting_changes_the_body_colour_without_rebuilding() -> None:
+    from autevra.cad.cache import GeometryCache
+    from autevra.core.parameters import default_values
+    from autevra.domains.automotive.vehicle import PAINT
+
+    cache = GeometryCache()
+    values = default_values()
+    before = {p.id: p for p in build_model(values, cache).parts}
+    cache.reset_stats()
+    after = {p.id: p for p in build_model(values | {"paint_colour": 4, "paint_finish": 2},
+                                          cache).parts}  # fmt: skip
+    assert cache.stats.builds == []  # appearance never rebuilds geometry
+    assert after["body"].color == PAINT[4] and after["body"].finish == "paint_matte"
+    assert after["body"].geometry == before["body"].geometry
+    assert after["wheel_fl"].color == before["wheel_fl"].color

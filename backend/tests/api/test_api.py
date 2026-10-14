@@ -166,7 +166,7 @@ def test_project_crud_and_404(client: TestClient) -> None:
 def test_catalogue(client: TestClient) -> None:
     body = client.get("/api/parameters").json()
     ids = [p["id"] for p in body["parameters"]]
-    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 50
+    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 52
 
 
 def test_state_survives_app_restart(tmp_path: Path) -> None:

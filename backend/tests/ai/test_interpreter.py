@@ -46,7 +46,7 @@ def test_softer_suspension_asks_which_quantity() -> None:
 
 @pytest.mark.parametrize(
     "text",
-    ["change the gear ratio", "fit bigger brakes", "paint it red"],
+    ["change the gear ratio", "fit bigger brakes", "add a sunroof"],
 )
 def test_unmodelled_concepts_are_reported_not_guessed(text: str) -> None:
     result = interpret(text, V, FakeLLM())
