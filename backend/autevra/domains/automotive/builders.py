@@ -78,7 +78,8 @@ def body_layout(p: Inputs) -> BodyLayout:
     floor, belt, top = p["body_floor"], p["beltline_height"], p["overall_height"]
     depth, glass_h = belt - floor, top - belt
     centre = (rear + front) / 2.0 + p["cabin_offset"]
-    arch_top = p["tyre_radius"] + p["arch_radius"]
+    # The wheel arches shape only the lower profile; the glazing is built without them.
+    arch_top = p.get("tyre_radius", 0.0) + p.get("arch_radius", 0.0)
     under = min(0.06 * length, 220.0)
     bumper = floor + 0.25 * depth
     tail_low = floor + 0.3 * depth
@@ -150,10 +151,57 @@ def body_profile(p: Inputs) -> list[tuple[float, float]]:
     return body_layout(p).profile
 
 
+PILLAR = 70.0  # pillar and roof-rail width left around the window openings, mm
+GLASS_INSET = 25.0  # glazing sits this far inside the greenhouse surface, mm
+
+
+def _greenhouse(p: Inputs, layout: BodyLayout, inset: float = 0.0) -> k.Shape:
+    """Ruled loft from the beltline outline to the roof outline; the corners are chamfered
+    so the glasshouse reads as rounded, and the roof is narrower (tumblehome)."""
+    half_w = p["body_width"] / 2.0
+    belt = p["beltline_height"]
+    cab_w, roof_w = half_w - 40.0 - inset, half_w - 150.0 - inset
+
+    def outline(
+        z: float, x: tuple[float, float], half_wid: float
+    ) -> list[tuple[float, float, float]]:
+        r, f = x[0] + inset, x[1] - inset
+        c = min(0.18 * half_wid, 0.25 * (f - r) / 2.0)  # corner chamfer
+        return [
+            (r, -half_wid + c, z), (r + c, -half_wid, z), (f - c, -half_wid, z),
+            (f, -half_wid + c, z), (f, half_wid - c, z), (f - c, half_wid, z),
+            (r + c, half_wid, z), (r, half_wid - c, z),
+        ]  # fmt: skip
+
+    top = layout.roof_z - inset
+    return k.ruled_loft([outline(belt, layout.glass, cab_w), outline(top, layout.roof, roof_w)])
+
+
+def _window_frame(p: Inputs, layout: BodyLayout) -> k.Shape:
+    """The greenhouse with the side windows, windscreen and rear screen cut out, leaving
+    the pillars and the roof; the glazing component fills the openings from inside."""
+    half_w = p["body_width"] / 2.0
+    belt, top = p["beltline_height"], layout.roof_z
+    z = (belt + PILLAR * 0.6, top - PILLAR)
+    roof_w = half_w - 150.0
+    (g0, g1), (r0, r1) = layout.glass, layout.roof
+    side = k.box((r0 + PILLAR, r1 - PILLAR), (-half_w - 10.0, half_w + 10.0), z)
+    screens = [
+        k.box((r1 - 1.0, g1 + 10.0), (-roof_w + PILLAR, roof_w - PILLAR), z),  # windscreen
+        k.box((g0 - 10.0, r0 + 1.0), (-roof_w + PILLAR, roof_w - PILLAR), z),  # rear screen
+    ]
+    return k.cut(_greenhouse(p, layout), side, *screens)
+
+
+def build_glass(p: Inputs) -> k.Shape:
+    """Glazing: the greenhouse volume just inside the body's window openings."""
+    return _greenhouse(p, body_layout(p), inset=GLASS_INSET)
+
+
 def build_body(p: Inputs) -> k.Shape:
-    """Lower body (side profile x rounded plan view) and a raked, tapered greenhouse, shaped
-    by the body style (an open bed for a pickup, a cargo box for a box truck), with wheel
-    wells. Extents: overhang to overhang, full width, floor to roof."""
+    """Lower body (side profile x rounded plan view) and the window frame of a raked, tapered
+    greenhouse, shaped by the body style (an open bed for a pickup, a cargo box for a box
+    truck), with wheel wells. Extents: overhang to overhang, full width, floor to roof."""
     layout = body_layout(p)
     rear, front = -(p["wheelbase"] + p["rear_overhang"]), p["front_overhang"]
     half_w = p["body_width"] / 2.0
@@ -169,24 +217,7 @@ def build_body(p: Inputs) -> k.Shape:
     )
     parts = [k.intersect(side, plan)]
 
-    # Greenhouse: ruled loft from the beltline outline to the roof outline; the corners are
-    # chamfered so the glasshouse reads as rounded, and the roof is narrower (tumblehome).
-    cab_w, roof_w = half_w - 40.0, half_w - 150.0
-
-    def outline(
-        z: float, x: tuple[float, float], half_wid: float
-    ) -> list[tuple[float, float, float]]:
-        r, f = x
-        c = min(0.18 * half_wid, 0.25 * (f - r) / 2.0)  # corner chamfer
-        return [
-            (r, -half_wid + c, z), (r + c, -half_wid, z), (f - c, -half_wid, z),
-            (f, -half_wid + c, z), (f, half_wid - c, z), (f - c, half_wid, z),
-            (r + c, half_wid, z), (r, half_wid - c, z),
-        ]  # fmt: skip
-
-    parts.append(k.ruled_loft([
-        outline(belt, layout.glass, cab_w), outline(layout.roof_z, layout.roof, roof_w)
-    ]))  # fmt: skip
+    parts.append(_window_frame(p, layout))
     if layout.cargo is not None:
         parts.append(k.box(layout.cargo, (-half_w, half_w), (floor, p["overall_height"])))
     body = k.fuse(*parts)

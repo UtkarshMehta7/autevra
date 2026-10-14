@@ -86,3 +86,22 @@ def test_every_template_builds_in_every_style(template: str, style: str) -> None
     values = {k_: v for k_, v in TEMPLATES[template].items() if k_ in REGISTRY}
     body = c.build_body(_inputs(style, **values))
     assert k.is_valid(body) and k.solid_count(body) == 1
+
+
+@pytest.mark.cad
+@pytest.mark.parametrize("style", c.BODY_STYLES)
+def test_glazing_sits_inside_the_window_openings(style: str) -> None:
+    p = _inputs(style)
+    glass, body = c.build_glass(p), c.build_body(p)
+    assert k.is_valid(glass) and k.solid_count(glass) == 1
+    (gx0, gy0, gz0), (gx1, gy1, gz1) = k.bounds(glass)
+    (bx0, by0, _), (bx1, by1, bz1) = k.bounds(body)
+    assert bx0 < gx0 and gx1 < bx1 and by0 < gy0 and gy1 < by1 and gz1 < bz1
+    assert gz0 == pytest.approx(p["beltline_height"])
+
+
+def test_glazing_ignores_the_wheels_and_track() -> None:
+    from autevra.domains.automotive.vehicle import GLASS_GEOMETRY
+
+    assert "track_front" not in GLASS_GEOMETRY and "rim_diameter" not in GLASS_GEOMETRY
+    assert "body_style" in GLASS_GEOMETRY and "cabin_length" in GLASS_GEOMETRY
