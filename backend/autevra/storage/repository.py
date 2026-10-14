@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from autevra.core import parameters
@@ -35,7 +35,11 @@ class ProjectRepository:
         self.session = session
 
     def create(
-        self, name: str, state: DesignState | None = None, domain: str = "automotive"
+        self,
+        name: str,
+        state: DesignState | None = None,
+        domain: str = "automotive",
+        owner: str | None = None,
     ) -> ProjectInfo:
         state = state or DesignState()
         row = ProjectRow(
@@ -44,15 +48,26 @@ class ProjectRepository:
             values_json=json.dumps(state.values),
             cursor=state.cursor,
             domain=domain,
+            owner=owner,
         )
         self.session.add(row)
         self.session.flush()
         self._sync_history(row, state)
         return _info(row)
 
-    def list(self) -> list[ProjectInfo]:
-        rows = self.session.scalars(select(ProjectRow).order_by(ProjectRow.updated_at.desc()))
-        return [_info(r) for r in rows]
+    def list(self, owner: str | None = None, *, all_owners: bool = True) -> list[ProjectInfo]:
+        """All projects, or (``all_owners=False``) only those created with ``owner``."""
+        q = select(ProjectRow).order_by(ProjectRow.updated_at.desc())
+        if not all_owners:
+            q = q.where(ProjectRow.owner == owner)
+        return [_info(r) for r in self.session.scalars(q)]
+
+    def owner(self, project_id: str) -> str | None:
+        return self._row(project_id).owner
+
+    def count(self, owner: str | None) -> int:
+        q = select(func.count()).select_from(ProjectRow).where(ProjectRow.owner == owner)
+        return int(self.session.scalar(q) or 0)
 
     def _row(self, project_id: str) -> ProjectRow:
         row = self.session.get(ProjectRow, project_id)

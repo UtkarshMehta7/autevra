@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from autevra import domains
-from autevra.api import schemas
+from autevra.api import access, schemas
 from autevra.api.service import ProposalNotFoundError, Workspace, _derived
 from autevra.core import parameters
 from autevra.core.commands import CommandError
@@ -20,7 +20,7 @@ from autevra.engineering.trace import ImpactPreview
 from autevra.storage.repository import ProjectNotFoundError
 from autevra.storage.runs import RunNotFoundError
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(access.guard_project)])
 
 
 def workspace(request: Request) -> Workspace:
@@ -28,6 +28,7 @@ def workspace(request: Request) -> Workspace:
 
 
 WorkspaceDep = Annotated[Workspace, Depends(workspace)]
+VisitorDep = Annotated[access.Visitor, Depends(access.visitor)]
 
 
 @router.get("/parameters", response_model=schemas.Catalogue)
@@ -38,14 +39,17 @@ def catalogue() -> schemas.Catalogue:
 
 
 @router.get("/projects", response_model=list[schemas.ProjectSummary])
-def list_projects(ws: WorkspaceDep) -> list[schemas.ProjectSummary]:
-    return ws.list_projects()
+def list_projects(ws: WorkspaceDep, who: VisitorDep) -> list[schemas.ProjectSummary]:
+    return ws.list_projects(who.owner, all_owners=who.all_owners)
 
 
 @router.post("/projects", response_model=schemas.ProjectState, status_code=201)
-def create_project(body: schemas.ProjectCreate, ws: WorkspaceDep) -> schemas.ProjectState:
+def create_project(
+    body: schemas.ProjectCreate, ws: WorkspaceDep, who: VisitorDep, request: Request
+) -> schemas.ProjectState:
+    access.check_project_quota(request, who)
     try:
-        return ws.create_project(body.name, body.domain)
+        return ws.create_project(body.name, body.domain, who.owner)
     except CommandError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
 
@@ -54,9 +58,14 @@ def create_project(body: schemas.ProjectCreate, ws: WorkspaceDep) -> schemas.Pro
     "/projects/{project_id}/duplicate", response_model=schemas.ProjectState, status_code=201
 )
 def duplicate_project(
-    project_id: str, ws: WorkspaceDep, body: schemas.ProjectRename | None = None
+    project_id: str,
+    ws: WorkspaceDep,
+    who: VisitorDep,
+    request: Request,
+    body: schemas.ProjectRename | None = None,
 ) -> schemas.ProjectState:
-    return ws.duplicate_project(project_id, body.name if body else None)
+    access.check_project_quota(request, who)
+    return ws.duplicate_project(project_id, body.name if body else None, who.owner)
 
 
 @router.get("/projects/{project_id}/system", response_model=schemas.SystemGraph)
@@ -71,9 +80,9 @@ def rule_status(project_id: str, ws: WorkspaceDep) -> list[schemas.RuleStatus]:
 
 
 @router.get("/runs", response_model=list[schemas.RunIndexItem])
-def all_runs(ws: WorkspaceDep) -> list[schemas.RunIndexItem]:
-    """Recent runs across all projects."""
-    return ws.all_runs()
+def all_runs(ws: WorkspaceDep, who: VisitorDep) -> list[schemas.RunIndexItem]:
+    """Recent runs across the visitor's projects (all projects locally)."""
+    return ws.all_runs(owner=who.owner, all_owners=who.all_owners)
 
 
 @router.get("/domains", response_model=list[DomainDef])

@@ -22,6 +22,11 @@ RUN uv sync --locked --no-dev
 RUN useradd --create-home --uid 1000 autevra && mkdir -p /data && chown autevra:autevra /data
 # MALLOC_ARENA_MAX: fewer glibc arenas keep the threaded server's memory flatter on 512 MB hosts.
 ENV AUTEVRA_DATA_DIR=/data PATH="/app/.venv/bin:$PATH" MALLOC_ARENA_MAX=2
+# The image is what gets hosted, so it is safe for the public by default: each browser
+# sees only its own projects, and changes are rate limited. docker-compose.yml (local)
+# turns these off; any host can override them.
+ENV AUTEVRA_WORKSPACE_ISOLATION=true AUTEVRA_WRITE_LIMIT_PER_MINUTE=60 \
+    AUTEVRA_CONTACT_LIMIT_PER_HOUR=5 AUTEVRA_MAX_PROJECTS_PER_WORKSPACE=20
 USER autevra
 VOLUME /data
 EXPOSE 8000

@@ -52,3 +52,17 @@ describe("wrong API address", () => {
     await expect(api.domains()).rejects.toThrow("returned a web page instead of data");
   });
 });
+
+describe("visitor workspace key", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("sends the same random key with every request", async () => {
+    const fetch = vi.fn().mockImplementation(async () => ok([]));
+    vi.stubGlobal("fetch", fetch);
+    await api.listProjects();
+    await api.domains();
+    const keys = fetch.mock.calls.map(([, init]) => init.headers["X-Autevra-Workspace"]);
+    expect(keys[0]).toMatch(/^[0-9a-f]{32}$/);
+    expect(keys[1]).toBe(keys[0]);
+  });
+});

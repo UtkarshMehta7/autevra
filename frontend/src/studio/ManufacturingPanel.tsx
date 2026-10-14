@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { RuleStatus } from "../api/types";
+import { DownloadLink } from "../DownloadLink";
 
 // Design rules that express manufacturability or assembly feasibility.
 const MANUFACTURING_RULES = /spring_index|coil_bind|rail_wall|damper_fits|disc_fits|stroke_covers/;
@@ -18,8 +19,8 @@ export function ManufacturingPanel({ projectId, version, stepUrl, reqifUrl }: {
       <div className="bench-side">
         <strong>Outputs</strong>
         <ul className="plain">
-          <li><a className="button" href={stepUrl}>STEP AP214 assembly</a> <span className="hint">named, coloured, placed solids</span></li>
-          <li><a className="button" href={reqifUrl}>ReqIF requirements</a></li>
+          <li><DownloadLink className="button" href={stepUrl}>STEP AP214 assembly</DownloadLink> <span className="hint">named, coloured, placed solids</span></li>
+          <li><DownloadLink className="button" href={reqifUrl}>ReqIF requirements</DownloadLink></li>
         </ul>
         <p className="hint"><strong>Not available yet:</strong> 2D drawings, tolerances and PMI,
           sheet-metal flat patterns, cost estimation, process planning and CAM. They are on the

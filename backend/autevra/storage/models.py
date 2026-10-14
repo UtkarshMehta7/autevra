@@ -24,6 +24,8 @@ class ProjectRow(Base):
     values_json: Mapped[str] = mapped_column(Text)
     cursor: Mapped[int] = mapped_column(Integer, default=0)
     domain: Mapped[str] = mapped_column(String(32), default="automotive")
+    # SHA-256 of the visitor's workspace key on a public instance; None for local projects.
+    owner: Mapped[str | None] = mapped_column(String(64), index=True, default=None)
 
     history: Mapped[list["HistoryRow"]] = relationship(
         back_populates="project", cascade="all, delete-orphan", order_by="HistoryRow.seq"
