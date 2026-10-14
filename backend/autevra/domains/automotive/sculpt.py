@@ -166,3 +166,39 @@ def lower_body(p: Inputs, profile: Sequence[tuple[float, float]]) -> k.Shape:
     loft = k.ruled_loft(sections)
     half_w = p["body_width"] / 2.0
     return k.intersect(k.prism_y(profile, (-half_w, half_w)), loft)
+
+
+def fenders(p: Inputs, profile: Sequence[tuple[float, float]]) -> list[k.Shape]:
+    """Raised wings over each wheel arch when the bonnet drops below the arch line
+    (``fender_rise`` > 0): a hump in side view, from the body side in to the fender width,
+    following the plan outline. Where the body is already higher (the cabin, a tall deck)
+    the hump stays inside it and changes nothing."""
+    rise = p.get("fender_rise", 0.0)
+    if rise <= 0.0:
+        return []
+    xs = [x for x, _ in profile]
+    rear, front = min(xs), max(xs)
+    floor = min(z for _, z in profile)
+    top = p["tyre_radius"] + p["arch_radius"] + 40.0  # the arch clearance line
+    half_w = p["body_width"] / 2.0
+    reach = p["arch_radius"] + 220.0  # wing length either side of the axle
+    width = min(0.32 * half_w, 320.0)  # wing width in from the body side
+    base = floor + 0.3 * (top - floor)
+    outline = plan_points(p, (rear - 2.0, front + 2.0), 0.0, 0.0)
+    plan = k.prism_z([(x, y) for x, y, _ in outline], (floor - 1.0, top + 1.0))
+    out = []
+    for xa in (0.0, -p["wheelbase"]):
+        x0, x1 = max(xa - reach, rear), min(xa + reach, front)
+        if x1 - x0 < 200.0:
+            continue
+        hump = []
+        for i in range(17):
+            u = i / 16
+            x = x0 + u * (x1 - x0)
+            lift = (0.5 - 0.5 * math.cos(2.0 * math.pi * u)) ** 0.45  # a broad, rounded crest
+            hump.append((x, base + (top - base) * lift))
+        hump = [(x0, base), *hump[1:-1], (x1, base)]
+        for s in (1.0, -1.0):
+            y = (half_w - width, half_w + 1.0) if s > 0 else (-half_w - 1.0, -half_w + width)
+            out.append(k.intersect(k.prism_y(hump, y), plan))
+    return out

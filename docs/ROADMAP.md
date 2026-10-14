@@ -147,6 +147,7 @@ specification interview moves to Phase 5.
     - a smooth B-spline loft through many sections (13–25 s per body, and invalid for some styles);
     - spline plan curves (31 s to cut the wheel wells).
 - **Shape controls** as design parameters (new "Body shaping" group): haunch, nose width, tail width, sill tuck, body roundness and tumblehome. Any style can be pushed towards any other; the greenhouse and the cabin follow the haunch.
+- **Fender rise**: the bonnet drops between raised front wings, and the wings keep the wheel-arch clearance (sports car 70 mm, roadster 90 mm, supercar 120 mm in the templates; 0 elsewhere).
 - **Five new body types**, each with a template:
   - estate (long roof, upright tailgate);
   - crossover (raised, sloping roof);

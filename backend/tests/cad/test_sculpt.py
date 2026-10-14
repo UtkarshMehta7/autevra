@@ -117,3 +117,19 @@ def test_style_phrases(text: str, style: str) -> None:
     assert result.command is not None
     (change,) = result.command.changes
     assert REGISTRY["body_style"].options[int(change.value)] == style
+
+
+def test_fender_rise_drops_the_bonnet_between_raised_wings() -> None:
+    v = default_values() | spec.TEMPLATES["sports_car"]
+    flat, raised = (_inputs(v | {"fender_rise": r}) for r in (0.0, 120.0))
+    nose = [b.body_layout(p).profile[3][1] for p in (flat, raised)]
+    assert nose[1] < nose[0]  # the bonnet drops
+    body = b.build_body(raised)
+    assert k.is_valid(body) and k.solid_count(body) == 1
+    # The wings keep the arch clearance: material over the front arch reaches its line.
+    top = raised["tyre_radius"] + raised["arch_radius"] + 40.0
+    half_w = raised["body_width"] / 2
+    probe = k.box((-50.0, 50.0), (half_w - 150.0, half_w - 100.0), (top - 30.0, top - 5.0))
+    assert k.volume(k.intersect(body, probe)) > 0
+    flat_bounds = [c for corner in k.bounds(b.build_body(flat)) for c in corner]
+    assert [c for corner in k.bounds(body) for c in corner] == pytest.approx(flat_bounds, abs=0.01)

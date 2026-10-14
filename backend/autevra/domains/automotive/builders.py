@@ -113,8 +113,12 @@ def body_layout(p: Inputs) -> BodyLayout:
     bumper = floor + 0.25 * depth
     tail_low = floor + 0.3 * depth
 
+    # The bonnet clears the front arch by 40 mm, or drops between raised wings by the
+    # fender rise (the wings then carry the arch clearance; see ``sculpt.fenders``).
+    drop = p.get("fender_rise", 0.0)
+
     def nose_at(share: float) -> float:  # hood height at the nose, above the front arch
-        return min(max(floor + share * depth, arch_top + 40.0), belt - 20.0)
+        return min(max(floor + share * depth, arch_top + 40.0 - drop), belt - 20.0)
 
     def hood(share: float) -> list[tuple[float, float]]:  # nose, curved hood, windscreen base
         nose = (front, nose_at(share))
@@ -319,7 +323,7 @@ def build_body(p: Inputs) -> k.Shape:
     floor, belt = p["body_floor"], p["beltline_height"]
 
     # One smooth freeform surface through cross-sections (see ``sculpt``).
-    parts = [sculpt.lower_body(p, layout.profile)]
+    parts = [sculpt.lower_body(p, layout.profile), *sculpt.fenders(p, layout.profile)]
 
     parts.append(_window_frame(p, layout))
     if layout.cargo is not None:
