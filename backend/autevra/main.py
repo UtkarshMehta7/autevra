@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from autevra import __version__, domains, extensions
 from autevra.ai.llm.clients import LLMClient, make_client
+from autevra.api import access
 from autevra.api.routes import EXCEPTION_HANDLERS, router
 from autevra.api.service import Workspace
 from autevra.config import Settings
@@ -24,6 +25,9 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None) -
 
     app = FastAPI(title="Autevra", version=__version__)
     app.state.workspace = Workspace(Database(url), settings.data_dir, llm)
+    app.state.settings = settings
+    # Added before CORS so that CORS stays outermost and 429 answers carry its headers.
+    app.middleware("http")(access.rate_limiter(settings))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

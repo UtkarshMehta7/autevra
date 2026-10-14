@@ -124,14 +124,23 @@ repository has the `HF_TOKEN` secret and the `HF_SPACE` variable (`<user>/autevr
 - Open the Netlify site, create a project from `/app`, open it in the studio, change a
   parameter, run the quarter-car test and download a STEP file.
 
-## Before sharing the link widely
+## Public safety defaults
 
-- **There are no user accounts yet.** Every visitor sees, edits and can delete every
-  project. Treat the hosted instance as a shared demo, not a place for real work.
-- The contact form stores messages in the database with no rate limit or spam filter.
-- The local LLM is off on the hosted instance; that is a choice, not a fault.
+The backend image turns these on (environment variables, any host can override them;
+`docker-compose.yml` turns them off for local use):
 
-Per-visitor workspaces, rate limits and accounts are tracked in `ROADMAP.md`.
+| Variable | Image default | Effect |
+|---|---|---|
+| `AUTEVRA_WORKSPACE_ISOLATION` | `true` | Each browser sends a random key (`X-Autevra-Workspace`, kept in its local storage) and sees only the projects made with it; others answer 404 |
+| `AUTEVRA_WRITE_LIMIT_PER_MINUTE` | `60` | Changes per client address per minute (reads are never limited); 429 with `Retry-After` |
+| `AUTEVRA_CONTACT_LIMIT_PER_HOUR` | `5` | Contact form messages per client address per hour |
+| `AUTEVRA_MAX_PROJECTS_PER_WORKSPACE` | `20` | Projects per browser workspace |
+
+This is isolation between anonymous visitors, not authentication: there are no accounts,
+another browser starts an empty workspace, and clearing site data loses access. Projects
+created before isolation was turned on have no owner and are no longer listed.
+
+The local LLM is off on the hosted instance; that is a choice, not a fault.
 
 ## Testing against Postgres locally
 

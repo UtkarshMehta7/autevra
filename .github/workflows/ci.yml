@@ -102,7 +102,7 @@ jobs:
           for i in $(seq 1 120); do curl -fsS http://localhost:8100/api/health >/dev/null && break; sleep 2; done
           echo "ready after $(( $(date +%s) - start )) s"
           start=$(date +%s)
-          deploy/smoke.sh http://localhost:8100
+          EXPECT_ISOLATION=1 deploy/smoke.sh http://localhost:8100
           echo "smoke test took $(( $(date +%s) - start )) s"
           echo "peak memory: $(docker exec small cat /sys/fs/cgroup/memory.peak) bytes"
           test "$(docker inspect -f '{{.State.OOMKilled}}' small)" = false
@@ -113,10 +113,11 @@ jobs:
           docker run -d --name space -p 8000:8000 autevra-space
           for i in $(seq 1 45); do curl -fsS http://localhost:8000/api/health && break; sleep 2; done
           test "$(docker exec space id -u)" = 1000
-          id=$(curl -fsS -X POST -H 'content-type: application/json' -d '{"name":"ci"}' \
+          ws="X-Autevra-Workspace: ci-space-000000000000"
+          id=$(curl -fsS -X POST -H 'content-type: application/json' -H "$ws" -d '{"name":"ci"}' \
             http://localhost:8000/api/projects | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-          curl -fsS -o /dev/null http://localhost:8000/api/projects/$id/model
-          curl -fsS -o model.step http://localhost:8000/api/projects/$id/export.step
+          curl -fsS -H "$ws" -o /dev/null http://localhost:8000/api/projects/$id/model
+          curl -fsS -H "$ws" -o model.step http://localhost:8000/api/projects/$id/export.step
           head -c 13 model.step | grep -q ISO-10303-21
           curl -fsS http://localhost:8000/api/llm | grep -q '"provider":"off"'
           docker stats --no-stream space

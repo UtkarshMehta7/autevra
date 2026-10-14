@@ -182,15 +182,19 @@ class Workspace:
         self._proposals: dict[str, _Proposal] = {}
 
     # --- projects ---
-    def create_project(self, name: str, domain: str = "automotive") -> schemas.ProjectState:
+    def create_project(
+        self, name: str, domain: str = "automotive", owner: str | None = None
+    ) -> schemas.ProjectState:
         if not domains.can_host_projects(domain):
             raise CommandError(f"the '{domain}' domain is not available for projects yet")
         with self.db.session() as s:
             repo = ProjectRepository(s)
-            info = repo.create(name, domain=domain)
+            info = repo.create(name, domain=domain, owner=owner)
             return _state(info, repo.load(info.id))
 
-    def duplicate_project(self, project_id: str, name: str | None = None) -> schemas.ProjectState:
+    def duplicate_project(
+        self, project_id: str, name: str | None = None, owner: str | None = None
+    ) -> schemas.ProjectState:
         """A new project whose initial design is this project's current design (history,
         runs and studies stay with the original; requirements and the specification copy)."""
         with self.db.session() as s:
@@ -198,7 +202,10 @@ class Workspace:
             info = repo.info(project_id)
             values = repo.load(project_id).values
             copy = repo.create(
-                name or f"{info.name} (copy)", DesignState(values=values), domain=info.domain
+                name or f"{info.name} (copy)",
+                DesignState(values=values),
+                domain=info.domain,
+                owner=owner,
             )
             runs = RunRepository(s)
             for record in runs.requirement_records(project_id):
@@ -283,9 +290,11 @@ class Workspace:
             for r, fn in _RULES
         ]
 
-    def all_runs(self, limit: int = 300) -> list[schemas.RunIndexItem]:
+    def all_runs(
+        self, limit: int = 300, owner: str | None = None, *, all_owners: bool = True
+    ) -> list[schemas.RunIndexItem]:
         out = []
-        for p in self.list_projects():
+        for p in self.list_projects(owner, all_owners=all_owners):
             for run in self.list_runs(p.id, None, None, None)[:limit]:
                 out.append(
                     schemas.RunIndexItem(**run.model_dump(), project_id=p.id, project_name=p.name)
@@ -310,9 +319,20 @@ class Workspace:
             note="Saved in the local database. This development build sends no e-mail.",
         )
 
-    def list_projects(self) -> list[schemas.ProjectSummary]:
+    def list_projects(
+        self, owner: str | None = None, *, all_owners: bool = True
+    ) -> list[schemas.ProjectSummary]:
         with self.db.session() as s:
-            return [schemas.ProjectSummary(**vars(i)) for i in ProjectRepository(s).list()]
+            infos = ProjectRepository(s).list(owner, all_owners=all_owners)
+            return [schemas.ProjectSummary(**vars(i)) for i in infos]
+
+    def project_owner(self, project_id: str) -> str | None:
+        with self.db.session() as s:
+            return ProjectRepository(s).owner(project_id)
+
+    def project_count(self, owner: str | None) -> int:
+        with self.db.session() as s:
+            return ProjectRepository(s).count(owner)
 
     def project(self, project_id: str) -> schemas.ProjectState:
         with self.db.session() as s:

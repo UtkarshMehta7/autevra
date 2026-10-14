@@ -6,6 +6,11 @@ services:
     platform: linux/amd64
     environment:
       AUTEVRA_DATA_DIR: /data
+      # One user on this machine: no visitor workspaces or limits (the image enables them).
+      AUTEVRA_WORKSPACE_ISOLATION: "false"
+      AUTEVRA_WRITE_LIMIT_PER_MINUTE: "0"
+      AUTEVRA_CONTACT_LIMIT_PER_HOUR: "0"
+      AUTEVRA_MAX_PROJECTS_PER_WORKSPACE: "0"
       # Phase 2: the local LLM runs natively on the host (Metal GPU).
       AUTEVRA_LLM_URL: http://host.docker.internal:11434
     volumes:

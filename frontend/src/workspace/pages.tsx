@@ -4,6 +4,7 @@ import { api, backendHint } from "../api/client";
 import type { DomainDef, LLMStatus, ProjectSummary, RunIndexItem, TestDefinition } from "../api/types";
 import { STATUS_SHORT } from "../state/engineering";
 import { llmLabel } from "../state/llm";
+import { DownloadLink } from "../DownloadLink";
 
 const when = (iso: string) => new Date(iso).toLocaleString();
 
@@ -15,6 +16,15 @@ function useLoad<T>(load: () => Promise<T>): [T | null, () => void, string | nul
   }, [load]);
   useEffect(reload, [reload]);
   return [data, reload, error];
+}
+
+/** On the hosted demo, projects belong to this browser (a key in its local storage). */
+function BrowserWorkspaceNote() {
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(globalThis.location?.hostname ?? "");
+  if (local) return null;
+  return <p className="hint">Projects on this demo are private to this browser: they are kept
+    with a key stored here, so another browser, a private window or clearing site data starts
+    an empty workspace. There are no accounts yet.</p>;
 }
 
 function Problem({ error }: { error: string | null }) {
@@ -70,6 +80,7 @@ export function Projects() {
   return (
     <>
       <h1>Projects</h1>
+      <BrowserWorkspaceNote />
       <Problem error={error} />
       <form className="bench-controls" onSubmit={(e) => { e.preventDefault(); create(); }}>
         <input placeholder="New project name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -220,8 +231,8 @@ export function Files() {
           {(projects ?? []).map((p) => (
             <tr key={p.id}>
               <td>{p.name}</td>
-              <td><a className="button" href={api.stepUrl(p.id)}>STEP AP214</a></td>
-              <td><a className="button" href={api.reqifUrl(p.id)}>ReqIF</a></td>
+              <td><DownloadLink className="button" href={api.stepUrl(p.id)}>STEP AP214</DownloadLink></td>
+              <td><DownloadLink className="button" href={api.reqifUrl(p.id)}>ReqIF</DownloadLink></td>
             </tr>
           ))}
         </tbody>

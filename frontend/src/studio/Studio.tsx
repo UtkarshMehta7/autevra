@@ -25,6 +25,7 @@ import { SystemsPanel } from "./SystemsPanel";
 import { WORKSPACES, type WorkspaceId } from "./workspaces";
 
 import { remember } from "./lastProject";
+import { DownloadLink } from "../DownloadLink";
 
 // Startup runs once per page load (React StrictMode runs effects twice in development).
 let startup: Promise<{
@@ -359,7 +360,7 @@ function StudioView({ projectId, workspace, navigate }: {
           <input type="checkbox" checked={xray} onChange={(e) => setXray(e.target.checked)} />
           X-ray body
         </label>
-        {project && <a className="button" href={api.stepUrl(project.id)}>Export STEP</a>}
+        {project && <DownloadLink className="button" href={api.stepUrl(project.id)}>Export STEP</DownloadLink>}
       </header>
       <aside className="left">
         <ComponentTree parts={model?.parts ?? []} selected={selected} highlighted={highlighted}

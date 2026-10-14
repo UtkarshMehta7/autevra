@@ -3,6 +3,7 @@ import type {
   Comparator, DerivedValue, ParameterDef, Requirement, RequirementRow, TestDefinition,
 } from "../api/types";
 import { fmt } from "../state/engineering";
+import { DownloadLink } from "../DownloadLink";
 
 interface Props {
   rows: RequirementRow[];
@@ -110,7 +111,7 @@ export function RequirementsPanel({ rows, parameters, derived, test, reqifUrl, b
           <button disabled={busy || rows.length === 0} onClick={onVerify} title="Runs the tests that are missing or stale">Verify all</button>
         </div>
         <div className="bench-controls">
-          <a className="button" href={reqifUrl}>Export ReqIF</a>
+          <DownloadLink className="button" href={reqifUrl}>Export ReqIF</DownloadLink>
           <label className="button">Import ReqIF
             <input type="file" accept=".reqif,.xml" hidden onChange={(e) => importFile(e.target.files?.[0])} />
           </label>

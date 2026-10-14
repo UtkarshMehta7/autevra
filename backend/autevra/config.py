@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     llm_model: str = "qwen3:1.7b"
     llm_timeout: float = 60.0
 
+    # Public hosting. With isolation on, every request carries a browser-generated workspace
+    # key (header X-Autevra-Workspace) and sees only the projects created with it. Limits
+    # are per client address; 0 turns a limit off. All off for local use.
+    workspace_isolation: bool = False
+    write_limit_per_minute: int = 0
+    contact_limit_per_hour: int = 0
+    max_projects_per_workspace: int = 0
+
     # Plugins: comma-separated module paths, e.g. "autevra.contrib.brake_discs", plus any
     # installed package that declares the "autevra.plugins" entry-point group.
     plugins: str = ""

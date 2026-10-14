@@ -93,10 +93,37 @@ async function send(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
+// A public instance keeps each visitor's projects apart by a random key generated in this
+// browser and sent with every request. Locally the backend ignores it.
+const WORKSPACE_KEY = "autevra.workspace";
+let memoryKey = "";
+
+function newKey(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export function workspaceKey(): string {
+  try {
+    const stored = localStorage.getItem(WORKSPACE_KEY);
+    if (stored) return stored;
+    const key = newKey();
+    localStorage.setItem(WORKSPACE_KEY, key);
+    return key;
+  } catch {
+    // Storage blocked (private mode, sandbox): keep a key for this page's lifetime.
+    memoryKey ||= newKey();
+    return memoryKey;
+  }
+}
+
+const workspaceHeader = () => ({ "X-Autevra-Workspace": workspaceKey() });
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await send(`${API}${path}`, {
     ...init,
-    headers: { "content-type": "application/json", ...init?.headers },
+    headers: { "content-type": "application/json", ...workspaceHeader(), ...init?.headers },
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -110,6 +137,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       response.status);
   }
   return response.json();
+}
+
+/** Download an API file (STEP, ReqIF) with the workspace header, which a plain link cannot send. */
+export async function download(url: string): Promise<void> {
+  const response = await send(url, { headers: workspaceHeader() });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new ApiError(typeof body.detail === "string" ? body.detail : response.statusText,
+      response.status);
+  }
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const name = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? url.split("/").pop() ?? "download";
+  const href = URL.createObjectURL(await response.blob());
+  const link = Object.assign(document.createElement("a"), { href, download: name });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 1000);
 }
 
 /** What to try when the backend cannot be reached, depending on where the app runs. */
