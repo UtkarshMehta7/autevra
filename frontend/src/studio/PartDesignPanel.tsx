@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { PartDoc, PartFeature, PartOut, Placement } from "../api/types";
+import { Sketcher } from "./Sketcher";
 
 /** Defaults for a new feature of each type (mm, degrees). */
 const FEATURE_DEFAULTS: Record<string, Omit<PartFeature, "id" | "type">> = {
@@ -208,6 +209,17 @@ function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: 
             <label key={key}>{key}<span className="tuple">{value.map((v, i) => (
               <Num key={i} value={v as number} onCommit={(n) => set(key, value.map((o, j) => (j === i ? n : o)))} />
             ))}</span></label>
+          );
+        }
+        if (key === "points" && (feature.type === "extrude" || feature.type === "revolve") && Array.isArray(value)) {
+          const plane = String(feature.plane ?? "xy");
+          return (
+            <label key={key} className="wide">profile
+              <Sketcher points={value as [number, number][]} axis={feature.type === "revolve"}
+                labels={feature.type === "revolve" ? ["r", "z"] : [plane[0], plane[1]] as [string, string]}
+                onCommit={(v) => set(key, v)} />
+              <JsonField value={value} onCommit={(v) => set(key, v)} />
+            </label>
           );
         }
         return <label key={key} className="wide">{key}<JsonField value={value} onCommit={(v) => set(key, v)} /></label>;
