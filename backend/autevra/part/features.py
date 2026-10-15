@@ -188,6 +188,31 @@ class CircularPattern(_Feature):
     angle: float = Field(360.0, gt=0.0, le=360.0)  # total angle covered
 
 
+class Wing(_Solid):
+    """A wing or tail surface from NACA four-digit aerofoil sections (the published
+    four-digit thickness and camber equations), lofted from the root (at the placement,
+    chord running aft along -X) to the tip (along +Y), with leading-edge sweep, dihedral and
+    tip twist (washout, about the quarter chord). ``both_sides`` mirrors it across XZ."""
+
+    type: Literal["wing"] = "wing"
+    naca: str = Field("2412", pattern=r"^\d{4}$")
+    root_chord: Length = 1600.0
+    tip_chord: Length = 800.0
+    span: Length = 5000.0  # root to tip (one side)
+    sweep: float = Field(5.0, ge=-60.0, le=70.0)  # leading edge, degrees
+    dihedral: float = Field(3.0, ge=-30.0, le=30.0)
+    twist: float = Field(-2.0, ge=-15.0, le=15.0)  # tip incidence relative to the root
+    both_sides: bool = True
+
+    @model_validator(mode="after")
+    def _thickness(self) -> "Wing":
+        if int(self.naca[2:]) == 0:
+            raise ValueError("NACA thickness (last two digits) must be above zero")
+        if int(self.naca[0]) > 0 and int(self.naca[1]) == 0:
+            raise ValueError("a cambered NACA section needs a camber position (second digit)")
+        return self
+
+
 Feature = Annotated[
     Box
     | Cylinder
@@ -196,6 +221,7 @@ Feature = Annotated[
     | Revolve
     | Loft
     | Sweep
+    | Wing
     | Shell
     | Fillet
     | Mirror
@@ -203,7 +229,7 @@ Feature = Annotated[
     | CircularPattern,
     Field(discriminator="type"),
 ]
-SOLID_TYPES = ("box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep")
+SOLID_TYPES = ("box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep", "wing")
 FEATURE_TYPES = (*SOLID_TYPES, "shell", "fillet", "mirror", "linear_pattern",
                  "circular_pattern")  # fmt: skip
 
