@@ -251,6 +251,10 @@ export const api = {
     request<PartOut>(`/projects/${id}/parts/${part}`, { method: "PUT", body: JSON.stringify(doc) }),
   undoPart: (id: string, part: string) => post<PartOut>(`/projects/${id}/parts/${part}/undo`),
   redoPart: (id: string, part: string) => post<PartOut>(`/projects/${id}/parts/${part}/redo`),
+  partTableUrl: (id: string, part: string) => `${API}/projects/${id}/parts/${part}/design-table.csv`,
+  setPartTable: (id: string, part: string, csv: string) =>
+    request<PartOut>(`/projects/${id}/parts/${part}/design-table`,
+      { method: "PUT", body: csv, headers: { "content-type": "text/csv" } }),
   deletePart: (id: string, part: string) =>
     request<void>(`/projects/${id}/parts/${part}`, { method: "DELETE" }),
   integration: (id: string) => request<IntegrationReport>(`/projects/${id}/integration`),

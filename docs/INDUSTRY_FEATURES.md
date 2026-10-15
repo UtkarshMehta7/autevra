@@ -22,7 +22,7 @@ Status: **have** (implemented and tested), **partial** (a working subset), **pla
 | Class-A styling surfaces (highlight lines, zebra and curvature analysis) | partial | Zebra highlight-line display; no curvature combs or continuity checks yet |
 | Knowledge-based engineering (rules, formulas, checks bound to the model) | **have** | Design rules, derived values, packaging checks with stated limits |
 | Templates and catalogues of standard designs | **have** | Thirteen vehicle templates; twelve body styles; chassis, powertrain and trim choices |
-| Design tables and variants | partial | Choice parameters and templates; no tabular configuration manager |
+| Design tables and variants | **have** | Part design tables (variants of parameters, CSV import and export); vehicle templates and choice parameters |
 | Sheet metal, composites, castings | planned | |
 | 2D drawings with dimensions and GD&T | planned | |
 | Neutral exchange (STEP, IGES, JT) | partial | STEP AP214 export with names and colours; no import workflow or JT |
@@ -136,7 +136,7 @@ feature-by-feature account of any product.
 | Shape controls instead of fixed designs | Haunch, nose and tail width, sill tuck, roundness and tumblehome as parameters on every body style | **have** |
 | A general feature modeller | Part Design workbench: user-authored feature tree (extrude, revolve, loft, sweep, shell, fillet, mirror, patterns) on OCCT, with per-part undo | **have** (v1) |
 | Reusable templates with published inputs | Starting-point parts with parameters and formulas (a first form of power copies); instantiating a feature template into an existing part is next | partial |
-| Design tables | Variant tables that drive parameters, exportable as CSV | planned |
+| Design tables | Part variant tables that drive parameters, with CSV import and export | **have** |
 | Surface quality analysis | Zebra (highlight-line) display mode; curvature next | partial |
 | Subdivision form finding | Editable control sections, then a control mesh, converted to exact surfaces | planned |
 

@@ -542,9 +542,16 @@ export type PartFeature = { id: string; type: string; name?: string; suppressed?
 
 export interface Placement { x?: number; y?: number; z?: number; rx?: number; ry?: number; rz?: number }
 
+export interface DesignTable {
+  columns: string[];
+  rows: { name: string; values: number[] }[];
+  active?: string | null;
+}
+
 export interface PartDoc {
   name: string;
   parameters?: Record<string, number | string>;
+  design_table?: DesignTable | null;
   features: PartFeature[];
   at?: Placement;
   color?: [number, number, number];

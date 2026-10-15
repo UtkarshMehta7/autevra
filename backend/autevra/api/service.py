@@ -1383,6 +1383,42 @@ class Workspace:
                 raise CommandError("nothing to undo" if back else "nothing to redo")
         return self._part_out(project_id, part_id)
 
+    def part_table_csv(self, project_id: str, part_id: str) -> str:
+        from autevra.part import tables
+
+        with self.db.session() as s:
+            doc_json, _, _ = PartRepository(s).get(project_id, part_id)
+        table = PartDoc.model_validate_json(doc_json).design_table
+        if table is None:
+            raise CommandError("this part has no design table")
+        return tables.to_csv(table)
+
+    def set_part_table(self, project_id: str, part_id: str, text: str) -> schemas.PartOut:
+        """Replace the part's design table from CSV, adding any new columns as parameters
+        (from the first row) and keeping the active row when it is still there."""
+        from autevra.part import tables
+
+        with self.db.session() as s:
+            doc_json, _, _ = PartRepository(s).get(project_id, part_id)
+        doc = PartDoc.model_validate_json(doc_json)
+        old = doc.design_table.active if doc.design_table else None
+        try:
+            table = tables.from_csv(text)
+            names = {r.name for r in table.rows}
+            table = table.model_copy(update={"active": old if old in names else None})
+            params = dict(doc.parameters)
+            for i, column in enumerate(table.columns):
+                if column not in params:
+                    params[column] = table.rows[0].values[i] if table.rows else 0.0
+            new = PartDoc.model_validate(
+                doc.model_dump() | {"parameters": params, "design_table": table.model_dump()}
+            )
+        except ValidationError as exc:
+            raise CommandError(exc.errors()[0]["msg"].removeprefix("Value error, ")) from None
+        except ValueError as exc:
+            raise CommandError(str(exc)) from None
+        return self.update_part(project_id, part_id, new)
+
     def delete_part(self, project_id: str, part_id: str) -> None:
         with self.db.session() as s:
             PartRepository(s).delete(project_id, part_id)

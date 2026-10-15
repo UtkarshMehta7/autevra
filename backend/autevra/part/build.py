@@ -273,7 +273,7 @@ def build_part(doc: f.PartDoc) -> BuildResult:
     last: tuple[k.Shape, f.Op] | None = None  # the previous solid feature, for patterns
     out = BuildResult(shape=None)
     try:
-        values = ex.resolve_parameters(doc.parameters)
+        values = ex.resolve_parameters(doc.effective_parameters())
     except ex.ExpressionError as exc:
         out.errors.append(FeatureError("parameters", str(exc)))
         return out

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { PartDoc, PartFeature, PartOut, Placement } from "../api/types";
+import type { DesignTable, PartDoc, PartFeature, PartOut, Placement } from "../api/types";
+import { DownloadLink } from "../DownloadLink";
 import { Sketcher } from "./Sketcher";
 
 /** Defaults for a new feature of each type (mm, degrees). */
@@ -129,6 +130,66 @@ function Parameters({ params, onChange }: { params: Record<string, number | stri
           onChange={(ev) => setName(ev.target.value.replace(/[^A-Za-z0-9_]/g, ""))} />
         <button disabled={!/^[A-Za-z_]/.test(name) || name in params}
           onClick={() => { onChange({ ...params, [name]: 0 }); setName(""); }}>Add parameter</button>
+      </div>
+    </div>
+  );
+}
+
+/** Design table: variants of the part as rows of parameter values; the active row drives it. */
+function DesignTableEditor({ table, params, onChange, csvUrl, onImport }: {
+  table: DesignTable | null | undefined; params: Record<string, number | string>;
+  onChange: (t: DesignTable | null) => void; csvUrl: string; onImport: (csv: string) => void;
+}) {
+  const numeric = Object.entries(params).filter(([, v]) => typeof v === "number") as [string, number][];
+  if (!table) {
+    return (
+      <div className="bindings">
+        <span className="hint">A design table holds named variants (rows) of the part's numeric parameters.</span>
+        <div className="binding">
+          <button disabled={numeric.length === 0} onClick={() => onChange({
+            columns: numeric.map(([n]) => n), rows: [{ name: "default", values: numeric.map(([, v]) => v) }], active: "default",
+          })}>Create from the parameters</button>
+          <label className="button">Import CSV<input type="file" accept=".csv,text/csv" hidden
+            onChange={(ev) => ev.target.files?.[0]?.text().then(onImport)} /></label>
+        </div>
+      </div>
+    );
+  }
+  const setRow = (i: number, row: DesignTable["rows"][number]) =>
+    onChange({ ...table, rows: table.rows.map((r, j) => (j === i ? row : r)) });
+  const uniqueName = () => { for (let i = table.rows.length + 1; ; i++) if (!table.rows.some((r) => r.name === `V${i}`)) return `V${i}`; };
+  return (
+    <div className="bindings design-table">
+      <table>
+        <thead><tr><th>active</th><th>variant</th>{table.columns.map((c) => <th key={c}>{c}</th>)}<th /></tr></thead>
+        <tbody>
+          {table.rows.map((row, i) => (
+            <tr key={row.name} className={row.name === table.active ? "active" : ""}>
+              <td><input type="radio" checked={row.name === table.active} onChange={() => onChange({ ...table, active: row.name })} /></td>
+              <td><Text value={row.name} size={8} onCommit={(n) => {
+                if (!n || table.rows.some((r) => r.name === n)) return;
+                onChange({ ...table, active: table.active === row.name ? n : table.active,
+                  rows: table.rows.map((r, j) => (j === i ? { ...r, name: n } : r)) });
+              }} /></td>
+              {row.values.map((v, j) => (
+                <td key={j}><Num value={v} onCommit={(n) => setRow(i, { ...row, values: row.values.map((o, k) => (k === j ? n : o)) })} /></td>
+              ))}
+              <td><button title="Delete variant" onClick={() => onChange({ ...table,
+                active: table.active === row.name ? null : table.active,
+                rows: table.rows.filter((_, j) => j !== i) })}>✕</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="binding">
+        <button onClick={() => {
+          const base = table.rows.find((r) => r.name === table.active) ?? table.rows[table.rows.length - 1];
+          onChange({ ...table, rows: [...table.rows, { name: uniqueName(), values: base ? [...base.values] : table.columns.map(() => 0) }] });
+        }}>Add variant</button>
+        <DownloadLink className="button" href={csvUrl}>Export CSV</DownloadLink>
+        <label className="button">Import CSV<input type="file" accept=".csv,text/csv" hidden
+          onChange={(ev) => ev.target.files?.[0]?.text().then(onImport)} /></label>
+        <button title="Remove the design table (parameters keep their own values)" onClick={() => onChange(null)}>Remove table</button>
       </div>
     </div>
   );
@@ -322,6 +383,11 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
             <strong>Parameters</strong>
             <Parameters params={doc.parameters ?? {}} onChange={(parameters) => save({ ...doc, parameters })} />
             {part.errors[0]?.feature === "parameters" && <div className="bad-text">{part.errors[0].message}</div>}
+            <strong>Design table</strong>
+            <DesignTableEditor table={doc.design_table} params={doc.parameters ?? {}}
+              onChange={(design_table) => save({ ...doc, design_table })}
+              csvUrl={api.partTableUrl(projectId, part.id)}
+              onImport={(csv) => run(() => api.setPartTable(projectId, part.id, csv))} />
             <span className="hint">Part placement in the vehicle frame</span>
             <PlacementFields at={doc.at} onCommit={(at) => save({ ...doc, at })} />
             <strong>Feature tree</strong>

@@ -136,6 +136,14 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-15: design tables
+
+- **Design tables** for parts: named variants (rows) of numeric parameters (columns); the active row drives the part, and other parameters keep their own values or formulas.
+- Validated: columns must be parameters, rows the right length, names unique, and the active row must exist.
+- CSV export (`GET .../parts/{id}/design-table.csv`) and import (`PUT .../parts/{id}/design-table`, header `variant,<param>,...`). A new column becomes a parameter, and the active row is kept when it is still there.
+- Studio: create a table from the parameters, then edit cells, rename, add or delete variants, choose the active one, and import or export CSV.
+- Checked in Chrome: a bracket variant at 500 mm activated from the table (holes re-fitted by their formulas).
+
 ### 2026-10-15: parameters and formulas in parts; NACA wings
 
 - **Part parameters and formulas** (knowledge-based engineering):
