@@ -244,6 +244,7 @@ export const api = {
   specReset: (id: string) => request<SpecState>(`/projects/${id}/spec`, { method: "DELETE" }),
   specDesign: (id: string) => post<SpecDesign>(`/projects/${id}/spec/design`),
   specApply: (id: string) => post<{ result: CommandResult; requirements: string[] }>(`/projects/${id}/spec/apply`),
+  partPresets: () => request<Record<string, PartDoc>>("/part-presets"),
   parts: (id: string) => request<PartOut[]>(`/projects/${id}/parts`),
   createPart: (id: string, doc: PartDoc) => post<PartOut>(`/projects/${id}/parts`, doc),
   updatePart: (id: string, part: string, doc: PartDoc) =>

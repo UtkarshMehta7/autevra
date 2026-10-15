@@ -145,6 +145,14 @@ specification interview moves to Phase 5.
   - A bad formula is reported on its feature, and a bad parameter before any feature.
   - The studio has a Parameters table per part and a Formulas editor per feature. The bracket starting point is now parametric.
 - **Fillet and chamfer on chosen edges**: an edge selector in CadQuery's grammar (`|Z` parallel to Z, `>Z` top, `<X or >X`, `not |Z`), parsed by CadQuery; a selector that matches nothing is reported on its feature. The removed volumes match the textbook values.
+- **Starting points from several domains**, served by the API (`GET /api/part-presets`, `backend/autevra/part/presets.json`). Thirteen parts, each tested to build as one valid solid in under 5 s:
+  - aerospace: light aircraft, fuselage, turbofan nacelle, landing gear leg;
+  - propulsion: turbine disc;
+  - consumer products: bottle, bicycle frame;
+  - tooling: mould cavity;
+  - plant: pipe run;
+  - machinery: conveyor frame, robot arm link;
+  - general: blank part, parametric bracket.
 - **2D sketcher** for extrude and revolve profiles in the studio:
   - drag points (snapped to half the grid step);
   - "+" handles insert a point on an edge, and double-click deletes one;

@@ -516,6 +516,15 @@ def part_features() -> dict:
     return {"types": list(FEATURE_TYPES), "schema": PartDoc.model_json_schema()}
 
 
+@router.get("/part-presets")
+def part_presets() -> dict[str, PartDoc]:
+    """Starting-point parts from several domains (aerospace, consumer products, tooling,
+    plant and machinery)."""
+    from autevra.part.presets import presets
+
+    return presets()
+
+
 @router.get("/projects/{project_id}/parts", response_model=list[schemas.PartOut])
 def list_parts(project_id: str, ws: WorkspaceDep) -> list[schemas.PartOut]:
     return ws.parts(project_id)

@@ -33,36 +33,7 @@ const CHOICES: Record<string, string[]> = {
   open_towards: ["none", "+x", "-x", "+y", "-y", "+z", "-z"],
 };
 
-/** Starting parts from several domains, to edit rather than start from nothing. */
-const PRESETS: Record<string, PartDoc> = {
-  "Blank part": { name: "Part", features: [{ id: "base", type: "box", size: [200, 100, 50] }] },
-  "Mounting bracket": { name: "Bracket", parameters: { width: 200, thickness: 15, hole: "width / 25" }, features: [
-    { id: "plate", type: "box", size: [200, 200, 15], bindings: { "size.0": "width", "size.1": "width", "size.2": "thickness" } },
-    { id: "hole", type: "cylinder", op: "cut", radius: 8, height: 40, at: { x: 70 },
-      bindings: { radius: "hole", "at.x": "width / 2 - 3 * hole" } },
-    { id: "holes", type: "circular_pattern", count: 4 },
-    { id: "round", type: "fillet", radius: 2 }] },
-  "Bottle (consumer product)": { name: "Bottle", finish: "trim", features: [
-    { id: "body", type: "revolve", points: [[0, 0], [40, 0], [40, 180], [15, 220], [15, 250], [0, 250]] },
-    { id: "hollow", type: "shell", thickness: 2, open_towards: "+z" }] },
-  "Pipe run (plant)": { name: "Pipe run", features: [
-    { id: "run", type: "sweep", path: [[0, 0, 0], [800, 0, 0], [800, 600, 0], [800, 600, 500]],
-      radius: 40, wall: 4, bend_radius: 120 }] },
-  "Fuselage (aerospace)": { name: "Fuselage", features: [
-    { id: "skin", type: "loft", at: { ry: 90 }, sections: [
-      { z: 0, width: 200, height: 200, radius: 99 }, { z: 2000, width: 2400, height: 2600, radius: 1150 },
-      { z: 14000, width: 2400, height: 2600, radius: 1150 }, { z: 18000, width: 600, height: 900, radius: 290 }] }] },
-  "Light aircraft (aerospace)": {"name": "Light aircraft", "color": [0.85, 0.86, 0.88], "finish": "paint", "features": [{"id": "fuselage", "type": "loft", "at": {"ry": -90}, "sections": [{"z": 0, "width": 300, "height": 300, "radius": 149}, {"z": 1500, "width": 1200, "height": 1400, "radius": 550}, {"z": 4500, "width": 1200, "height": 1400, "radius": 550}, {"z": 8000, "width": 200, "height": 400, "radius": 90}]}, {"id": "wing", "type": "wing", "naca": "2412", "root_chord": 1600, "tip_chord": 1000, "span": 4500, "sweep": 2, "dihedral": 5, "twist": -2, "at": {"x": -2200, "z": -350}}, {"id": "tailplane", "type": "wing", "naca": "0010", "root_chord": 900, "tip_chord": 600, "span": 1600, "sweep": 8, "dihedral": 0, "twist": 0, "at": {"x": -6900, "z": 150}}, {"id": "fin", "type": "wing", "naca": "0010", "root_chord": 1100, "tip_chord": 600, "span": 1300, "sweep": 30, "dihedral": 0, "twist": 0, "both_sides": false, "at": {"x": -6800, "z": 250, "rx": 90}}]},
-  "Turbine disc (propulsion)": { name: "Turbine disc", features: [
-    { id: "disc", type: "revolve", points: [[30, -20], [300, -8], [300, 8], [30, 20]] },
-    { id: "blade", type: "box", size: [80, 6, 40], at: { x: 330, rx: 20 } },
-    { id: "blades", type: "circular_pattern", count: 36 }] },
-  "Conveyor frame (machinery)": { name: "Conveyor frame", features: [
-    { id: "rail", type: "box", size: [3000, 60, 60] },
-    { id: "leg", type: "box", size: [60, 60, 800], at: { x: -1440, z: -430 } },
-    { id: "legs", type: "linear_pattern", count: 5, step: [720, 0, 0] },
-    { id: "pair", type: "mirror", plane: "xz" }], at: { y: 400 } },
-};
+
 
 function newId(type: string, features: PartFeature[]): string {
   const taken = new Set(features.map((f) => f.id));
@@ -245,6 +216,9 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
   const [feature, setFeature] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Starting points from several domains, served by the backend (each one builds).
+  const [presets, setPresets] = useState<Record<string, PartDoc>>({});
+  useEffect(() => { api.partPresets().then(setPresets).catch(() => setPresets({})); }, []);
 
   useEffect(() => {
     api.parts(projectId).then((list) => {
@@ -314,11 +288,11 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
         </ul>
         <label className="new-part">New part
           <select value="" disabled={busy} onChange={(e) => {
-            const preset = PRESETS[e.target.value];
+            const preset = presets[e.target.value];
             if (preset) run(() => api.createPart(projectId, structuredClone(preset)));
           }}>
             <option value="">choose a starting point…</option>
-            {Object.keys(PRESETS).map((k) => <option key={k}>{k}</option>)}
+            {Object.keys(presets).map((k) => <option key={k}>{k}</option>)}
           </select>
         </label>
         <p className="hint">Parts are built from an ordered feature tree with the Open CASCADE

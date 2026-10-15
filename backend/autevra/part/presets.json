@@ -1,0 +1,902 @@
+{
+ "Blank part": {
+  "name": "Part",
+  "features": [
+   {
+    "id": "base",
+    "type": "box",
+    "size": [
+     200,
+     100,
+     50
+    ]
+   }
+  ]
+ },
+ "Mounting bracket": {
+  "name": "Bracket",
+  "parameters": {
+   "width": 200,
+   "thickness": 15,
+   "hole": "width / 25"
+  },
+  "features": [
+   {
+    "id": "plate",
+    "type": "box",
+    "size": [
+     200,
+     200,
+     15
+    ],
+    "bindings": {
+     "size.0": "width",
+     "size.1": "width",
+     "size.2": "thickness"
+    }
+   },
+   {
+    "id": "hole",
+    "type": "cylinder",
+    "op": "cut",
+    "radius": 8,
+    "height": 40,
+    "at": {
+     "x": 70
+    },
+    "bindings": {
+     "radius": "hole",
+     "at.x": "width / 2 - 3 * hole"
+    }
+   },
+   {
+    "id": "holes",
+    "type": "circular_pattern",
+    "count": 4
+   },
+   {
+    "id": "round",
+    "type": "fillet",
+    "radius": 2
+   }
+  ]
+ },
+ "Bottle (consumer product)": {
+  "name": "Bottle",
+  "finish": "trim",
+  "features": [
+   {
+    "id": "body",
+    "type": "revolve",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      40,
+      0
+     ],
+     [
+      40,
+      180
+     ],
+     [
+      15,
+      220
+     ],
+     [
+      15,
+      250
+     ],
+     [
+      0,
+      250
+     ]
+    ]
+   },
+   {
+    "id": "hollow",
+    "type": "shell",
+    "thickness": 2,
+    "open_towards": "+z"
+   }
+  ]
+ },
+ "Pipe run (plant)": {
+  "name": "Pipe run",
+  "features": [
+   {
+    "id": "run",
+    "type": "sweep",
+    "path": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      800,
+      0,
+      0
+     ],
+     [
+      800,
+      600,
+      0
+     ],
+     [
+      800,
+      600,
+      500
+     ]
+    ],
+    "radius": 40,
+    "wall": 4,
+    "bend_radius": 120
+   }
+  ]
+ },
+ "Fuselage (aerospace)": {
+  "name": "Fuselage",
+  "features": [
+   {
+    "id": "skin",
+    "type": "loft",
+    "at": {
+     "ry": 90
+    },
+    "sections": [
+     {
+      "z": 0,
+      "width": 200,
+      "height": 200,
+      "radius": 99
+     },
+     {
+      "z": 2000,
+      "width": 2400,
+      "height": 2600,
+      "radius": 1150
+     },
+     {
+      "z": 14000,
+      "width": 2400,
+      "height": 2600,
+      "radius": 1150
+     },
+     {
+      "z": 18000,
+      "width": 600,
+      "height": 900,
+      "radius": 290
+     }
+    ]
+   }
+  ]
+ },
+ "Light aircraft (aerospace)": {
+  "name": "Light aircraft",
+  "color": [
+   0.85,
+   0.86,
+   0.88
+  ],
+  "finish": "paint",
+  "features": [
+   {
+    "id": "fuselage",
+    "type": "loft",
+    "at": {
+     "ry": -90
+    },
+    "sections": [
+     {
+      "z": 0,
+      "width": 300,
+      "height": 300,
+      "radius": 149
+     },
+     {
+      "z": 1500,
+      "width": 1200,
+      "height": 1400,
+      "radius": 550
+     },
+     {
+      "z": 4500,
+      "width": 1200,
+      "height": 1400,
+      "radius": 550
+     },
+     {
+      "z": 8000,
+      "width": 200,
+      "height": 400,
+      "radius": 90
+     }
+    ]
+   },
+   {
+    "id": "wing",
+    "type": "wing",
+    "naca": "2412",
+    "root_chord": 1600,
+    "tip_chord": 1000,
+    "span": 4500,
+    "sweep": 2,
+    "dihedral": 5,
+    "twist": -2,
+    "at": {
+     "x": -2200,
+     "z": -350
+    }
+   },
+   {
+    "id": "tailplane",
+    "type": "wing",
+    "naca": "0010",
+    "root_chord": 900,
+    "tip_chord": 600,
+    "span": 1600,
+    "sweep": 8,
+    "dihedral": 0,
+    "twist": 0,
+    "at": {
+     "x": -6900,
+     "z": 150
+    }
+   },
+   {
+    "id": "fin",
+    "type": "wing",
+    "naca": "0010",
+    "root_chord": 1100,
+    "tip_chord": 600,
+    "span": 1300,
+    "sweep": 30,
+    "dihedral": 0,
+    "twist": 0,
+    "both_sides": false,
+    "at": {
+     "x": -6800,
+     "z": 250,
+     "rx": 90
+    }
+   }
+  ]
+ },
+ "Turbine disc (propulsion)": {
+  "name": "Turbine disc",
+  "features": [
+   {
+    "id": "disc",
+    "type": "revolve",
+    "points": [
+     [
+      30,
+      -20
+     ],
+     [
+      300,
+      -8
+     ],
+     [
+      300,
+      8
+     ],
+     [
+      30,
+      20
+     ]
+    ]
+   },
+   {
+    "id": "blade",
+    "type": "box",
+    "size": [
+     80,
+     6,
+     40
+    ],
+    "at": {
+     "x": 330,
+     "rx": 20
+    }
+   },
+   {
+    "id": "blades",
+    "type": "circular_pattern",
+    "count": 36
+   }
+  ]
+ },
+ "Conveyor frame (machinery)": {
+  "name": "Conveyor frame",
+  "features": [
+   {
+    "id": "rail",
+    "type": "box",
+    "size": [
+     3000,
+     60,
+     60
+    ]
+   },
+   {
+    "id": "leg",
+    "type": "box",
+    "size": [
+     60,
+     60,
+     800
+    ],
+    "at": {
+     "x": -1440,
+     "z": -430
+    }
+   },
+   {
+    "id": "legs",
+    "type": "linear_pattern",
+    "count": 5,
+    "step": [
+     720,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "pair",
+    "type": "mirror",
+    "plane": "xz"
+   }
+  ],
+  "at": {
+   "y": 400
+  }
+ },
+ "Turbofan nacelle (aerospace)": {
+  "name": "Nacelle",
+  "color": [
+   0.8,
+   0.82,
+   0.85
+  ],
+  "finish": "paint",
+  "features": [
+   {
+    "id": "cowl",
+    "type": "revolve",
+    "at": {
+     "ry": -90
+    },
+    "points": [
+     [
+      620,
+      0
+     ],
+     [
+      700,
+      150
+     ],
+     [
+      720,
+      900
+     ],
+     [
+      640,
+      2400
+     ],
+     [
+      560,
+      2400
+     ],
+     [
+      600,
+      900
+     ],
+     [
+      590,
+      150
+     ],
+     [
+      560,
+      30
+     ]
+    ]
+   },
+   {
+    "id": "spinner",
+    "type": "revolve",
+    "at": {
+     "ry": -90,
+     "x": -250
+    },
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      180,
+      120
+     ],
+     [
+      220,
+      260
+     ],
+     [
+      0,
+      260
+     ]
+    ]
+   },
+   {
+    "id": "fan_blade",
+    "type": "box",
+    "size": [
+     40,
+     20,
+     480
+    ],
+    "at": {
+     "x": -420,
+     "z": 390,
+     "rx": 25
+    }
+   },
+   {
+    "id": "fan",
+    "type": "circular_pattern",
+    "count": 22,
+    "axis": "x"
+   }
+  ]
+ },
+ "Landing gear leg (aerospace)": {
+  "name": "Landing gear",
+  "finish": "metal",
+  "features": [
+   {
+    "id": "strut",
+    "type": "cylinder",
+    "radius": 45,
+    "height": 1200,
+    "at": {
+     "z": 600
+    }
+   },
+   {
+    "id": "piston",
+    "type": "cylinder",
+    "radius": 32,
+    "height": 400,
+    "at": {
+     "z": -100
+    }
+   },
+   {
+    "id": "axle",
+    "type": "cylinder",
+    "radius": 30,
+    "height": 520,
+    "axis": "y",
+    "at": {
+     "z": -280
+    }
+   },
+   {
+    "id": "wheel",
+    "type": "revolve",
+    "at": {
+     "rx": 90,
+     "y": 230,
+     "z": -280
+    },
+    "points": [
+     [
+      25,
+      -80
+     ],
+     [
+      300,
+      -80
+     ],
+     [
+      320,
+      -40
+     ],
+     [
+      320,
+      40
+     ],
+     [
+      300,
+      80
+     ],
+     [
+      25,
+      80
+     ]
+    ]
+   },
+   {
+    "id": "pair",
+    "type": "mirror",
+    "plane": "xz"
+   },
+   {
+    "id": "drag_brace",
+    "type": "sweep",
+    "path": [
+     [
+      0,
+      0,
+      900
+     ],
+     [
+      -700,
+      0,
+      1300
+     ]
+    ],
+    "radius": 30
+   }
+  ]
+ },
+ "Mould cavity (tooling)": {
+  "name": "Bottle mould half",
+  "finish": "metal",
+  "parameters": {
+   "wall": 40
+  },
+  "features": [
+   {
+    "id": "block",
+    "type": "box",
+    "size": [
+     200,
+     140,
+     330
+    ],
+    "at": {
+     "y": -70,
+     "z": 125
+    }
+   },
+   {
+    "id": "cavity",
+    "type": "revolve",
+    "op": "cut",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      42,
+      0
+     ],
+     [
+      42,
+      180
+     ],
+     [
+      17,
+      220
+     ],
+     [
+      17,
+      270
+     ],
+     [
+      0,
+      270
+     ]
+    ]
+   },
+   {
+    "id": "sprue",
+    "type": "cylinder",
+    "op": "cut",
+    "radius": 8,
+    "height": 60,
+    "at": {
+     "z": 290
+    }
+   },
+   {
+    "id": "pin",
+    "type": "cylinder",
+    "op": "cut",
+    "radius": 6,
+    "height": 40,
+    "axis": "y",
+    "at": {
+     "x": 80,
+     "z": 270,
+     "y": -20
+    }
+   },
+   {
+    "id": "pins",
+    "type": "linear_pattern",
+    "count": 2,
+    "step": [
+     -160,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "edges",
+    "type": "chamfer",
+    "size": 2,
+    "edges": "|Y"
+   }
+  ]
+ },
+ "Bicycle frame (consumer product)": {
+  "name": "Bicycle frame",
+  "color": [
+   0.7,
+   0.05,
+   0.06
+  ],
+  "finish": "paint",
+  "features": [
+   {
+    "id": "top_tube",
+    "type": "sweep",
+    "path": [
+     [
+      0,
+      0,
+      550
+     ],
+     [
+      560,
+      0,
+      600
+     ]
+    ],
+    "radius": 16
+   },
+   {
+    "id": "down_tube",
+    "type": "sweep",
+    "path": [
+     [
+      60,
+      0,
+      50
+     ],
+     [
+      600,
+      0,
+      560
+     ]
+    ],
+    "radius": 19
+   },
+   {
+    "id": "seat_tube",
+    "type": "sweep",
+    "path": [
+     [
+      60,
+      0,
+      30
+     ],
+     [
+      -20,
+      0,
+      620
+     ]
+    ],
+    "radius": 15
+   },
+   {
+    "id": "head_tube",
+    "type": "sweep",
+    "path": [
+     [
+      630,
+      0,
+      500
+     ],
+     [
+      580,
+      0,
+      660
+     ]
+    ],
+    "radius": 22
+   },
+   {
+    "id": "bottom_bracket",
+    "type": "cylinder",
+    "radius": 22,
+    "height": 70,
+    "axis": "y",
+    "at": {
+     "x": 60,
+     "z": 40
+    }
+   },
+   {
+    "id": "chain_stay",
+    "type": "sweep",
+    "path": [
+     [
+      60,
+      40,
+      40
+     ],
+     [
+      -370,
+      60,
+      60
+     ]
+    ],
+    "radius": 10
+   },
+   {
+    "id": "chain_stay_r",
+    "type": "sweep",
+    "path": [
+     [
+      60,
+      -40,
+      40
+     ],
+     [
+      -370,
+      -60,
+      60
+     ]
+    ],
+    "radius": 10
+   },
+   {
+    "id": "seat_stay",
+    "type": "sweep",
+    "path": [
+     [
+      0,
+      40,
+      560
+     ],
+     [
+      -370,
+      60,
+      60
+     ]
+    ],
+    "radius": 8
+   },
+   {
+    "id": "seat_stay_r",
+    "type": "sweep",
+    "path": [
+     [
+      0,
+      -40,
+      560
+     ],
+     [
+      -370,
+      -60,
+      60
+     ]
+    ],
+    "radius": 8
+   }
+  ]
+ },
+ "Robot arm link (machinery)": {
+  "name": "Robot arm link",
+  "color": [
+   0.95,
+   0.55,
+   0.05
+  ],
+  "finish": "paint",
+  "parameters": {
+   "length": 600,
+   "bore": 40
+  },
+  "features": [
+   {
+    "id": "body",
+    "type": "loft",
+    "at": {
+     "ry": 90
+    },
+    "sections": [
+     {
+      "z": 0,
+      "width": 180,
+      "height": 180,
+      "radius": 89
+     },
+     {
+      "z": 300,
+      "width": 140,
+      "height": 120,
+      "radius": 50
+     },
+     {
+      "z": 600,
+      "width": 150,
+      "height": 150,
+      "radius": 74
+     }
+    ],
+    "bindings": {
+     "sections.2.z": "length",
+     "sections.1.z": "length / 2"
+    }
+   },
+   {
+    "id": "joint_a",
+    "type": "cylinder",
+    "radius": 100,
+    "height": 200,
+    "axis": "y"
+   },
+   {
+    "id": "joint_b",
+    "type": "cylinder",
+    "radius": 85,
+    "height": 170,
+    "axis": "y",
+    "bindings": {
+     "at.x": "length"
+    }
+   },
+   {
+    "id": "bore_a",
+    "type": "cylinder",
+    "op": "cut",
+    "radius": 40,
+    "height": 260,
+    "axis": "y",
+    "bindings": {
+     "radius": "bore"
+    }
+   },
+   {
+    "id": "bore_b",
+    "type": "cylinder",
+    "op": "cut",
+    "radius": 32,
+    "height": 220,
+    "axis": "y",
+    "bindings": {
+     "at.x": "length",
+     "radius": "bore * 0.8"
+    }
+   },
+   {
+    "id": "pocket",
+    "type": "box",
+    "op": "cut",
+    "size": [
+     300,
+     200,
+     60
+    ],
+    "at": {
+     "x": 300,
+     "z": 0
+    },
+    "bindings": {
+     "size.0": "length - 300",
+     "at.x": "length / 2"
+    }
+   }
+  ]
+ }
+}
