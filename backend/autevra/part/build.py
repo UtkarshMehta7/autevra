@@ -29,6 +29,7 @@ class BuildResult:
     shape: k.Shape | None
     errors: list[FeatureError] = field(default_factory=list)
     built: list[str] = field(default_factory=list)  # ids of features applied
+    info: dict[str, dict[str, float]] = field(default_factory=dict)  # per feature (flat size)
 
 
 def placement_matrix(at: f.Placement) -> Matrix:
@@ -91,6 +92,8 @@ def _solid(feat: f.Box | f.Cylinder | f.Sphere | f.Extrude | f.Revolve | f.Loft 
             return _sweep(feat)
         case f.Wing():
             return _wing(feat)
+        case f.SheetMetal():
+            return _sheet(feat)[0]
     raise ValueError(f"unknown feature type {feat.type}")
 
 
@@ -144,6 +147,53 @@ def _wing(feat: f.Wing) -> k.Shape:
     # which the kernel does not fuse exactly for spline surfaces).
     wires = [tip(-1.0), root, tip(1.0)] if feat.both_sides else [root, tip(1.0)]
     return cq.Solid.makeLoft(wires, ruled=True)
+
+
+def sheet_flat(feat: f.SheetMetal) -> tuple[float, list[float], list[float]]:
+    """Flat-pattern length, bend angles (degrees) and per-corner setbacks (mm) of a sheet.
+
+    Each corner of the mid-plane profile is a bend of angle theta (the change of
+    direction). The mid-plane bend radius R = r + t/2 sets back each flange by
+    R * tan(theta / 2); the bent zone develops to theta * (r + K * t)."""
+    pts = [cq.Vector(u, 0, v) for u, v in feat.points]
+    r, t = feat.bend_radius, feat.thickness
+    mid = r + t / 2.0
+    angles, setbacks = [], []
+    for a, b, c in zip(pts, pts[1:], pts[2:], strict=False):
+        d1, d2 = (b - a).normalized(), (c - b).normalized()
+        theta = math.acos(max(-1.0, min(1.0, d1.dot(d2))))
+        angles.append(math.degrees(theta))
+        setbacks.append(mid * math.tan(theta / 2.0))
+    straight = []
+    for i, (a, b) in enumerate(zip(pts, pts[1:], strict=False)):
+        length = (b - a).Length
+        cut = (setbacks[i - 1] if i > 0 else 0.0) + (setbacks[i] if i < len(setbacks) else 0.0)
+        if cut > length + 1e-9:
+            raise ValueError(f"bend radius too large for flange {i + 1} ({length:.1f} mm long)")
+        straight.append(length - cut)
+    bends = sum(math.radians(th) * (r + feat.k_factor * t) for th in angles)
+    return sum(straight) + bends, angles, setbacks
+
+
+def _sheet(feat: f.SheetMetal) -> tuple[k.Shape, dict[str, float]]:
+    flat, angles, _ = sheet_flat(feat)
+    if any(th > 179.0 for th in angles):
+        raise ValueError("a bend folds back on itself (180 degrees); use two bends")
+    pts = [cq.Vector(u, 0, v) for u, v in feat.points]
+    path = cq.Wire.makePolygon(pts)
+    mid = feat.bend_radius + feat.thickness / 2.0
+    if len(pts) > 2 and mid > 0.0:
+        path = path.fillet(mid, path.Vertices()[1:-1])
+    d = (pts[1] - pts[0]).normalized()
+    n = cq.Vector(0, 1, 0).cross(d).normalized()  # in-plane normal of the first flange
+    y = cq.Vector(0, 1, 0)
+    h, w = feat.thickness / 2.0, feat.width / 2.0
+    p0 = pts[0]
+    corners = [p0 + n * h + y * w, p0 - n * h + y * w, p0 - n * h - y * w, p0 + n * h - y * w]
+    profile = cq.Wire.makePolygon(corners, close=True)
+    solid = cq.Solid.sweep(profile, [], path, makeSolid=True, transitionMode="right")
+    info = {"flat_length": flat, "flat_width": feat.width, "bends": float(len(angles))}
+    return solid, info
 
 
 def _sweep(feat: f.Sweep) -> k.Shape:
@@ -282,6 +332,8 @@ def build_part(doc: f.PartDoc) -> BuildResult:
             continue
         try:
             feat = _bind(feat, values)
+            if isinstance(feat, f.SheetMetal):
+                out.info[feat.id] = _sheet(feat)[1]
             if feat.type in f.SOLID_TYPES:
                 tool = _place(_solid(feat), feat.at)  # type: ignore[arg-type]
                 op = feat.op  # type: ignore[union-attr]

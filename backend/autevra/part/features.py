@@ -1,6 +1,7 @@
 """Feature definitions: typed, validated, JSON round-trippable (all lengths in mm, angles
 in degrees, the part frame is ISO 8855 like the vehicle: X forward, Y left, Z up)."""
 
+import math
 from enum import StrEnum
 from typing import Annotated, Literal
 
@@ -153,6 +154,27 @@ class Sweep(_Solid):
         return self
 
 
+class SheetMetal(_Solid):
+    """A bent sheet: an open profile in the XZ plane (the sheet's mid-plane, through
+    ``points``) with ``thickness``, bent at every corner with inside radius
+    ``bend_radius``, ``width`` across Y (centred). The build reports the flat-pattern
+    length from the K-factor bend allowance: theta * (r + K * t) per bend."""
+
+    type: Literal["sheet_metal"] = "sheet_metal"
+    points: list[Point2] = Field(min_length=2, max_length=60)
+    thickness: Length = 2.0
+    bend_radius: float = Field(2.0, ge=0.0, le=5_000.0)  # inside radius
+    width: Length = 100.0
+    k_factor: float = Field(0.44, ge=0.0, le=1.0)  # neutral axis position (0 inside, 0.5 mid)
+
+    @model_validator(mode="after")
+    def _segments(self) -> "SheetMetal":
+        for (u0, v0), (u1, v1) in zip(self.points, self.points[1:], strict=False):
+            if math.hypot(u1 - u0, v1 - v0) < 1e-6:
+                raise ValueError("sheet profile has a zero-length flange")
+        return self
+
+
 class Shell(_Feature):
     """Hollow the result so far to a wall thickness (open where faces are removed: the
     faces whose outward normal points along ``open_towards``)."""
@@ -250,6 +272,7 @@ Feature = Annotated[
     | Loft
     | Sweep
     | Wing
+    | SheetMetal
     | Shell
     | Fillet
     | Chamfer
@@ -258,7 +281,9 @@ Feature = Annotated[
     | CircularPattern,
     Field(discriminator="type"),
 ]
-SOLID_TYPES = ("box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep", "wing")
+SOLID_TYPES = (
+    "box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep", "wing", "sheet_metal",
+)  # fmt: skip
 FEATURE_TYPES = (*SOLID_TYPES, "shell", "fillet", "chamfer", "mirror", "linear_pattern",
                  "circular_pattern")  # fmt: skip
 

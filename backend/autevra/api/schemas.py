@@ -381,5 +381,6 @@ class PartOut(BaseModel):
     can_redo: bool
     built: list[str]  # ids of the features applied, in order
     errors: list[FeatureErrorOut]  # at most one: the feature where the build stopped
+    info: dict[str, dict[str, float]] = {}  # per feature, e.g. sheet-metal flat size (mm)
     volume: float | None  # mm^3, of the built solid
     bounds: tuple[tuple[float, float, float], tuple[float, float, float]] | None  # part frame

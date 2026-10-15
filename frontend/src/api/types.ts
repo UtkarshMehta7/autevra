@@ -565,6 +565,7 @@ export interface PartOut {
   can_redo: boolean;
   built: string[];
   errors: { feature: string; message: string }[];
+  info?: Record<string, Record<string, number>>;
   volume: number | null;
   bounds: [[number, number, number], [number, number, number]] | null;
 }

@@ -14,9 +14,10 @@ function gridStep(span: number): number {
  * Changes are committed when a drag ends. ``axis`` draws the revolve axis (u = 0) and
  * keeps points on its positive side.
  */
-export function Sketcher({ points, onCommit, axis = false, labels = ["u", "v"] }: {
-  points: Pt[]; onCommit: (points: Pt[]) => void; axis?: boolean; labels?: [string, string];
+export function Sketcher({ points, onCommit, axis = false, open = false, labels = ["u", "v"] }: {
+  points: Pt[]; onCommit: (points: Pt[]) => void; axis?: boolean; open?: boolean; labels?: [string, string];
 }) {
+  const minPoints = open ? 2 : 3;
   const [draft, setDraft] = useState<Pt[]>(points);
   const [drag, setDrag] = useState<number | null>(null);
   const svg = useRef<SVGSVGElement>(null);
@@ -64,8 +65,11 @@ export function Sketcher({ points, onCommit, axis = false, labels = ["u", "v"] }
         onPointerLeave={() => { if (drag !== null) { setDrag(null); onCommit(draft); } }}>
         {lines}
         {axis && <line x1={0} x2={0} y1={-view.v0 - view.h} y2={-view.v0} className="axis" />}
-        <polygon points={draft.map(([u, v]) => `${u},${-v}`).join(" ")} className="profile" />
+        {open
+          ? <polyline points={draft.map(([u, v]) => `${u},${-v}`).join(" ")} className="profile open" />
+          : <polygon points={draft.map(([u, v]) => `${u},${-v}`).join(" ")} className="profile" />}
         {draft.map(([u, v], i) => {
+          if (open && i === draft.length - 1) return null; // no closing edge on an open profile
           const [nu, nv] = draft[(i + 1) % draft.length];
           return (
             <g key={`m${i}`} className="insert" onPointerDown={(ev) => {
@@ -82,7 +86,7 @@ export function Sketcher({ points, onCommit, axis = false, labels = ["u", "v"] }
         {draft.map(([u, v], i) => (
           <circle key={`p${i}`} cx={u} cy={-v} r={r} className={`point ${drag === i ? "active" : ""}`}
             onPointerDown={(ev) => { ev.stopPropagation(); (ev.target as Element).setPointerCapture?.(ev.pointerId); setDrag(i); }}
-            onDoubleClick={() => { if (draft.length > 3) onCommit(draft.filter((_, j) => j !== i)); }}>
+            onDoubleClick={() => { if (draft.length > minPoints) onCommit(draft.filter((_, j) => j !== i)); }}>
             <title>{`${labels[0]} ${u}, ${labels[1]} ${v} (double-click to delete)`}</title>
           </circle>
         ))}
