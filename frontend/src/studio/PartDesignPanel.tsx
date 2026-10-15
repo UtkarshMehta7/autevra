@@ -13,7 +13,8 @@ const FEATURE_DEFAULTS: Record<string, Omit<PartFeature, "id" | "type">> = {
   sweep: { path: [[0, 0, 0], [300, 0, 0], [300, 200, 0]], radius: 15, wall: 2, bend_radius: 40 },
   wing: { naca: "2412", root_chord: 1600, tip_chord: 800, span: 5000, sweep: 5, dihedral: 3, twist: -2, both_sides: true },
   shell: { thickness: 3, open_towards: "+z" },
-  fillet: { radius: 3 },
+  fillet: { radius: 3, edges: "" },
+  chamfer: { size: 2, edges: "" },
   mirror: { plane: "xz" },
   linear_pattern: { count: 3, step: [150, 0, 0] },
   circular_pattern: { count: 6, axis: "z", angle: 360 },
@@ -23,7 +24,7 @@ const LABELS: Record<string, string> = {
   box: "Box", cylinder: "Cylinder", sphere: "Sphere", extrude: "Extrude sketch",
   revolve: "Revolve profile", loft: "Loft sections", sweep: "Sweep tube",
   wing: "Wing (NACA aerofoil)", shell: "Shell",
-  fillet: "Fillet edges", mirror: "Mirror", linear_pattern: "Linear pattern",
+  fillet: "Fillet edges", chamfer: "Chamfer edges", mirror: "Mirror", linear_pattern: "Linear pattern",
   circular_pattern: "Circular pattern",
 };
 const CHOICES: Record<string, string[]> = {
@@ -34,9 +35,10 @@ const CHOICES: Record<string, string[]> = {
 /** Starting parts from several domains, to edit rather than start from nothing. */
 const PRESETS: Record<string, PartDoc> = {
   "Blank part": { name: "Part", features: [{ id: "base", type: "box", size: [200, 100, 50] }] },
-  "Mounting bracket": { name: "Bracket", features: [
-    { id: "plate", type: "box", size: [200, 200, 15] },
-    { id: "hole", type: "cylinder", op: "cut", radius: 8, height: 40, at: { x: 70 } },
+  "Mounting bracket": { name: "Bracket", parameters: { width: 200, thickness: 15, hole: "width / 25" }, features: [
+    { id: "plate", type: "box", size: [200, 200, 15], bindings: { "size.0": "width", "size.1": "width", "size.2": "thickness" } },
+    { id: "hole", type: "cylinder", op: "cut", radius: 8, height: 40, at: { x: 70 },
+      bindings: { radius: "hole", "at.x": "width / 2 - 3 * hole" } },
     { id: "holes", type: "circular_pattern", count: 4 },
     { id: "round", type: "fillet", radius: 2 }] },
   "Bottle (consumer product)": { name: "Bottle", finish: "trim", features: [
@@ -99,6 +101,67 @@ function JsonField({ value, onCommit }: { value: unknown; onCommit: (v: unknown)
     onChange={(e) => setText(e.target.value)} onBlur={commit} title="JSON; applied when you leave the field" />;
 }
 
+/** A text input that commits on blur or Enter. */
+function Text({ value, onCommit, placeholder, size }: { value: string; onCommit: (v: string) => void;
+  placeholder?: string; size?: number }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const commit = () => { if (text !== value) onCommit(text); };
+  return <input value={text} placeholder={placeholder} size={size} onChange={(ev) => setText(ev.target.value)}
+    onBlur={commit} onKeyDown={(ev) => { if (ev.key === "Enter") commit(); }} />;
+}
+
+/** Field bindings of a feature: field path -> expression of the part's parameters. */
+function Bindings({ bindings, onChange }: { bindings: Record<string, string>; onChange: (b: Record<string, string>) => void }) {
+  const [path, setPath] = useState("");
+  const [expr, setExpr] = useState("");
+  return (
+    <div className="bindings">
+      <span className="hint">Formulas: bind a field (e.g. <code>radius</code>, <code>size.0</code>,{" "}
+        <code>at.x</code>, <code>sections.1.width</code>) to an expression of the part's parameters.</span>
+      {Object.entries(bindings).map(([p, x]) => (
+        <div key={p} className="binding">
+          <code>{p}</code> =
+          <Text value={x} size={22} onCommit={(v) => onChange(v ? { ...bindings, [p]: v } : Object.fromEntries(
+            Object.entries(bindings).filter(([k]) => k !== p)))} />
+          <button title="Remove the formula" onClick={() => onChange(Object.fromEntries(
+            Object.entries(bindings).filter(([k]) => k !== p)))}>✕</button>
+        </div>
+      ))}
+      <div className="binding">
+        <input placeholder="field" size={12} value={path} onChange={(ev) => setPath(ev.target.value.trim())} /> =
+        <input placeholder="expression" size={22} value={expr} onChange={(ev) => setExpr(ev.target.value)} />
+        <button disabled={!path || !expr} onClick={() => { onChange({ ...bindings, [path]: expr }); setPath(""); setExpr(""); }}>
+          Add formula</button>
+      </div>
+    </div>
+  );
+}
+
+/** The part's named parameters: numbers or expressions of earlier parameters. */
+function Parameters({ params, onChange }: { params: Record<string, number | string>; onChange: (p: Record<string, number | string>) => void }) {
+  const [name, setName] = useState("");
+  const parse = (v: string): number | string => (v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : v);
+  return (
+    <div className="bindings">
+      {Object.entries(params).map(([n, v]) => (
+        <div key={n} className="binding">
+          <code>{n}</code> =
+          <Text value={String(v)} size={18} onCommit={(t) => onChange({ ...params, [n]: parse(t) })} />
+          <button title="Remove the parameter" onClick={() => onChange(Object.fromEntries(
+            Object.entries(params).filter(([k]) => k !== n)))}>✕</button>
+        </div>
+      ))}
+      <div className="binding">
+        <input placeholder="new parameter" size={14} value={name}
+          onChange={(ev) => setName(ev.target.value.replace(/[^A-Za-z0-9_]/g, ""))} />
+        <button disabled={!/^[A-Za-z_]/.test(name) || name in params}
+          onClick={() => { onChange({ ...params, [name]: 0 }); setName(""); }}>Add parameter</button>
+      </div>
+    </div>
+  );
+}
+
 function PlacementFields({ at, onCommit }: { at: Placement | undefined; onCommit: (p: Placement) => void }) {
   const p = at ?? {};
   return (
@@ -113,7 +176,8 @@ function PlacementFields({ at, onCommit }: { at: Placement | undefined; onCommit
 function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: (f: PartFeature) => void }) {
   const set = (key: string, value: unknown) => onChange({ ...feature, [key]: value });
   const keys = Object.keys({ ...FEATURE_DEFAULTS[feature.type], ...feature })
-    .filter((k) => !["id", "type", "suppressed", "op", "at", "name"].includes(k));
+    .filter((k) => !["id", "type", "suppressed", "op", "at", "name", "bindings"].includes(k));
+  const bound = feature.bindings ?? {};
   return (
     <div className="feature-fields">
       <label>Name<input value={feature.name ?? ""} placeholder={feature.id}
@@ -133,6 +197,9 @@ function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: 
             onBlur={(e) => { if (e.target.value !== value) set(key, e.target.value); }}
             onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} /></label>;
         }
+        if (typeof value === "number" && bound[key]) {
+          return <label key={key}>{key.replace("_", " ")}<span className="formula" title="Set by a formula below">ƒ {bound[key]}</span></label>;
+        }
         if (typeof value === "number") {
           return <label key={key}>{key.replace("_", " ")}<Num value={value} onCommit={(v) => set(key, v)} /></label>;
         }
@@ -145,6 +212,11 @@ function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: 
         }
         return <label key={key} className="wide">{key}<JsonField value={value} onCommit={(v) => set(key, v)} /></label>;
       })}
+      {"edges" in feature || ["fillet", "chamfer"].includes(feature.type) ? (
+        <span className="hint">Edges: empty for all, or a selector such as <code>|Z</code> (parallel to Z),{" "}
+          <code>&gt;Z</code> (top), <code>&lt;X or &gt;X</code>, <code>not |Z</code>.</span>
+      ) : null}
+      <Bindings bindings={bound} onChange={(b) => set("bindings", b)} />
       {SOLIDS.includes(feature.type) && (
         <>
           <span className="hint">Placement of this feature (mm, degrees)</span>
@@ -261,6 +333,9 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
                 {part.bounds && ` · ${part.bounds[1].map((v, i) => (v - part.bounds![0][i]).toFixed(0)).join(" × ")} mm`}
               </span>
             </div>
+            <strong>Parameters</strong>
+            <Parameters params={doc.parameters ?? {}} onChange={(parameters) => save({ ...doc, parameters })} />
+            {part.errors[0]?.feature === "parameters" && <div className="bad-text">{part.errors[0].message}</div>}
             <span className="hint">Part placement in the vehicle frame</span>
             <PlacementFields at={doc.at} onCommit={(at) => save({ ...doc, at })} />
             <strong>Feature tree</strong>

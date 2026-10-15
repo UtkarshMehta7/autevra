@@ -238,3 +238,7 @@ tr.selected-row td { background: #2b4366; }
 .feature-fields > .hint, .feature-fields > .placement { grid-column: 1 / -1; }
 textarea.json { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; }
 textarea.json.bad { border-color: var(--bad); }
+
+.bindings { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; margin: 4px 0 8px; }
+.binding { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+.binding code, .formula { font-family: ui-monospace, monospace; color: var(--accent, #7fb2ff); }

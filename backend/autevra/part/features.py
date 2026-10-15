@@ -43,12 +43,19 @@ class Placement(BaseModel):
     rz: float = Field(0.0, ge=-360.0, le=360.0)
 
 
+Expression = Annotated[str, Field(min_length=1, max_length=200)]
+BindingPath = Annotated[str, Field(pattern=r"^[a-z_]+(\.[a-z_0-9]+)*$", max_length=60)]
+
+
 class _Feature(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: str = Field(min_length=1, max_length=40, pattern=r"^[A-Za-z0-9_-]+$")
     name: str = Field("", max_length=80)
     suppressed: bool = False  # kept in the tree, skipped in the build
+    # Field path ("radius", "size.0", "at.x", "sections.1.width") -> expression of the
+    # part's parameters ("width / 2 - 30"); evaluated before the build.
+    bindings: dict[BindingPath, Expression] = Field(default_factory=dict, max_length=50)
 
 
 class _Solid(_Feature):
@@ -155,11 +162,32 @@ class Shell(_Feature):
     open_towards: Literal["none", "+x", "-x", "+y", "-y", "+z", "-z"] = "none"
 
 
+# Edge selection: CadQuery's selector grammar, e.g. "|Z" (parallel to Z), ">Z" (topmost),
+# "<X" (rearmost), "#Z" (perpendicular to Z), combined with and / or / not and brackets.
+EdgeSelector = Annotated[
+    str,
+    Field(
+        max_length=80,
+        pattern=r"^[<>|#%+\-XYZxyz0-9\[\]().,\s]*(?:(?:and|or|not|exc)[<>|#%+\-XYZxyz0-9\[\]().,\s]*)*$",
+    ),
+]
+
+
 class Fillet(_Feature):
-    """Round every edge of the result so far (sharp outer edges become radius ``radius``)."""
+    """Round edges of the result so far: every edge, or those picked by ``edges``."""
 
     type: Literal["fillet"] = "fillet"
     radius: Length = 5.0
+    edges: EdgeSelector = ""  # empty: every edge
+
+
+class Chamfer(_Feature):
+    """Bevel edges of the result so far by ``size`` (equal legs): every edge, or those
+    picked by ``edges``."""
+
+    type: Literal["chamfer"] = "chamfer"
+    size: Length = 2.0
+    edges: EdgeSelector = ""
 
 
 class Mirror(_Feature):
@@ -224,13 +252,14 @@ Feature = Annotated[
     | Wing
     | Shell
     | Fillet
+    | Chamfer
     | Mirror
     | LinearPattern
     | CircularPattern,
     Field(discriminator="type"),
 ]
 SOLID_TYPES = ("box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep", "wing")
-FEATURE_TYPES = (*SOLID_TYPES, "shell", "fillet", "mirror", "linear_pattern",
+FEATURE_TYPES = (*SOLID_TYPES, "shell", "fillet", "chamfer", "mirror", "linear_pattern",
                  "circular_pattern")  # fmt: skip
 
 
@@ -241,6 +270,10 @@ class PartDoc(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     name: str = Field("Part", min_length=1, max_length=80)
+    # Named parameters: numbers, or expressions of the parameters before them.
+    parameters: dict[
+        Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,39}$")], float | Expression
+    ] = Field(default_factory=dict, max_length=100)
     features: list[Feature] = Field(default_factory=list, max_length=200)
     at: Placement = Placement()
     color: tuple[float, float, float] = (0.62, 0.66, 0.72)

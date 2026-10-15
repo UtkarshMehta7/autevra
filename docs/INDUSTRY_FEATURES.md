@@ -135,7 +135,7 @@ feature-by-feature account of any product.
 | One general shape engine for every domain | Plan-law sections lofted and trimmed by a profile; the automotive body is the first user. Measured: smooth multi-section B-spline lofts are too slow on the hosted tier, so they wait for the Part Design workbench | partial |
 | Shape controls instead of fixed designs | Haunch, nose and tail width, sill tuck, roundness and tumblehome as parameters on every body style | **have** |
 | A general feature modeller | Part Design workbench: user-authored feature tree (extrude, revolve, loft, sweep, shell, fillet, mirror, patterns) on OCCT, with per-part undo | **have** (v1) |
-| Reusable templates with published inputs | Feature templates (Autevra's form of power copies) instantiated with new inputs | planned |
+| Reusable templates with published inputs | Starting-point parts with parameters and formulas (a first form of power copies); instantiating a feature template into an existing part is next | partial |
 | Design tables | Variant tables that drive parameters, exportable as CSV | planned |
 | Surface quality analysis | Zebra (highlight-line) display mode; curvature next | partial |
 | Subdivision form finding | Editable control sections, then a control mesh, converted to exact surfaces | planned |
