@@ -136,6 +136,12 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-15: bill of materials
+
+- **Bill of materials** (`GET /api/projects/{id}/bom`, `bom.csv`): every part, parametric and Part Design, grouped by geometry and category into lines with a quantity, one part's bounding size and volume, and the source. Side and corner words are dropped from the line names ("Wheel" × 4).
+- No mass is given, deliberately: several parts (the body among them) are solid envelopes, so volume × density would mislead.
+- The studio's Manufacturing panel shows the BOM table and a CSV download.
+
 ### 2026-10-15: rounded side silhouettes
 
 - The side profile of every body style is now rounded by corner cutting (two passes, in proportion to the body-roundness control). This softens the bonnet line, the deck-to-tail transition, and the nose and underbody edges.

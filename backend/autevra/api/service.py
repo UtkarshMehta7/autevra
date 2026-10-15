@@ -1333,6 +1333,12 @@ class Workspace:
                 self._full_model(project_id), self.data_dir / "exports" / f"{project_id}.step"
             )
 
+    def bom(self, project_id: str) -> list:
+        from autevra.api import bom
+
+        with self._lock:
+            return bom.bill_of_materials(self._full_model(project_id))
+
     # --- Part Design ---
     MAX_PARTS = 50  # per project
 
