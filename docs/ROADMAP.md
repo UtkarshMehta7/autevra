@@ -145,6 +145,12 @@ specification interview moves to Phase 5.
   - A bad formula is reported on its feature, and a bad parameter before any feature.
   - The studio has a Parameters table per part and a Formulas editor per feature. The bracket starting point is now parametric.
 - **Fillet and chamfer on chosen edges**: an edge selector in CadQuery's grammar (`|Z` parallel to Z, `>Z` top, `<X or >X`, `not |Z`), parsed by CadQuery; a selector that matches nothing is reported on its feature. The removed volumes match the textbook values.
+- **2D sketcher** for extrude and revolve profiles in the studio:
+  - drag points (snapped to half the grid step);
+  - "+" handles insert a point on an edge, and double-click deletes one;
+  - the view fits to the sketch, and the grid adapts to its size;
+  - revolve profiles show the axis and stay on its positive side;
+  - the point list stays editable as text next to it.
 - **Wing feature** from NACA four-digit sections (published thickness and camber equations), with sweep, dihedral and tip twist; a **light aircraft** starting point.
 - **Volume fix**: `kernel.volume` integrates to 1e-6 relative tolerance. The default OCCT estimate was over 20 % off on B-spline faces.
 - Checked in Chrome: the parametric bracket re-fitted from 200 to 300 mm by changing one parameter (holes resized and moved by their formulas).
