@@ -133,3 +133,16 @@ def test_fender_rise_drops_the_bonnet_between_raised_wings() -> None:
     assert k.volume(k.intersect(body, probe)) > 0
     flat_bounds = [c for corner in k.bounds(b.build_body(flat)) for c in corner]
     assert [c for corner in k.bounds(body) for c in corner] == pytest.approx(flat_bounds, abs=0.01)
+
+
+def test_the_rounded_silhouette_keeps_lamp_faces_belt_and_extents() -> None:
+    p = _inputs(default_values() | spec.TEMPLATES["sedan"])
+    profile = b.body_layout(p).profile
+    smooth = sculpt.smooth_profile(profile, share=0.2)
+    assert len(smooth) > len(profile)  # corners were cut
+    for axis in (0, 1):
+        assert min(q[axis] for q in smooth) == pytest.approx(min(q[axis] for q in profile))
+        assert max(q[axis] for q in smooth) == pytest.approx(max(q[axis] for q in profile))
+    front, belt = max(x for x, _ in profile), max(z for _, z in profile)
+    kept = [q for q in profile if abs(q[0] - front) < 1e-6 or abs(q[1] - belt) < 1e-6]
+    assert all(q in smooth for q in kept)  # lamp face and beltline corners stay sharp
