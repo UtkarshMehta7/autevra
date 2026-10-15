@@ -12,6 +12,7 @@ import cadquery as cq
 
 from autevra.assembly.transforms import Matrix
 from autevra.cad import kernel as k
+from autevra.part import expressions as ex
 from autevra.part import features as f
 
 _AXIS = {f.Axis.X: cq.Vector(1, 0, 0), f.Axis.Y: cq.Vector(0, 1, 0), f.Axis.Z: cq.Vector(0, 0, 1)}
@@ -156,10 +157,26 @@ def _sweep(feat: f.Sweep) -> k.Shape:
     return cq.Solid.sweep(outer, inner, path, makeSolid=True, transitionMode="round")
 
 
-def _modify(shape: k.Shape, feat: f.Shell | f.Fillet | f.Mirror) -> k.Shape:
+def _edges(shape: k.Shape, selector: str) -> list[cq.Edge]:
+    """Edges picked by a CadQuery selector string (all edges when empty)."""
+    edges = shape.Edges()
+    if not selector.strip():
+        return edges
+    try:
+        picked = cq.selectors.StringSyntaxSelector(selector).filter(edges)
+    except Exception:  # the selector parser raises several types
+        raise ValueError(f"cannot read the edge selector '{selector}'") from None
+    if not picked:
+        raise ValueError(f"no edge matches '{selector}'")
+    return picked
+
+
+def _modify(shape: k.Shape, feat: f.Shell | f.Fillet | f.Chamfer | f.Mirror) -> k.Shape:
     match feat:
         case f.Fillet():
-            return shape.fillet(feat.radius, shape.Edges())
+            return shape.fillet(feat.radius, _edges(shape, feat.edges))
+        case f.Chamfer():
+            return shape.chamfer(feat.size, None, _edges(shape, feat.edges))
         case f.Shell():
             if feat.open_towards == "none":
                 faces: list[cq.Face] = []
@@ -211,15 +228,60 @@ def _message(exc: Exception) -> str:
     return text or f"the geometry kernel could not build this feature ({type(exc).__name__})"
 
 
+_FEATURE = None  # TypeAdapter for the feature union, made on first use
+
+
+def _bind(feat: f.Feature, values: dict[str, float]) -> f.Feature:
+    """The feature with its bound fields set from their expressions, revalidated."""
+    global _FEATURE
+    if not feat.bindings:
+        return feat
+    from pydantic import TypeAdapter, ValidationError
+
+    if _FEATURE is None:
+        _FEATURE = TypeAdapter(f.Feature)
+    data = feat.model_dump(mode="json")
+    for path, expression in feat.bindings.items():
+        keys = path.split(".")
+        target = data
+        try:
+            for key in keys[:-1]:
+                target = target[int(key)] if isinstance(target, list) else target[key]
+            last = keys[-1]
+            value = ex.evaluate(expression, values)
+            if isinstance(target, list):
+                target[int(last)] = value
+            elif isinstance(target, dict) and (last in target or path.startswith("at.")):
+                target[last] = value
+            else:
+                raise KeyError(last)
+        except (KeyError, IndexError, ValueError, TypeError) as exc:
+            if isinstance(exc, ex.ExpressionError):
+                raise ValueError(f"{path}: {exc}") from None
+            raise ValueError(f"'{path}' is not a numeric field of this feature") from None
+    try:
+        return _FEATURE.validate_python(data)
+    except ValidationError as exc:
+        err = exc.errors()[0]
+        where = ".".join(str(p) for p in err["loc"][1:])
+        raise ValueError(f"{where}: {err['msg']}") from None
+
+
 def build_part(doc: f.PartDoc) -> BuildResult:
     """The part's solid in its own frame (the part placement is applied by the caller)."""
     result: k.Shape | None = None
     last: tuple[k.Shape, f.Op] | None = None  # the previous solid feature, for patterns
     out = BuildResult(shape=None)
+    try:
+        values = ex.resolve_parameters(doc.parameters)
+    except ex.ExpressionError as exc:
+        out.errors.append(FeatureError("parameters", str(exc)))
+        return out
     for feat in doc.features:
         if feat.suppressed:
             continue
         try:
+            feat = _bind(feat, values)
             if feat.type in f.SOLID_TYPES:
                 tool = _place(_solid(feat), feat.at)  # type: ignore[arg-type]
                 op = feat.op  # type: ignore[union-attr]

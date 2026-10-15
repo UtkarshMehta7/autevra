@@ -136,6 +136,19 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-15: parameters and formulas in parts; NACA wings
+
+- **Part parameters and formulas** (knowledge-based engineering):
+  - A part has named parameters: numbers, or expressions of earlier parameters.
+  - Any numeric field of a feature (`radius`, `size.0`, `at.x`, `sections.1.width`, `points.2.0`) can be bound to an expression, so one parameter re-fits the whole part.
+  - Expressions are evaluated by a small safe evaluator: numbers, parameters, arithmetic, `sqrt`, trigonometry in degrees, `min`, `max`, `abs`, `round`, `pi`. Anything else (attribute access, other calls, strings) is rejected; there is no Python `eval`.
+  - A bad formula is reported on its feature, and a bad parameter before any feature.
+  - The studio has a Parameters table per part and a Formulas editor per feature. The bracket starting point is now parametric.
+- **Fillet and chamfer on chosen edges**: an edge selector in CadQuery's grammar (`|Z` parallel to Z, `>Z` top, `<X or >X`, `not |Z`), parsed by CadQuery; a selector that matches nothing is reported on its feature. The removed volumes match the textbook values.
+- **Wing feature** from NACA four-digit sections (published thickness and camber equations), with sweep, dihedral and tip twist; a **light aircraft** starting point.
+- **Volume fix**: `kernel.volume` integrates to 1e-6 relative tolerance. The default OCCT estimate was over 20 % off on B-spline faces.
+- Checked in Chrome: the parametric bracket re-fitted from 200 to 300 mm by changing one parameter (holes resized and moved by their formulas).
+
 ### 2026-10-15: Part Design workbench
 
 - **User-authored parts** from an ordered feature tree, domain-neutral (`backend/autevra/part/`).

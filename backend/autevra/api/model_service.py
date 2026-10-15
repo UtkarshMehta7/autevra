@@ -50,11 +50,16 @@ def build_model(values: Mapping[str, float], cache: GeometryCache) -> VehicleMod
 
 
 def part_key(doc: PartDoc) -> str:
-    """Geometry key of a Part Design part: a hash of its features (appearance and
-    placement excluded, so moving or repainting a part does not rebuild it)."""
+    """Geometry key of a Part Design part: a hash of its parameters and features
+    (appearance and placement excluded, so moving or repainting a part does not rebuild
+    it)."""
     import hashlib
 
-    text = json.dumps([f.model_dump(mode="json") for f in doc.features], sort_keys=True)
+    text = json.dumps(
+        {"parameters": doc.parameters,
+         "features": [f.model_dump(mode="json") for f in doc.features]},
+        sort_keys=True,
+    )  # fmt: skip
     return "part:" + hashlib.sha256(text.encode()).hexdigest()[:20]
 
 
