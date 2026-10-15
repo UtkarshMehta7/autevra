@@ -19,7 +19,7 @@ Status: **have** (implemented and tested), **partial** (a working subset), **pla
 | Parametric solid modelling (features, history, parameters) | **have** | Parameters drive B-rep builders (CadQuery / Open CASCADE); typed commands with undo and redo |
 | Sketch-based features (pads, pockets, revolves, fillets) authored by the user | partial | Part Design feature tree: extrude, revolve, loft, sweep, shell, fillet, mirror, patterns, add/cut/intersect; 2D sketcher for profiles (drag, insert, delete, grid snap); no sketch constraints yet |
 | Surface design: lofts, sweeps, fills, continuity control | partial | Smooth lofts for the glasshouse; no user-driven surfaces or G2 control |
-| Class-A styling surfaces (highlight lines, zebra and curvature analysis) | partial | Zebra highlight-line display; no curvature combs or continuity checks yet |
+| Class-A styling surfaces (highlight lines, zebra and curvature analysis) | partial | Zebra highlight lines and a curvature-estimate colour map; no curvature combs or G1/G2 continuity checks yet |
 | Knowledge-based engineering (rules, formulas, checks bound to the model) | **have** | Design rules, derived values, packaging checks with stated limits |
 | Templates and catalogues of standard designs | **have** | Thirteen vehicle templates; twelve body styles; chassis, powertrain and trim choices |
 | Design tables and variants | **have** | Part design tables (variants of parameters, CSV import and export); vehicle templates and choice parameters |
@@ -137,7 +137,7 @@ feature-by-feature account of any product.
 | A general feature modeller | Part Design workbench: user-authored feature tree (extrude, revolve, loft, sweep, shell, fillet, mirror, patterns) on OCCT, with per-part undo | **have** (v1) |
 | Reusable templates with published inputs | Starting-point parts with parameters and formulas (a first form of power copies); instantiating a feature template into an existing part is next | partial |
 | Design tables | Part variant tables that drive parameters, with CSV import and export | **have** |
-| Surface quality analysis | Zebra (highlight-line) display mode; curvature next | partial |
+| Surface quality analysis | Zebra highlight lines and a curvature-estimate colour map; continuity checks next | partial |
 | Subdivision form finding | Editable control sections, then a control mesh, converted to exact surfaces | planned |
 
 ## Domains beyond road vehicles (plan)
