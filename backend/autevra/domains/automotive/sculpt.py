@@ -72,22 +72,34 @@ def _section(points: list[tuple[float, float, float]]) -> cq.Wire:
     return cq.Wire.assembleEdges([edge])
 
 
-def smooth_profile(profile: Sequence[tuple[float, float]], rounds: int = 3,
-                   keep: float = 1e-6) -> list[tuple[float, float]]:  # fmt: skip
-    """Corner-cut (Chaikin) the closed side profile into a smooth silhouette. Each pass
-    replaces every edge by points at 1/4 and 3/4 along it, so an edge lying on an extreme
-    (the vertical front and rear faces, the flat floor, the beltline) stays on it and the
-    extents are kept."""
+def smooth_profile(profile: Sequence[tuple[float, float]], share: float = 0.2,
+                   rounds: int = 2) -> list[tuple[float, float]]:  # fmt: skip
+    """Round the side profile's corners by corner cutting: each pass replaces a corner by
+    two points ``share`` of the way along its edges. Points on the front and rear faces
+    (the lamp faces) are kept, so those faces, the lamps on them and the length stay
+    exact. Beltline corners are kept too (the greenhouse stands on them), and the floor keeps
+    its line, so the height is unchanged."""
+    xs = [x for x, _ in profile]
+    rear, front = min(xs), max(xs)
+    belt = max(z for _, z in profile)
+
+    def fixed(p: tuple[float, float]) -> bool:
+        # The lamp faces, and the beltline corners the greenhouse stands on.
+        return abs(p[0] - front) < 1e-6 or abs(p[0] - rear) < 1e-6 or abs(p[1] - belt) < 1e-6
+
     pts = list(profile)
     for _ in range(rounds):
-        out = []
+        out: list[tuple[float, float]] = []
         n = len(pts)
-        for i in range(n):
-            (x0, z0), (x1, z1) = pts[i], pts[(i + 1) % n]
-            if abs(x1 - x0) < keep and abs(z1 - z0) < keep:
+        for i, v in enumerate(pts):
+            if fixed(v):
+                out.append(v)
                 continue
-            out.append((0.75 * x0 + 0.25 * x1, 0.75 * z0 + 0.25 * z1))
-            out.append((0.25 * x0 + 0.75 * x1, 0.25 * z0 + 0.75 * z1))
+            for w in (pts[i - 1], pts[(i + 1) % n]):
+                out.append((v[0] + share * (w[0] - v[0]), v[1] + share * (w[1] - v[1])))
+            if out[-2] == out[-1]:
+                out.pop()
+        # Order: for each corner the point towards the previous vertex comes first.
         pts = out
     return pts
 
@@ -147,12 +159,14 @@ def lower_body(p: Inputs, profile: Sequence[tuple[float, float]]) -> k.Shape:
     through smooth plan curves at the sill, shoulder, waist and beltline, so the plan is
     boat-shaped with haunches and the section tucks in at the sill and eases in towards the
     beltline, with crisp character lines between."""
+    roundness = p.get("body_roundness", 45.0) / 100.0
+    # A rounded silhouette: corners cut in proportion to the body roundness.
+    profile = smooth_profile(profile, share=0.06 + 0.16 * roundness)
     xs = [x for x, _ in profile]
     rear, front = min(xs), max(xs)
     floor = min(z for _, z in profile)
     belt = max(z for _, z in profile)
     depth = belt - floor
-    roundness = p.get("body_roundness", 45.0) / 100.0
     sill = p.get("sill_tuck", 60.0)
     pad = 2.0  # the plan curves reach just past the ends; the side trim sets the extents
     levels = (

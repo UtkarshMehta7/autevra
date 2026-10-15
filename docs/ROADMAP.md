@@ -136,6 +136,13 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-15: rounded side silhouettes
+
+- The side profile of every body style is now rounded by corner cutting (two passes, in proportion to the body-roundness control). This softens the bonnet line, the deck-to-tail transition, and the nose and underbody edges.
+- The lamp faces (front and rear) and the beltline corners the greenhouse stands on are kept sharp, so the lamps, the length and the height stay exact and the greenhouse stays attached.
+- Still built from planar faces (about 1–1.5 s per body); all thirteen templates are single valid solids.
+- Checked in Chrome on the supercar.
+
 ### 2026-10-15: sheet metal
 
 - **Sheet-metal feature** in Part Design:
