@@ -34,8 +34,8 @@ def test_all_edges_remove_more_than_some() -> None:
 
 
 def test_a_selector_matching_nothing_is_reported() -> None:
-    doc = f.PartDoc.model_validate({"features": [
-        {"id": "c", "type": "cylinder"}, {"id": "m", "type": "fillet", "edges": "|X"}]})  # fmt: skip
+    features = [{"id": "c", "type": "cylinder"}, {"id": "m", "type": "fillet", "edges": "|X"}]
+    doc = f.PartDoc.model_validate({"features": features})
     result = build_part(doc)
     assert result.errors[0].feature == "m" and "no edge matches" in result.errors[0].message
 
