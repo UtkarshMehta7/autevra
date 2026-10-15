@@ -56,7 +56,7 @@ def part_key(doc: PartDoc) -> str:
     import hashlib
 
     text = json.dumps(
-        {"parameters": doc.parameters,
+        {"parameters": doc.effective_parameters(),
          "features": [f.model_dump(mode="json") for f in doc.features]},
         sort_keys=True,
     )  # fmt: skip

@@ -559,6 +559,30 @@ def redo_part(project_id: str, part_id: str, ws: WorkspaceDep) -> schemas.PartOu
         raise HTTPException(status_code=409, detail=str(exc)) from None
 
 
+@router.get("/projects/{project_id}/parts/{part_id}/design-table.csv")
+def part_table(project_id: str, part_id: str, ws: WorkspaceDep) -> Response:
+    try:
+        text = ws.part_table_csv(project_id, part_id)
+    except CommandError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from None
+    disposition = f'attachment; filename="{part_id}-table.csv"'
+    return Response(text, media_type="text/csv", headers={"Content-Disposition": disposition})
+
+
+@router.put("/projects/{project_id}/parts/{part_id}/design-table", response_model=schemas.PartOut)
+async def set_part_table(
+    project_id: str, part_id: str, request: Request, ws: WorkspaceDep
+) -> schemas.PartOut:
+    """Replace the design table from a CSV body (``variant,<param>,...``)."""
+    body = await request.body()
+    if len(body) > 200_000:
+        raise HTTPException(status_code=413, detail="design table too large")
+    try:
+        return ws.set_part_table(project_id, part_id, body.decode("utf-8", errors="replace"))
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 @router.delete("/projects/{project_id}/parts/{part_id}", status_code=204)
 def delete_part(project_id: str, part_id: str, ws: WorkspaceDep) -> None:
     ws.delete_part(project_id, part_id)

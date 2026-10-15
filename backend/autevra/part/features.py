@@ -263,6 +263,47 @@ FEATURE_TYPES = (*SOLID_TYPES, "shell", "fillet", "chamfer", "mirror", "linear_p
                  "circular_pattern")  # fmt: skip
 
 
+ParamName = Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,39}$")]
+
+
+class Variant(BaseModel):
+    """One row of a design table: a named set of parameter values."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str = Field(min_length=1, max_length=40)
+    values: list[float] = Field(max_length=50)
+
+
+class DesignTable(BaseModel):
+    """Named variants of a part: columns are parameters, rows are variants. The active row
+    overrides those parameters (the others keep their own values or expressions)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    columns: list[ParamName] = Field(min_length=1, max_length=50)
+    rows: list[Variant] = Field(default_factory=list, max_length=500)
+    active: str | None = None
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "DesignTable":
+        if len(set(self.columns)) != len(self.columns):
+            raise ValueError("design table columns must be unique")
+        names = [r.name for r in self.rows]
+        if len(set(names)) != len(names):
+            raise ValueError("design table row names must be unique")
+        for row in self.rows:
+            if len(row.values) != len(self.columns):
+                raise ValueError(f"row '{row.name}' needs {len(self.columns)} values")
+        if self.active is not None and self.active not in names:
+            raise ValueError(f"the active row '{self.active}' is not in the table")
+        return self
+
+    def active_values(self) -> dict[str, float]:
+        row = next((r for r in self.rows if r.name == self.active), None)
+        return dict(zip(self.columns, row.values, strict=True)) if row else {}
+
+
 class PartDoc(BaseModel):
     """A user-authored part: its feature tree, its appearance and where it sits in the
     project (vehicle) frame."""
@@ -271,9 +312,8 @@ class PartDoc(BaseModel):
 
     name: str = Field("Part", min_length=1, max_length=80)
     # Named parameters: numbers, or expressions of the parameters before them.
-    parameters: dict[
-        Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,39}$")], float | Expression
-    ] = Field(default_factory=dict, max_length=100)
+    parameters: dict[ParamName, float | Expression] = Field(default_factory=dict, max_length=100)
+    design_table: DesignTable | None = None
     features: list[Feature] = Field(default_factory=list, max_length=200)
     at: Placement = Placement()
     color: tuple[float, float, float] = (0.62, 0.66, 0.72)
@@ -284,4 +324,13 @@ class PartDoc(BaseModel):
         ids = [f.id for f in self.features]
         if len(ids) != len(set(ids)):
             raise ValueError("feature ids must be unique within a part")
+        if self.design_table is not None:
+            missing = [c for c in self.design_table.columns if c not in self.parameters]
+            if missing:
+                raise ValueError(f"design table columns are not parameters: {missing}")
         return self
+
+    def effective_parameters(self) -> dict[str, float | str]:
+        """Parameters with the active design-table row applied."""
+        table = self.design_table.active_values() if self.design_table else {}
+        return {name: table.get(name, value) for name, value in self.parameters.items()}
