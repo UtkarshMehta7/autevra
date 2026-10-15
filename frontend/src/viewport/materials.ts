@@ -106,3 +106,11 @@ export function zebraMaterial(): THREE.ShaderMaterial {
   });
   return zebra;
 }
+
+let curvature: THREE.MeshLambertMaterial | null = null;
+
+/** Curvature display: the mesh's per-vertex curvature colours, lightly shaded. */
+export function curvatureMaterial(): THREE.MeshLambertMaterial {
+  curvature ??= new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  return curvature;
+}

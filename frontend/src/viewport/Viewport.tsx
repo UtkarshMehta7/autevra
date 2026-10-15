@@ -6,10 +6,10 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { ModelPayload } from "../api/types";
 import { staleGeometry } from "../state/format";
 import { type Animation, frameIndex, framePoses, readout } from "./animation";
-import { baseEmissive, baseOpacity, materialFor, rememberEmissive, zebraMaterial } from "./materials";
+import { baseEmissive, baseOpacity, curvatureMaterial, materialFor, rememberEmissive, zebraMaterial } from "./materials";
 import {
-  type DisplayMode, type SectionAxis, type StandardView, VIEWS, edgesOf, featureEdges, framing,
-  measure, sectionPlane,
+  type DisplayMode, type SectionAxis, type StandardView, VIEWS, curvatureColors, curvatureEstimate,
+  edgesOf, featureEdges, framing, measure, sectionPlane,
 } from "./tools";
 
 interface Props {
@@ -273,7 +273,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
         const material = materialFor(part.finish, part.color);
         rememberEmissive(material);
         mesh.userData.baseMaterial = material;
-        if (mesh.material !== zebraMaterial()) mesh.material = material;
+        if (mesh.material !== zebraMaterial() && mesh.material !== curvatureMaterial()) mesh.material = material;
       }
       mesh.userData.look = look;
       if (mesh.geometry !== geometry) { // rebuilt: its edge outline is stale
@@ -307,7 +307,12 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       // Zebra analysis swaps in the highlight-line material; the part keeps its own.
       const mat = (mesh.userData.baseMaterial ?? mesh.material) as THREE.MeshStandardMaterial;
       mesh.userData.baseMaterial = mat;
-      mesh.material = display === "zebra" ? zebraMaterial() : mat;
+      if (display === "curvature" && !mesh.geometry.getAttribute("color")) {
+        mesh.geometry.setAttribute("color", new THREE.BufferAttribute(
+          curvatureColors(curvatureEstimate(mesh.geometry)), 3));
+      }
+      mesh.material = display === "zebra" ? zebraMaterial()
+        : display === "curvature" ? curvatureMaterial() : mat;
       const isBody = mesh.userData.category === "body";
       const own = baseOpacity(mat);
       const opacity = xray && isBody ? Math.min(0.22, own) : own;
@@ -414,11 +419,12 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       <div className="viewport" ref={host} />
       <div className="cad-toolbar" role="toolbar" aria-label="View tools">
         <div className="seg" aria-label="Display mode">
-          {(["shaded", "edges", "wireframe", "zebra"] as DisplayMode[]).map((d) => (
+          {(["shaded", "edges", "wireframe", "zebra", "curvature"] as DisplayMode[]).map((d) => (
             <button key={d} className={display === d ? "on" : ""} onClick={() => setDisplay(d)}
               title={{ shaded: "Shading", edges: "Shading with edges", wireframe: "Wireframe (edges only)",
-                zebra: "Zebra: highlight lines for surface continuity" }[d]}>
-              {{ shaded: "Shaded", edges: "Edges", wireframe: "Wire", zebra: "Zebra" }[d]}
+                zebra: "Zebra: highlight lines for surface continuity",
+                curvature: "Curvature (mesh estimate): blue flat, red tight curves and creases" }[d]}>
+              {{ shaded: "Shaded", edges: "Edges", wireframe: "Wire", zebra: "Zebra", curvature: "Curvature" }[d]}
             </button>
           ))}
         </div>

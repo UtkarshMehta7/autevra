@@ -367,6 +367,16 @@ class RunIndexItem(RunSummary):
     project_name: str
 
 
+class BomLineOut(BaseModel):
+    item: str
+    category: str
+    quantity: int
+    size: tuple[float, float, float]  # mm, one part's bounding box
+    volume: float  # mm^3, one part
+    source: str
+    parts: list[str]
+
+
 class FeatureErrorOut(BaseModel):
     feature: str
     message: str
