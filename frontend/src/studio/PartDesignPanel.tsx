@@ -13,6 +13,7 @@ const FEATURE_DEFAULTS: Record<string, Omit<PartFeature, "id" | "type">> = {
   revolve: { points: [[0, 0], [40, 0], [40, 100], [0, 100]], angle: 360 },
   loft: { sections: [{ z: 0, width: 100, height: 100, radius: 20 }, { z: 200, width: 60, height: 60, radius: 20 }], ruled: false },
   sweep: { path: [[0, 0, 0], [300, 0, 0], [300, 200, 0]], radius: 15, wall: 2, bend_radius: 40 },
+  sheet_metal: { points: [[0, 50], [0, 0], [120, 0], [120, 50]], thickness: 2, bend_radius: 2, width: 200, k_factor: 0.44 },
   wing: { naca: "2412", root_chord: 1600, tip_chord: 800, span: 5000, sweep: 5, dihedral: 3, twist: -2, both_sides: true },
   shell: { thickness: 3, open_towards: "+z" },
   fillet: { radius: 3, edges: "" },
@@ -21,11 +22,11 @@ const FEATURE_DEFAULTS: Record<string, Omit<PartFeature, "id" | "type">> = {
   linear_pattern: { count: 3, step: [150, 0, 0] },
   circular_pattern: { count: 6, axis: "z", angle: 360 },
 };
-const SOLIDS = ["box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep", "wing"];
+const SOLIDS = ["box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep", "wing", "sheet_metal"];
 const LABELS: Record<string, string> = {
   box: "Box", cylinder: "Cylinder", sphere: "Sphere", extrude: "Extrude sketch",
   revolve: "Revolve profile", loft: "Loft sections", sweep: "Sweep tube",
-  wing: "Wing (NACA aerofoil)", shell: "Shell",
+  wing: "Wing (NACA aerofoil)", sheet_metal: "Sheet metal", shell: "Shell",
   fillet: "Fillet edges", chamfer: "Chamfer edges", mirror: "Mirror", linear_pattern: "Linear pattern",
   circular_pattern: "Circular pattern",
 };
@@ -243,11 +244,12 @@ function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: 
             ))}</span></label>
           );
         }
-        if (key === "points" && (feature.type === "extrude" || feature.type === "revolve") && Array.isArray(value)) {
-          const plane = String(feature.plane ?? "xy");
+        if (key === "points" && ["extrude", "revolve", "sheet_metal"].includes(feature.type) && Array.isArray(value)) {
+          const plane = feature.type === "sheet_metal" ? "xz" : String(feature.plane ?? "xy");
           return (
             <label key={key} className="wide">profile
               <Sketcher points={value as [number, number][]} axis={feature.type === "revolve"}
+                open={feature.type === "sheet_metal"}
                 labels={feature.type === "revolve" ? ["r", "z"] : [plane[0], plane[1]] as [string, string]}
                 onCommit={(v) => set(key, v)} />
               <JsonField value={value} onCommit={(v) => set(key, v)} />
@@ -411,6 +413,10 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
                     <button onClick={() => editFeature(i, null)} title="Delete feature">✕</button>
                   </div>
                   {f.id === failed && <div className="bad-text">{part.errors[0].message}</div>}
+                  {part.info?.[f.id]?.flat_length != null && (
+                    <div className="hint">Flat pattern: {part.info[f.id].flat_length.toFixed(1)} × {part.info[f.id].flat_width.toFixed(0)} mm,
+                      {" "}{part.info[f.id].bends} bend(s) (K-factor allowance)</div>
+                  )}
                   {f.id === feature && <FeatureFields feature={f} onChange={(next) => editFeature(i, next)} />}
                 </li>
               ))}

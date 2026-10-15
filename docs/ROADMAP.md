@@ -136,6 +136,16 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-15: sheet metal
+
+- **Sheet-metal feature** in Part Design:
+  - The input is an open mid-plane profile in XZ with thickness, inside bend radius, width and K-factor.
+  - Every corner is a real bend: the profile is swept along a path filleted at r + t/2.
+  - The build reports the **flat-pattern size**: straight lengths less the bend setbacks R·tan(θ/2), plus the bend allowance θ·(r + K·t) per bend.
+  - A bend radius too large for a flange, or a 180° fold, is reported on the feature.
+- Studio: an open-profile sketcher for sheets, and the flat blank size shown on the feature. New starting point: a parametric sheet-metal channel with slots.
+- Verified: a 50/100/50 U channel (t 2, r 2, K 0.44) develops to 197.05 mm, and its solid volume equals the mid-plane length × t × width.
+
 ### 2026-10-15: design tables
 
 - **Design tables** for parts: named variants (rows) of numeric parameters (columns); the active row drives the part, and other parameters keep their own values or formulas.

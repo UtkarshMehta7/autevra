@@ -23,7 +23,7 @@ Status: **have** (implemented and tested), **partial** (a working subset), **pla
 | Knowledge-based engineering (rules, formulas, checks bound to the model) | **have** | Design rules, derived values, packaging checks with stated limits |
 | Templates and catalogues of standard designs | **have** | Thirteen vehicle templates; twelve body styles; chassis, powertrain and trim choices |
 | Design tables and variants | **have** | Part design tables (variants of parameters, CSV import and export); vehicle templates and choice parameters |
-| Sheet metal, composites, castings | planned | |
+| Sheet metal, composites, castings | partial | Bent sheet from a profile with K-factor flat-pattern length; no flat-pattern drawing, reliefs or composites yet |
 | 2D drawings with dimensions and GD&T | planned | |
 | Neutral exchange (STEP, IGES, JT) | partial | STEP AP214 export with names and colours; no import workflow or JT |
 

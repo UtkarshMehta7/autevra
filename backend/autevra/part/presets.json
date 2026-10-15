@@ -898,5 +898,79 @@
     }
    }
   ]
+ },
+ "Sheet metal channel (manufacturing)": {
+  "name": "Sheet metal channel",
+  "finish": "metal",
+  "color": [
+   0.7,
+   0.72,
+   0.75
+  ],
+  "parameters": {
+   "t": 2,
+   "r": 2,
+   "depth": 50,
+   "span": 120
+  },
+  "features": [
+   {
+    "id": "channel",
+    "type": "sheet_metal",
+    "points": [
+     [
+      0,
+      50
+     ],
+     [
+      0,
+      0
+     ],
+     [
+      120,
+      0
+     ],
+     [
+      120,
+      50
+     ]
+    ],
+    "thickness": 2,
+    "bend_radius": 2,
+    "width": 300,
+    "bindings": {
+     "thickness": "t",
+     "bend_radius": "r",
+     "points.0.1": "depth",
+     "points.2.0": "span",
+     "points.3.0": "span",
+     "points.3.1": "depth"
+    }
+   },
+   {
+    "id": "slot",
+    "type": "box",
+    "op": "cut",
+    "size": [
+     60,
+     20,
+     10
+    ],
+    "at": {
+     "x": 60,
+     "y": -105
+    }
+   },
+   {
+    "id": "slots",
+    "type": "linear_pattern",
+    "count": 4,
+    "step": [
+     0,
+     70,
+     0
+    ]
+   }
+  ]
  }
 }

@@ -257,3 +257,4 @@ textarea.json.bad { border-color: var(--bad); }
 .design-table th { font-weight: 500; color: var(--muted); font-size: 12px; padding: 2px 6px; text-align: left; }
 .design-table td { padding: 1px 4px; }
 .design-table tr.active td { background: rgba(127, 178, 255, 0.08); }
+.sketcher .profile.open { fill: none; stroke-width: 2.5; }
