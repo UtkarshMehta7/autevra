@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
+from pydantic import BaseModel
 
 from autevra import domains
 from autevra.api import access, schemas
@@ -17,6 +18,7 @@ from autevra.engineering import optimize as opt
 from autevra.engineering import testing as tst
 from autevra.engineering.diagnosis import Diagnosis
 from autevra.engineering.trace import ImpactPreview
+from autevra.part import sketch
 from autevra.part.features import FEATURE_TYPES, PartDoc
 from autevra.storage.parts import PartNotFoundError
 from autevra.storage.repository import ProjectNotFoundError
@@ -580,6 +582,25 @@ def part_features() -> dict:
     return {"types": list(FEATURE_TYPES), "schema": PartDoc.model_json_schema()}
 
 
+class _Drag(BaseModel):
+    point: str
+    x: float
+    y: float
+
+
+class _SolveIn(BaseModel):
+    sketch: sketch.Sketch
+    drag: _Drag | None = None
+
+
+@router.post("/sketch/solve", response_model=sketch.SolveResult)
+def solve_sketch(body: _SolveIn) -> sketch.SolveResult:
+    """Solve a sketch's constraints (optionally while dragging a point) and report its
+    degrees of freedom, conflicts and which geometry is fully constrained."""
+    drag = (body.drag.point, body.drag.x, body.drag.y) if body.drag else None
+    return sketch.solve(body.sketch, drag)
+
+
 @router.get("/part-presets")
 def part_presets() -> dict[str, PartDoc]:
     """Starting-point parts from several domains (aerospace, consumer products, tooling,
@@ -587,6 +608,47 @@ def part_presets() -> dict[str, PartDoc]:
     from autevra.part.presets import presets
 
     return presets()
+
+
+@router.get("/feature-templates")
+def list_feature_templates(ws: WorkspaceDep, who: VisitorDep) -> list[dict]:
+    """The workspace's feature templates (power copies)."""
+    return ws.feature_templates(who.owner, who.all_owners)
+
+
+@router.post("/feature-templates", status_code=201)
+def save_feature_template(body: dict, ws: WorkspaceDep, who: VisitorDep) -> dict:
+    """Save chosen features of a part as a template: ``{project_id, part_id, name,
+    feature_ids, description}``; the parameters they use become its published inputs."""
+    try:
+        return ws.save_feature_template(
+            who.owner, str(body.get("project_id", "")), str(body.get("part_id", "")),
+            str(body.get("name", "")).strip() or "Template", list(body.get("feature_ids", [])),
+            str(body.get("description", "")),
+        )  # fmt: skip
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.delete("/feature-templates/{template_id}", status_code=204)
+def delete_feature_template(template_id: str, ws: WorkspaceDep, who: VisitorDep) -> None:
+    try:
+        ws.delete_feature_template(who.owner, who.all_owners, template_id)
+    except CommandError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from None
+
+
+@router.post(
+    "/projects/{project_id}/parts/{part_id}/insert-template", response_model=schemas.PartOut
+)
+def insert_feature_template(
+    project_id: str, part_id: str, body: dict, ws: WorkspaceDep, who: VisitorDep
+) -> schemas.PartOut:
+    """Insert a template: ``{template, prefix, inputs: {name: value or expression}, offset}``."""
+    try:
+        return ws.insert_feature_template(who.owner, who.all_owners, project_id, part_id, body)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 @router.get("/projects/{project_id}/parts", response_model=list[schemas.PartOut])

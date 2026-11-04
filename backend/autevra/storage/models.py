@@ -147,3 +147,14 @@ class StylingRow(Base):
     document_json: Mapped[str] = mapped_column(Text)
     undo_json: Mapped[str] = mapped_column(Text, default="[]")
     redo_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class FeatureTemplateRow(Base):
+    """A saved feature template (power copy), in a workspace's library."""
+
+    __tablename__ = "feature_templates"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    owner: Mapped[str | None] = mapped_column(String(64), index=True, default=None)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+    document_json: Mapped[str] = mapped_column(Text)

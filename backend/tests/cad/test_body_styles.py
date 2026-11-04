@@ -89,15 +89,20 @@ def test_every_template_builds_in_every_style(template: str, style: str) -> None
 
 
 @pytest.mark.cad
+@pytest.mark.parametrize("surface", [0, 1])  # styled freeform, draft
 @pytest.mark.parametrize("style", c.BODY_STYLES)
-def test_glazing_sits_inside_the_window_openings(style: str) -> None:
-    p = _inputs(style)
+def test_glazing_sits_inside_the_window_openings(style: str, surface: int) -> None:
+    p = _inputs(style) | {"surface_quality": surface}
     glass, body = c.build_glass(p), c.build_body(p)
-    assert k.is_valid(glass) and k.solid_count(glass) == 1
+    assert k.is_valid(glass)
     (gx0, gy0, gz0), (gx1, gy1, gz1) = k.bounds(glass)
     (bx0, by0, _), (bx1, by1, bz1) = k.bounds(body)
     assert bx0 < gx0 and gx1 < bx1 and by0 < gy0 and gy1 < by1 and gz1 < bz1
-    assert gz0 == pytest.approx(p["beltline_height"])
+    if surface == 1 or style in c.OPEN_STYLES:  # one glasshouse shell from the belt up
+        assert k.solid_count(glass) == 1
+        assert gz0 == pytest.approx(p["beltline_height"])
+    else:  # separate panes cut from the skin, each above the belt
+        assert k.solid_count(glass) >= 1 and gz0 >= p["beltline_height"] - 1.0
 
 
 def test_glazing_ignores_the_wheels_and_track() -> None:

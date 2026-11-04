@@ -6,7 +6,9 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { ModelPayload } from "../api/types";
 import { staleGeometry } from "../state/format";
 import { type Animation, frameIndex, framePoses, readout } from "./animation";
-import { baseEmissive, baseOpacity, curvatureMaterial, materialFor, rememberEmissive, zebraMaterial } from "./materials";
+import {
+  baseEmissive, baseOpacity, curvatureMaterial, draftMaterial, materialFor, rememberEmissive, zebraMaterial,
+} from "./materials";
 import {
   type DisplayMode, type SectionAxis, type StandardView, VIEWS, curvatureColors, curvatureEstimate,
   edgesOf, featureEdges, framing, measure, sectionPlane,
@@ -79,6 +81,8 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
   const restore = useRef(false);
   const markers = useRef<THREE.Group | null>(null);
   const [display, setDisplay] = useState<DisplayMode>("shaded");
+  const [pull, setPull] = useState<string>("+z");
+  const [minDraft, setMinDraft] = useState(1);
   const [ortho, setOrtho] = useState(false);
   const [section, setSection] = useState<{ axis: SectionAxis; share: number }>({ axis: "off", share: 0.5 });
   const [measuring, setMeasuring] = useState(false);
@@ -273,7 +277,8 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
         const material = materialFor(part.finish, part.color);
         rememberEmissive(material);
         mesh.userData.baseMaterial = material;
-        if (mesh.material !== zebraMaterial() && mesh.material !== curvatureMaterial()) mesh.material = material;
+        const analysis = mesh.material === curvatureMaterial() || mesh.material instanceof THREE.ShaderMaterial;
+        if (!analysis) mesh.material = material; // zebra and draft are shader materials
       }
       mesh.userData.look = look;
       if (mesh.geometry !== geometry) { // rebuilt: its edge outline is stale
@@ -311,8 +316,11 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
         mesh.geometry.setAttribute("color", new THREE.BufferAttribute(
           curvatureColors(curvatureEstimate(mesh.geometry)), 3));
       }
+      const axis = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }[pull[1] as "x" | "y" | "z"];
+      const sign = pull[0] === "-" ? -1 : 1;
       mesh.material = display === "zebra" ? zebraMaterial()
-        : display === "curvature" ? curvatureMaterial() : mat;
+        : display === "curvature" ? curvatureMaterial()
+        : display === "draft" ? draftMaterial(new THREE.Vector3(...axis).multiplyScalar(sign), minDraft) : mat;
       const isBody = mesh.userData.category === "body";
       const own = baseOpacity(mat);
       const opacity = xray && isBody ? Math.min(0.22, own) : own;
@@ -343,7 +351,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
           display === "wireframe" ? (id === selected ? 0x7fb2ff : 0xc9d4e0) : 0x0b0e12);
       }
     }
-  }, [model, selected, highlighted, xray, display, hidden, section.axis]);
+  }, [model, selected, highlighted, xray, display, hidden, section.axis, pull, minDraft]);
 
   // Section plane.
   useEffect(() => {
@@ -419,15 +427,29 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       <div className="viewport" ref={host} />
       <div className="cad-toolbar" role="toolbar" aria-label="View tools">
         <div className="seg" aria-label="Display mode">
-          {(["shaded", "edges", "wireframe", "zebra", "curvature"] as DisplayMode[]).map((d) => (
+          {(["shaded", "edges", "wireframe", "zebra", "curvature", "draft"] as DisplayMode[]).map((d) => (
             <button key={d} className={display === d ? "on" : ""} onClick={() => setDisplay(d)}
               title={{ shaded: "Shading", edges: "Shading with edges", wireframe: "Wireframe (edges only)",
                 zebra: "Zebra: highlight lines for surface continuity",
-                curvature: "Curvature (mesh estimate): blue flat, red tight curves and creases" }[d]}>
-              {{ shaded: "Shaded", edges: "Edges", wireframe: "Wire", zebra: "Zebra", curvature: "Curvature" }[d]}
+                curvature: "Curvature (mesh estimate): blue flat, red tight curves and creases",
+                draft: "Draft analysis: green releases from the mould, yellow short of draft, red undercut" }[d]}>
+              {{ shaded: "Shaded", edges: "Edges", wireframe: "Wire", zebra: "Zebra", curvature: "Curvature", draft: "Draft" }[d]}
             </button>
           ))}
         </div>
+        {display === "draft" && (
+          <div className="seg" aria-label="Draft analysis">
+            <label title="Pull direction (mould opening)">pull
+              <select value={pull} onChange={(e) => setPull(e.target.value)}>
+                {["+z", "-z", "+x", "-x", "+y", "-y"].map((d) => <option key={d}>{d}</option>)}
+              </select>
+            </label>
+            <label title="Minimum draft angle, degrees">min°
+              <input type="number" min={0} max={15} step={0.5} value={minDraft} style={{ width: 52 }}
+                onChange={(e) => setMinDraft(Math.max(0, Number(e.target.value) || 0))} />
+            </label>
+          </div>
+        )}
         <div className="seg" aria-label="Standard views">
           {(Object.keys(VIEWS) as StandardView[]).map((v) => (
             <button key={v} onClick={() => viewFrom(v)} title={`${VIEWS[v].label} view`}>

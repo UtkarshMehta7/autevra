@@ -14,12 +14,13 @@ export interface EditableCurve {
  * v upwards. Drag a point (it stays between its neighbours in x), click "+" to insert one,
  * double-click to delete one (at least three stay). Commits when a drag ends.
  */
-export function CurveEditor({ curves, view, onCommit, children, height = 260 }: {
+export function CurveEditor({ curves, view, onCommit, children, height = 260, onPick }: {
   curves: EditableCurve[];
   view: { x0: number; x1: number; v0: number; v1: number };
   onCommit: (id: string, points: Pt[]) => void;
   children?: ReactNode; // background drawn in model units (v already flipped by the caller)
   height?: number;
+  onPick?: (point: Pt) => void; // when set, a click on the background reports a model point
 }) {
   const [draft, setDraft] = useState<Record<string, Pt[]>>({});
   const [drag, setDrag] = useState<{ id: string; i: number } | null>(null);
@@ -44,7 +45,7 @@ export function CurveEditor({ curves, view, onCommit, children, height = 260 }: 
   };
 
   return (
-    <svg ref={svg} className="curve-editor" style={{ height }}
+    <svg ref={svg} className="curve-editor"
       viewBox={`${view.x0} ${-view.v1} ${w} ${h}`} preserveAspectRatio="xMidYMid meet"
       onPointerMove={(ev) => {
         if (!drag) return;
@@ -57,7 +58,9 @@ export function CurveEditor({ curves, view, onCommit, children, height = 260 }: 
         pts[drag.i] = [Math.min(Math.max(x, lo), hi), v];
         setDraft((d) => ({ ...d, [c.id]: pts }));
       }}
-      onPointerUp={finish} onPointerLeave={finish}>
+      onPointerUp={finish} onPointerLeave={finish}
+      onPointerDown={(ev) => { if (onPick && !drag) onPick(toModel(ev)); }}
+      style={{ height, cursor: onPick ? "crosshair" : undefined }}>
       {children}
       {curves.map((c) => {
         const pts = pointsOf(c);

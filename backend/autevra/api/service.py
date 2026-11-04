@@ -4,6 +4,7 @@ All mutations and CAD builds run under one lock: the kernel is used from a
 single thread at a time and jobs stay sequential (8 GB memory budget).
 """
 
+import json
 import logging
 import threading
 import time
@@ -1391,6 +1392,73 @@ class Workspace:
             if not StylingRepository(s).step(project_id, back):
                 raise CommandError("nothing to undo" if back else "nothing to redo")
         return self.styling(project_id)
+
+    # --- Feature templates (power copies) ---
+    def feature_templates(self, owner: str | None, all_owners: bool) -> list[dict]:
+        from sqlalchemy import select
+
+        from autevra.storage.models import FeatureTemplateRow
+
+        with self.db.session() as s:
+            query = select(FeatureTemplateRow).order_by(FeatureTemplateRow.created_at)
+            if not all_owners:
+                query = query.where(FeatureTemplateRow.owner == owner)
+            rows = list(s.scalars(query))
+            return [{"id": r.id, **json.loads(r.document_json)} for r in rows]
+
+    def save_feature_template(
+        self, owner: str | None, project_id: str, part_id: str, name: str,
+        feature_ids: list[str], description: str = "",
+    ) -> dict:  # fmt: skip
+        from uuid import uuid4
+
+        from autevra.part import templates as ft
+        from autevra.storage.models import FeatureTemplateRow
+
+        with self.db.session() as s:
+            doc_json, _, _ = PartRepository(s).get(project_id, part_id)
+        try:
+            template = ft.from_part(PartDoc.model_validate_json(doc_json), name, feature_ids,
+                                    description)  # fmt: skip
+        except ValueError as exc:
+            raise CommandError(str(exc)) from None
+        template_id = uuid4().hex
+        with self.db.session() as s:
+            s.add(FeatureTemplateRow(id=template_id, owner=owner,
+                                     document_json=template.model_dump_json()))  # fmt: skip
+        return {"id": template_id, **template.model_dump(mode="json")}
+
+    def delete_feature_template(
+        self, owner: str | None, all_owners: bool, template_id: str
+    ) -> None:
+        from autevra.storage.models import FeatureTemplateRow
+
+        with self.db.session() as s:
+            row = s.get(FeatureTemplateRow, template_id)
+            if row is None or (not all_owners and row.owner != owner):
+                raise CommandError("no such template")
+            s.delete(row)
+
+    def insert_feature_template(self, owner: str | None, all_owners: bool, project_id: str,
+                                part_id: str, body: dict) -> schemas.PartOut:  # fmt: skip
+        from autevra.part import templates as ft
+        from autevra.storage.models import FeatureTemplateRow
+
+        try:
+            how = ft.Insertion.model_validate(body)
+        except ValidationError as exc:
+            raise CommandError(exc.errors()[0]["msg"]) from None
+        with self.db.session() as s:
+            row = s.get(FeatureTemplateRow, how.template)
+            if row is None or (not all_owners and row.owner != owner):
+                raise CommandError("no such template")
+            template = ft.FeatureTemplate.model_validate_json(row.document_json)
+            doc_json, _, _ = PartRepository(s).get(project_id, part_id)
+        try:
+            doc = ft.insert(PartDoc.model_validate_json(doc_json), template, how)
+        except (ValueError, ValidationError) as exc:
+            raise CommandError(str(exc).split("\n")[0]) from None
+        return self.update_part(project_id, part_id, doc)
 
     # --- Part Design ---
     MAX_PARTS = 50  # per project

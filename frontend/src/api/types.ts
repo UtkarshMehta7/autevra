@@ -542,6 +542,14 @@ export type PartFeature = { id: string; type: string; name?: string; suppressed?
 
 export interface Placement { x?: number; y?: number; z?: number; rx?: number; ry?: number; rz?: number }
 
+export interface FeatureTemplate {
+  id: string;
+  name: string;
+  description: string;
+  parameters: Record<string, number | string>;
+  features: PartFeature[];
+}
+
 export interface Styling {
   curves: { top: [number, number][]; bottom: [number, number][]; plan: [number, number][] };
   custom: { top: boolean; bottom: boolean; plan: boolean };
@@ -589,4 +597,23 @@ export interface PartOut {
   info?: Record<string, Record<string, number>>;
   volume: number | null;
   bounds: [[number, number, number], [number, number, number]] | null;
+}
+
+/** A constrained 2D sketch (see backend autevra/part/sketch.py). */
+export interface SketchPoint { id: string; x: number; y: number; fixed?: boolean }
+export type SketchEntity =
+  | { type: "line"; id: string; a: string; b: string; construction?: boolean }
+  | { type: "circle"; id: string; center: string; radius: number; construction?: boolean }
+  | { type: "arc"; id: string; center: string; start: string; end: string; construction?: boolean };
+export interface SketchConstraint { kind: string; refs: string[]; value?: number | null }
+export interface Sketch { points: SketchPoint[]; entities: SketchEntity[]; constraints: SketchConstraint[] }
+export interface SketchSolve {
+  sketch: Sketch;
+  ok: boolean;
+  dof: number;
+  redundant: number;
+  conflicting: number[];
+  fixed_points: string[];
+  fixed_entities: string[];
+  residual: number;
 }

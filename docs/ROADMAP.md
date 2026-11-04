@@ -136,6 +136,28 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-11-04: workbenches — styled body, draft analysis, power copies, sketch solver
+
+Build order for the requested workbench scope (see `INDUSTRY_FEATURES.md`): styled body
+and curve editor, draft analysis, power copies, sketcher constraints, reference
+geometry and surfaces, assemblies, drafting, sheet-metal flanges, FEA, PLM.
+
+- **Styled freeform body** (the new default; "Draft (fast)" stays as a choice under Body shaping). One skin through cross-sections driven by guide curves: silhouette, underbody and plan width. The cabin blends the bonnet into the glasshouse; a roof arc and a bonnet dip between raised wings shape it. It is built as dense faceted sections joined by a ruled loft (B-spline skins made the kernel's booleans fail), and the viewer shades across the facets.
+  - The extents stay exact: the roof crown and the highest point each get a station, and the sections are kept inside their own height.
+  - Body roundness softens the sill and shoulder.
+  - Glazing and lamp lenses are cut from the same skin, so they sit flush. A sunroof or panoramic roof gets a flush roof pane.
+  - If the kernel cannot build the styled body as one valid solid (for some unusual style mixes), the body, glazing and lamps all fall back to the draft surface together.
+- **Styling curves** (Styling workspace). Drag, insert or delete control points of the silhouette, underbody and plan curves, with per-project undo and redo. A side or top photo can be loaded as a blueprint and aligned by clicking the two wheel centres.
+- **Draft analysis** viewer mode. Choose the pull direction (±x/±y/±z) and a minimum angle: green releases, yellow is within the minimum, red is undercut.
+- **Power copies.** Save ticked features of a part as a template; its published parameters are the ones those features use. Insert it into any part with a prefix, input expressions and an offset. Inputs left at their defaults keep the template's own meaning.
+- **Sketch solver** (`autevra/part/sketch.py`, `POST /api/sketch/solve`).
+  - Geometry: points, lines, circles and arcs.
+  - Constraints: coincident, horizontal, vertical, parallel, perpendicular, equal, tangent, point on, midpoint, symmetric, plus distance, horizontal and vertical distance, length, radius, diameter and angle dimensions.
+  - Solving is a damped minimum-move Gauss-Newton: an under-constrained sketch keeps its drawn shape, and a dragged point stays under the cursor where the constraints allow.
+  - It reports the remaining degrees of freedom, redundant equations, conflicting constraints, and which points and entities are fully constrained.
+  - New **Pad / pocket** and **Shaft / groove** features build from solved sketches, with holes nested by containment. Sketch dimensions bind to part parameters (`sketch.constraints.<i>.value`).
+- Next: the sketcher canvas in Part Design (draw, constrain, dimension and drag, with fully constrained geometry shown in green).
+
 ### 2026-11-04: closing the car module — package
 
 Closing checklist for the automotive module (what a vehicle designer expects from a

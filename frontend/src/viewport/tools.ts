@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 /** CAD viewer conventions (vehicle frame, ISO 8855: X forward, Y left, Z up). */
-export type DisplayMode = "shaded" | "edges" | "wireframe" | "zebra" | "curvature";
+export type DisplayMode = "shaded" | "edges" | "wireframe" | "zebra" | "curvature" | "draft";
 export type StandardView = "iso" | "front" | "back" | "left" | "right" | "top" | "bottom";
 export type SectionAxis = "off" | "x" | "y" | "z";
 

@@ -66,10 +66,11 @@ def test_impact_of_rim_rebuilds_wheels_and_body_and_moves_axles() -> None:
     wheels = {f"{part}_{c}" for part in ("wheel", "rim") for c in ("fl", "fr", "rl", "rr")}
     dampers = {"damper_fl", "damper_fr", "damper_rl", "damper_rr"}
     # dampers: length between mounts; equipment: placed from the wheel-centre height
-    # the spoiler sits on the body's side profile, which clears the arches
+    # the spoiler sits on the body's side profile, which clears the arches; the styled
+    # glazing is cut from the same skin as the body, so it follows the body
     assert (
         impact.rebuild
-        == {"body", "head_lamps", "tail_lamps", "spoiler"} | wheels | dampers | EQUIPMENT
+        == {"body", "glass", "head_lamps", "tail_lamps", "spoiler"} | wheels | dampers | EQUIPMENT
     )
     assert not INTERIOR & impact.rebuild  # the cabin does not follow the wheels
     assert {"front_axle", "rear_axle"} <= impact.move
@@ -77,7 +78,8 @@ def test_impact_of_rim_rebuilds_wheels_and_body_and_moves_axles() -> None:
 
 def test_impact_of_front_track() -> None:
     impact = graph.impact(["track_front"])
-    assert impact.rebuild == {"body", "head_lamps", "tail_lamps", "spoiler", "front_axle"}
+    assert impact.rebuild == {
+        "body", "glass", "head_lamps", "tail_lamps", "spoiler", "front_axle"}  # fmt: skip
     assert impact.move == {"wheel_fl", "wheel_fr", "rim_fl", "rim_fr"}
 
 

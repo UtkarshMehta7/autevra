@@ -29,7 +29,8 @@ from autevra.domains.automotive import sculpt
 
 Inputs = Mapping[str, float]
 SURFACES = ("styled", "draft")
-STATIONS = 34  # sections along the car
+STATIONS = 40  # sections along the car
+SECTION_POINTS = 40  # points round each section (the skin is faceted between them)
 STEP = 100.0  # guide-curve sampling step, mm
 GLASS_INSET = 8.0  # the glazing sits this far inside the skin, mm
 
@@ -116,6 +117,8 @@ def guides(p: Inputs, layout: b.BodyLayout) -> Guides:
 
     count = max(int((front - rear) / STEP), 8)
     xs = [rear + (front - rear) * i / count for i in range(count + 1)]
+    if has_cabin and not layout.open and rear < (r0 + r1) / 2.0 < front:
+        xs = sorted({*xs, (r0 + r1) / 2.0})  # sample the crown of the roof arc itself
     lows, tops = [], []
     for x in xs:
         z0, z1 = sculpt.envelope(profile, min(max(x, rear + 0.5), front - 0.5))
@@ -171,9 +174,12 @@ def section_points(p: Inputs, g: Guides, x: float, inset: float = 0.0) -> list[t
     w_bot = w - tuck
     # Bonnet dip between raised wings (outside the cabin only).
     dip = 0.6 * p.get("fender_rise", 0.0) * (1.0 - cw)
+    # Body roundness softens the sill and the shoulder (the widest point stays put, so the
+    # extents never change): 0 = crisp, 1 = full.
+    rnd = min(max(p.get("body_roundness", 45.0) / 100.0, 0.0), 1.0)
     half = [
-        (0.0, zb), (0.55 * w_bot, zb), (w_bot, zb + 30.0), (0.995 * w, zs - 40.0),
-        (w, zs + 30.0), (0.975 * w, zbelt),
+        (0.0, zb), ((0.7 - 0.3 * rnd) * w_bot, zb), (w_bot, zb + 10.0 + 50.0 * rnd),
+        ((0.998 - 0.03 * rnd) * w, zs - 40.0), (w, zs + 30.0), ((0.99 - 0.035 * rnd) * w, zbelt),
         (wtop + (0.975 * w - wtop) * 0.45, zbelt + 0.55 * (zt - zbelt)),
         (wtop, zt - 0.12 * (zt - zbelt) - 8.0), (0.55 * wtop, zt - 4.0 - 0.7 * dip),
         (0.0, zt - dip),
@@ -197,6 +203,12 @@ def skin(p: Inputs, layout: b.BodyLayout, inset: float = 0.0) -> k.Shape:
     shares = [0.6 * i / (STATIONS - 1) + 0.4 * (0.5 - 0.5 * math.cos(math.pi * i / (STATIONS - 1)))
               for i in range(STATIONS)]  # fmt: skip
     xs = [rear + (front - rear) * u for u in shares]
+    # A station at the highest point of the silhouette, so the facets reach the overall
+    # height exactly (the nearest station moves there; the end stations stay put).
+    fine = [rear + (front - rear) * i / 400 for i in range(401)]
+    peak = max(fine, key=g.top)
+    near = min(range(3, STATIONS - 3), key=lambda i: abs(xs[i] - peak))
+    xs[near] = peak
     if inset:
         xs = [rear + inset] + xs[1:-1] + [front - inset]
     # Round the nose and tail over three sections on each end.
@@ -209,9 +221,37 @@ def skin(p: Inputs, layout: b.BodyLayout, inset: float = 0.0) -> k.Shape:
             sy, sz = end
             zc = sum(z for _, z in loop) / len(loop)
             loop = [(y * sy, zc + (z - zc) * sz) for y, z in loop]
-        pts = [cq.Vector(x, y, z) for y, z in loop]
-        wires.append(cq.Wire.assembleEdges([cq.Edge.makeSpline(pts, periodic=True)]))
-    return _outward(cq.Solid.makeLoft(wires, ruled=False))
+        # The spline through the section points can dip a little below the sill or rise
+        # above the crown between them: keep it inside the section's own height.
+        # and the samples can miss the widest point: scale them back to the section's width.
+        lo, hi = min(z for _, z in loop), max(z for _, z in loop)
+        dense = _resample(loop, SECTION_POINTS)
+        wy = max(abs(y) for y, _ in loop) / max(max(abs(y) for y, _ in dense), 1e-9)
+        wires.append([(x, y * wy, min(max(z, lo), hi)) for y, z in dense])
+    # Planar and bilinear facets between dense sections: robust, fast booleans (B-spline
+    # skins made the kernel's booleans fail on several styles); the viewer shades across
+    # the facets, so the surface reads as smooth.
+    return _outward(k.ruled_loft(wires))
+
+
+def _resample(loop: list[tuple[float, float]], n: int) -> list[tuple[float, float]]:
+    """n points on the closed Catmull-Rom curve through the loop, evenly spaced in the
+    curve parameter (the same count at every station, as a ruled loft needs)."""
+    m = len(loop)
+    out = []
+    for j in range(n):
+        t = j * m / n
+        i, u = int(t), t - int(t)
+        p0, p1, p2, p3 = (loop[(i - 1) % m], loop[i % m], loop[(i + 1) % m], loop[(i + 2) % m])
+        u2, u3 = u * u, u * u * u
+
+        def cr(c: int, p0=p0, p1=p1, p2=p2, p3=p3, u=u, u2=u2, u3=u3) -> float:  # noqa: ANN001
+            a2 = 2 * p0[c] - 5 * p1[c] + 4 * p2[c] - p3[c]
+            a3 = -p0[c] + 3 * p1[c] - 3 * p2[c] + p3[c]
+            return 0.5 * (2 * p1[c] + (-p0[c] + p2[c]) * u + a2 * u2 + a3 * u3)
+
+        out.append((cr(0), cr(1)))
+    return out  # type: ignore[return-value]
 
 
 def _outward(solid: k.Shape) -> k.Shape:
@@ -249,7 +289,9 @@ def window_tools(p: Inputs, layout: b.BodyLayout, g: Guides) -> list[k.Shape]:
         outline = [(x0, belt + 0.6 * pillar), *top, (x1, belt + 0.6 * pillar)]
         tools.append(k.prism_y(outline, (-half_w - 10.0, half_w + 10.0)))
     z = (belt + 0.6 * pillar, g.roof_z - 0.5 * pillar)
-    for x in ((r1 - 1.0, g1 + 10.0), (g0 - 10.0, r0 + 1.0)):  # windscreen, rear screen
+    # Windscreen and rear screen. The rear screen stops short of the greenhouse base so a
+    # rim of skin stays at the tail (on two-box bodies the base is at the very back).
+    for x in ((r1 - 1.0, g1 + 10.0), (g0 + 60.0, r0 + 1.0)):
         if x[1] - x[0] > 1.0 and roof_w - pillar > 50.0:
             tools.append(k.box(x, (-roof_w + pillar, roof_w - pillar), z))
     return tools
@@ -263,7 +305,8 @@ def lamp_tools(p: Inputs, layout: b.BodyLayout, end: str) -> list[k.Shape]:
 
     sign = 1.0 if end == "head" else -1.0
     face = p["front_overhang"] if end == "head" else -(p["wheelbase"] + p["rear_overhang"])
-    xr = tuple(sorted((face + sign * 60.0, face - sign * 90.0)))
+    depth = 90.0 if end == "head" else 70.0
+    xr = tuple(sorted((face + sign * 60.0, face - sign * depth)))
     round_head = end == "head" and styling.head_lamp_style(p) == "round"
     groups: dict[str, list[tuple[float, float, float, float]]] = {}
     for solid in styling.lamp_solids(p, end, layout):
@@ -290,8 +333,6 @@ def build_styled_body(p: Inputs) -> k.Shape:
     floor, belt = p["body_floor"], p["beltline_height"]
     body = _clip(p, g, skin(p, layout))
     extra = []
-    if layout.open:  # windscreen surround of an open car
-        extra.append(b._window_frame(p, layout))
     if layout.cargo is not None:
         extra.append(k.box(layout.cargo, (-half_w, half_w), (floor, p["overall_height"])))
     if extra:
@@ -311,7 +352,24 @@ def build_styled_body(p: Inputs) -> k.Shape:
     cabin = k.box(*interior.cavity(p))
     opening = exterior.roof_opening(p, layout)
     roof = [k.box(*opening)] if opening is not None else []
-    return k.cut(body, *wells, *lamps, cabin, *window_tools(p, layout, g), *roof)
+    body = k.cut(body, *wells, *lamps, cabin, *window_tools(p, layout, g), *roof)
+    if layout.open:  # windscreen surround of an open car, on a strip at the cowl
+        (_, g1) = layout.glass
+        roof_w = b.roof_half_width(p)
+        strip = k.box((g1 - 60.0, g1 + 10.0), (-roof_w, roof_w), (belt - 300.0, belt + 5.0))
+        body = k.fuse(body, b._window_frame(p, layout), strip)
+    return _main_solids(body)
+
+
+def _main_solids(shape: k.Shape) -> k.Shape:
+    """Drop slivers (under 0.1 % of the body's volume) that the cuts can leave between
+    neighbouring openings."""
+    solids = shape.Solids()
+    if len(solids) <= 1:
+        return shape
+    volumes = [k.volume(s_) for s_ in solids]
+    keep = [s_ for s_, v in zip(solids, volumes, strict=True) if v >= 1e-3 * max(volumes)]
+    return keep[0] if len(keep) == 1 else cq.Compound.makeCompound(keep)
 
 
 def build_styled_glass(p: Inputs) -> k.Shape | None:
@@ -335,6 +393,13 @@ def build_styled_glass(p: Inputs) -> k.Shape | None:
     air = k.box((g0 + 40.0, g1 - 40.0), (-(roof_w - 20.0), roof_w - 20.0),
                 (p["beltline_height"] + 0.6 * b.PILLAR - 1.0, g.roof_z - 20.0))  # fmt: skip
     panes = k.cut(panes, air)
+    from autevra.domains.automotive import exterior
+
+    opening = exterior.roof_opening(p, layout)
+    if opening is not None:  # a flush roof pane, cut from the skin like the opening
+        roof = k.intersect(skin(p, layout), k.box(*opening))
+        pieces = [*panes.Solids(), *roof.Solids()]
+        panes = cq.Compound.makeCompound(pieces) if pieces else panes
     return panes if k.solid_count(panes) else None
 
 
@@ -343,7 +408,11 @@ def build_styled_lamps(p: Inputs, end: str) -> k.Shape | None:
     tools = lamp_tools(p, layout, end)
     if not tools:
         return None
-    lenses = k.intersect(skin(p, layout), k.fuse(*tools) if len(tools) > 1 else tools[0])
+    outer = skin(p, layout)
+    if layout.cargo is not None and end == "tail":  # the tail lamps sit on the cargo box
+        half_w = p["body_width"] / 2.0
+        outer = k.box(layout.cargo, (-half_w, half_w), (p["body_floor"], p["overall_height"]))
+    lenses = k.intersect(outer, k.fuse(*tools) if len(tools) > 1 else tools[0])
     return lenses if k.solid_count(lenses) else None
 
 
@@ -358,7 +427,11 @@ def try_body(p: Inputs) -> k.Shape | None:
     key = tuple(sorted(p.items()))
     if key not in _TRIED:
         try:
-            _TRIED[key] = build_styled_body(p)
+            shape = build_styled_body(p)
+            # One valid solid or nothing: a body in pieces (unusual style mixes) is not
+            # worth showing, the draft surface always builds as one.
+            ok = k.is_valid(shape) and k.solid_count(shape) == 1
+            _TRIED[key] = shape if ok else None
         except Exception:  # the kernel raises many types; draft is the safe answer
             _TRIED[key] = None
         while len(_TRIED) > 32:

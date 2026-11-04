@@ -14,6 +14,7 @@ from autevra.assembly.transforms import Matrix
 from autevra.cad import kernel as k
 from autevra.part import expressions as ex
 from autevra.part import features as f
+from autevra.part import sketch as sk
 
 _AXIS = {f.Axis.X: cq.Vector(1, 0, 0), f.Axis.Y: cq.Vector(0, 1, 0), f.Axis.Z: cq.Vector(0, 0, 1)}
 
@@ -82,6 +83,16 @@ def _solid(feat: f.Box | f.Cylinder | f.Sphere | f.Extrude | f.Revolve | f.Loft 
             pts = [cq.Vector(r, 0, z) for r, z in feat.points]
             face = cq.Face.makeFromWires(cq.Wire.makePolygon(pts, close=True))
             return cq.Solid.revolve(face, feat.angle, cq.Vector(0, 0, 0), cq.Vector(0, 0, 1))
+        case f.Pad():
+            n = _normal(feat.plane)
+            solids = [cq.Solid.extrudeLinear(face, n * feat.depth) for face in sketch_faces(feat)]
+            solid = k.fuse(*solids) if len(solids) > 1 else solids[0]
+            return solid.translate(n * (-feat.depth / 2)) if feat.symmetric else solid
+        case f.Shaft():
+            axis = _plane_point(feat.plane, 0, 1)
+            solids = [cq.Solid.revolve(face, feat.angle, cq.Vector(0, 0, 0), axis)
+                      for face in sketch_faces(feat)]  # fmt: skip
+            return k.fuse(*solids) if len(solids) > 1 else solids[0]
         case f.Loft():
             wires = []
             for s in feat.sections:
@@ -95,6 +106,37 @@ def _solid(feat: f.Box | f.Cylinder | f.Sphere | f.Extrude | f.Revolve | f.Loft 
         case f.SheetMetal():
             return _sheet(feat)[0]
     raise ValueError(f"unknown feature type {feat.type}")
+
+
+def _wire(plane: f.Plane, chain) -> cq.Wire:
+    edges = []
+    for _, s, e, m in chain:
+        a, b = _plane_point(plane, *s), _plane_point(plane, *e)
+        if m is None:
+            edges.append(cq.Edge.makeLine(a, b))
+        elif s == e:  # a full circle: two half arcs through the opposite point
+            mid = _plane_point(plane, *m)
+            c = (a + mid) * 0.5
+            r = (a - c).Length
+            n = _normal(plane)
+            edges.append(cq.Edge.makeCircle(r, c, n))
+        else:
+            edges.append(cq.Edge.makeThreePointArc(a, _plane_point(plane, *m), b))
+    return cq.Wire.assembleEdges(edges)
+
+
+def sketch_faces(feat: f.Pad | f.Shaft) -> list[cq.Face]:
+    """The solved sketch's profile faces in the feature's plane (holes cut out)."""
+    solved = sk.solve(feat.sketch)
+    if not solved.ok:
+        kinds = ", ".join(f"{i} ({feat.sketch.constraints[i].kind})" for i in solved.conflicting)
+        raise ValueError(f"the sketch constraints conflict: {kinds or 'arc ends'}")
+    faces = []
+    for outer, holes in sk.regions(solved.sketch):
+        face = cq.Face.makeFromWires(_wire(feat.plane, outer),
+                                     [_wire(feat.plane, h) for h in holes])  # fmt: skip
+        faces.append(face)
+    return faces
 
 
 def naca4(code: str, n: int = 40) -> list[tuple[float, float]]:

@@ -114,3 +114,43 @@ export function curvatureMaterial(): THREE.MeshLambertMaterial {
   curvature ??= new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   return curvature;
 }
+
+let draft: THREE.ShaderMaterial | null = null;
+
+/** Draft analysis: each surface coloured by its draft angle to the pull direction (world
+ * space): green releases (at least ``minDeg``), yellow is short of draft, red is undercut
+ * (or belongs to the other mould half). Honours the section plane. */
+export function draftMaterial(pull: THREE.Vector3, minDeg: number): THREE.ShaderMaterial {
+  draft ??= new THREE.ShaderMaterial({
+    clipping: true,
+    side: THREE.DoubleSide,
+    uniforms: { pull: { value: new THREE.Vector3(0, 0, 1) }, minDeg: { value: 1 } },
+    vertexShader: `
+      #include <clipping_planes_pars_vertex>
+      varying vec3 vWorldNormal;
+      void main() {
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <clipping_planes_vertex>
+      }`,
+    fragmentShader: `
+      #include <clipping_planes_pars_fragment>
+      uniform vec3 pull;
+      uniform float minDeg;
+      varying vec3 vWorldNormal;
+      void main() {
+        #include <clipping_planes_fragment>
+        vec3 n = normalize(vWorldNormal);
+        if (!gl_FrontFacing) n = -n;
+        float angle = 90.0 - degrees(acos(clamp(dot(n, normalize(pull)), -1.0, 1.0)));
+        vec3 c = angle >= minDeg ? vec3(0.18, 0.72, 0.35)
+               : angle > -minDeg ? vec3(0.95, 0.78, 0.15) : vec3(0.86, 0.22, 0.2);
+        float light = 0.55 + 0.45 * abs(n.z);
+        gl_FragColor = vec4(c * light, 1.0);
+      }`,
+  });
+  draft.uniforms.pull.value.copy(pull);
+  draft.uniforms.minDeg.value = minDeg;
+  return draft;
+}
