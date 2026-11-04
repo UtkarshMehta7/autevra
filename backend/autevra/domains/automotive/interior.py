@@ -7,8 +7,8 @@ envelopes for packaging and appearance, not seat designs.
 """
 
 import math
-from collections.abc import Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, replace
 
 import cadquery as cq
 
@@ -119,9 +119,24 @@ def _seat(c: Cabin, x_front: float, y: float, level: str) -> k.Shape:
     return k.fuse(*lower, back)
 
 
+def _roof_over(p: Inputs, c: Cabin) -> Callable[[float], float]:
+    """Roof liner height at x: the styled roofline (which arches and falls towards a
+    fastback) less the liner allowance, or the draft roof panel."""
+    from autevra.domains.automotive import styled
+
+    if styled.surface(p) != "styled":
+        return lambda x: c.roof
+    g = styled.guides(p, b.body_layout(p))
+    return lambda x: min(c.roof, g.top(x) - 70.0)
+
+
 def build_seats(p: Inputs) -> k.Shape:
     c, level = cabin(p), trim(p)
-    first, *rest = (_seat(c, x, y, level) for x, y in seat_positions(p))
+    roof_at = _roof_over(p, c)
+    # Each seat is sized for the roof above its backrest (a 2+2 under a fastback gets
+    # lower rear backrests instead of passing through the roof).
+    seats = [_seat(replace(c, roof=roof_at(x - 560.0)), x, y, level) for x, y in seat_positions(p)]
+    first, *rest = seats
     return k.fuse(first, *rest) if rest else first
 
 

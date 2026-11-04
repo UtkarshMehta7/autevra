@@ -507,6 +507,39 @@ def spec_apply(project_id: str, ws: WorkspaceDep) -> schemas.SpecApplied:
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
+@router.get("/projects/{project_id}/styling")
+def get_styling(project_id: str, ws: WorkspaceDep) -> dict:
+    """The styled body's guide curves (the project's own or the style's) and reference
+    geometry for an editor."""
+    return ws.styling(project_id)
+
+
+@router.put("/projects/{project_id}/styling")
+def put_styling(project_id: str, body: dict, ws: WorkspaceDep) -> dict:
+    """Set the project's styling curves (top, bottom, plan; omit a curve to use the
+    style's). An empty object resets to the style."""
+    try:
+        return ws.set_styling(project_id, body)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.post("/projects/{project_id}/styling/undo")
+def undo_styling(project_id: str, ws: WorkspaceDep) -> dict:
+    try:
+        return ws.step_styling(project_id, back=True)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+@router.post("/projects/{project_id}/styling/redo")
+def redo_styling(project_id: str, ws: WorkspaceDep) -> dict:
+    try:
+        return ws.step_styling(project_id, back=False)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
 @router.get("/projects/{project_id}/bom", response_model=list[schemas.BomLineOut])
 def bill_of_materials(project_id: str, ws: WorkspaceDep) -> list[schemas.BomLineOut]:
     """Parts grouped into lines with quantities, sizes and volumes (no mass: several

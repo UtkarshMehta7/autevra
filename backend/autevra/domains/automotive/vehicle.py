@@ -22,7 +22,7 @@ TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
 # Shape controls: the sculpted lower body reads all of them, the greenhouse (and so the
 # glazing and the cabin) the haunch and the tumblehome.
 SHAPE = ("haunch", "nose_taper", "tail_taper", "sill_tuck", "body_roundness", "tumblehome",
-         "fender_rise")  # fmt: skip
+         "fender_rise", "surface_quality", "roof_arc")  # fmt: skip
 GREENHOUSE_SHAPE = ("haunch", "tumblehome")
 
 BODY_GEOMETRY = (
@@ -48,7 +48,10 @@ def _glass_inputs(p: Values) -> dict[str, float]:
 
 
 # Interior parts follow the cabin (greenhouse) plus their own choices.
-INTERIOR_GEOMETRY = (*GLASS_GEOMETRY, "seat_rows", "interior_trim", "driving_side")
+INTERIOR_GEOMETRY = (
+    *GLASS_GEOMETRY, "seat_rows", "interior_trim", "driving_side",
+    "surface_quality", "roof_arc",  # seats follow the styled roofline
+)  # fmt: skip
 
 
 def _interior_inputs(p: Values) -> dict[str, float]:
@@ -345,7 +348,8 @@ COMPONENTS: tuple[ComponentDef, ...] = (
     ),
     ComponentDef(
         id="glass", name="Glazing", category="body", builder="glass",
-        geometry=GLASS_GEOMETRY, inputs=_glass_inputs,
+        # Styled bodies glaze the skin itself, so the glazing follows the whole body.
+        geometry=BODY_GEOMETRY, inputs=_body_inputs,
         frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
         mate=Mate("vehicle", "origin", "origin"), color=_GLASS_COLOR, finish="glass",
     ),

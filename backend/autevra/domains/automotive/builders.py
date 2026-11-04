@@ -290,14 +290,27 @@ GLASS_THICKNESS = 6.0  # mm
 def build_glass(p: Inputs) -> k.Shape:
     """Glazing: a thin shell just inside the body's window openings, open at the beltline,
     so the cabin can be seen through it."""
+    from autevra.domains.automotive import styled
+
+    if styled.styled_ok(p):
+        try:
+            return styled.build_styled_glass(p)
+        except Exception:  # no glazing rather than glazing that does not match the body
+            return None
     layout = body_layout(p)
     outer = _greenhouse(p, layout, inset=GLASS_INSET)
     shell = k.cut(outer, _greenhouse(p, layout, inset=GLASS_INSET + GLASS_THICKNESS))
     return _open_top(p, layout, shell)
 
 
-def build_lamps(p: Inputs, end: str) -> k.Shape:
-    from autevra.domains.automotive import styling
+def build_lamps(p: Inputs, end: str) -> k.Shape | None:
+    from autevra.domains.automotive import styled, styling
+
+    if styled.styled_ok(p):
+        try:
+            return styled.build_styled_lamps(p, end)
+        except Exception:
+            return None
 
     first, *rest = styling.lamp_solids(p, end, body_layout(p))
     return k.fuse(first, *rest) if rest else first
@@ -316,8 +329,10 @@ def build_body(p: Inputs) -> k.Shape:
     side profile) and the window frame of a raked, tapered greenhouse, shaped by the body
     style (an open bed for a pickup, a cargo box for a box truck), with wheel wells.
     Extents: overhang to overhang, full width, floor to roof."""
-    from autevra.domains.automotive import sculpt
+    from autevra.domains.automotive import sculpt, styled
 
+    if styled.surface(p) == "styled" and (shape := styled.try_body(p)) is not None:
+        return shape
     layout = body_layout(p)
     half_w = p["body_width"] / 2.0
     floor, belt = p["body_floor"], p["beltline_height"]

@@ -303,6 +303,33 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         aliases=("tumblehome", "roof inset", "glasshouse taper"),
     ),
     _p(
+        id="surface_quality",
+        label="Surface",
+        group=Group.SHAPE,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=1,
+        step=1,
+        options=("Styled freeform", "Draft (fast)"),
+        description="Styled: the whole body as one smooth freeform skin (seconds per build). "
+        "Draft: planar faces, about five times faster (for slow hosts and quick studies).",
+        aliases=("surface quality", "surface", "body surface", "surface mode"),
+    ),
+    _p(
+        id="roof_arc",
+        label="Roof arc",
+        group=Group.SHAPE,
+        unit=Unit.MM,
+        default=40,
+        min=0,
+        max=250,
+        step=5,
+        description="How far the roof ends drop below its highest point (styled surface): "
+        "0 is a flat roof panel, more is a flowing arched roofline.",
+        aliases=("roof arc", "roof curvature", "roofline curve", "roof camber"),
+    ),
+    _p(
         id="fender_rise",
         label="Fender rise",
         group=Group.SHAPE,

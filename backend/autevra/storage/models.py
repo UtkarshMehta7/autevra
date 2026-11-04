@@ -133,3 +133,17 @@ class PartRow(Base):
     document_json: Mapped[str] = mapped_column(Text)
     undo_json: Mapped[str] = mapped_column(Text, default="[]")
     redo_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class StylingRow(Base):
+    """A project's styling curves (one per project), with undo and redo stacks."""
+
+    __tablename__ = "stylings"
+
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(default=_now, onupdate=_now)
+    document_json: Mapped[str] = mapped_column(Text)
+    undo_json: Mapped[str] = mapped_column(Text, default="[]")
+    redo_json: Mapped[str] = mapped_column(Text, default="[]")
