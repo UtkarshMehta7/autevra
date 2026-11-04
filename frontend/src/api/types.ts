@@ -542,6 +542,8 @@ export type PartFeature = { id: string; type: string; name?: string; suppressed?
 
 export interface Placement { x?: number; y?: number; z?: number; rx?: number; ry?: number; rz?: number }
 
+export interface PackageValue { id: string; label: string; value: number; unit: string; note: string }
+
 export interface BomLine {
   item: string;
   category: string;

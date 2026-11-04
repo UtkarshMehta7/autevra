@@ -282,6 +282,28 @@ def width_over_mirrors(p: Values) -> float:
     return exterior.width_over_mirrors(p)
 
 
+def _clearance(name: str):  # type: ignore[no-untyped-def]
+    def angle(p: Values) -> float:
+        from autevra.domains.automotive import package
+
+        return package.clearance_angles(p)[name]
+
+    angle.__doc__ = f"{name.replace('_', ' ').capitalize()} on the model, degrees."
+    return angle
+
+
+approach_angle = _clearance("approach_angle")
+departure_angle = _clearance("departure_angle")
+breakover_angle = _clearance("breakover_angle")
+
+
+def h_point_height(p: Values) -> float:
+    """Front H-point height above the ground (seat allowance), mm."""
+    from autevra.domains.automotive import package
+
+    return package.seating(p)["h_point_z"]
+
+
 def power_to_weight(p: Values) -> float:
     """Peak power per tonne of vehicle mass, kW/t."""
     return p["peak_power"] / (p["vehicle_mass"] / 1000.0)
@@ -439,6 +461,37 @@ DEFINITIONS: dict[str, tuple[DerivedDef, Callable[[Values], float]]] = {
             aliases=("width over mirrors", "width with mirrors", "width including mirrors"),
         ),
         width_over_mirrors,
+    ),
+    **{
+        key: (
+            DerivedDef(
+                id=key, label=label, unit="deg",
+                controlled_by=(
+                    "front_overhang", "rear_overhang", "wheelbase", "ground_clearance",
+                    "rim_diameter", "tyre_width", "tyre_aspect_ratio", "body_style",
+                    "beltline_height", "tow_bar",
+                ),
+                aliases=aliases,
+            ),
+            fn,
+        )
+        for key, label, fn, aliases in (
+            ("approach_angle", "Approach angle", approach_angle,
+             ("approach angle", "approach")),
+            ("departure_angle", "Departure angle", departure_angle,
+             ("departure angle", "departure")),
+            ("breakover_angle", "Breakover angle", breakover_angle,
+             ("breakover angle", "breakover", "ramp angle", "ramp breakover angle")),
+        )
+    },
+    "h_point_height": (
+        DerivedDef(
+            id="h_point_height", label="H-point height", unit="mm",
+            controlled_by=("ground_clearance", "rail_height", "overall_height", "body_style",
+                           "chassis_type"),
+            aliases=("h-point height", "h point height", "hip point height", "seat height"),
+        ),
+        h_point_height,
     ),
     "power_to_weight": (
         DerivedDef(

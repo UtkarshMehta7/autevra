@@ -367,6 +367,14 @@ class RunIndexItem(RunSummary):
     project_name: str
 
 
+class PackageValueOut(BaseModel):
+    id: str
+    label: str
+    value: float
+    unit: str
+    note: str = ""
+
+
 class BomLineOut(BaseModel):
     item: str
     category: str

@@ -136,6 +136,28 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-11-04: closing the car module — package
+
+Closing checklist for the automotive module (what a vehicle designer expects from a
+CATIA-class tool, beyond what is already in place):
+
+1. ✅ package dimensions and a package drawing;
+2. advanced allowances as parameters (every built-in allowance editable);
+3. mass properties with materials (panels as area × thickness);
+4. clearance and interference matrix;
+5. wheel envelope at full bump and full steering lock;
+6. occupant ergonomics (manikin, vision, reach);
+7. surface continuity (tangent breaks between body faces).
+
+Every new measure is a derived value of the design, so it works in requirements, the
+optimiser, plain-English questions and impact analysis without further wiring.
+
+- **Package values** (`GET /api/projects/{id}/package`): overall length, width (with and without mirrors) and height; wheelbase, overhangs and tracks; ground clearance; tyre diameter; front H-point height and position; headroom.
+- **Approach, departure and breakover angles** on the model: the steepest line tangent to the unloaded tyre that clears every low point (body side profile, frame underside, tow bar). A tow bar lowers the departure angle of a high-riding body (19.6° to 16.3° on a raised SUV).
+- These are derived values. "What is the approach angle?" is answered, and "the approach angle shall be at least 20 deg" is a design requirement.
+- **Package drawing** (`package.svg`): side, top and front views to scale, with dimension lines, the clearance-angle lines and the H-point. Shown in a new **Package** workspace in the studio.
+- Found by the new checks: the supercar template's seat allowance leaves −117 mm of front headroom. To be fixed with low sports seating in the ergonomics step.
+
 ### 2026-10-15: curvature display; live performance measured
 
 - **Curvature display mode** (viewer): each mesh vertex is coloured by a curvature estimate, the largest angle between adjacent face normals per unit edge length (1/mm, log colour scale from blue for flat to red for creases). Coincident vertices are merged, so seams count as the creases they are. Tested: zero on a flat plate and within a factor of two of 1/r on a sphere. Labelled as a mesh estimate, not exact surface curvature.
