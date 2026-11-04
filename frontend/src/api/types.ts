@@ -542,6 +542,17 @@ export type PartFeature = { id: string; type: string; name?: string; suppressed?
 
 export interface Placement { x?: number; y?: number; z?: number; rx?: number; ry?: number; rz?: number }
 
+export interface Styling {
+  curves: { top: [number, number][]; bottom: [number, number][]; plan: [number, number][] };
+  custom: { top: boolean; bottom: boolean; plan: boolean };
+  reference: { rear: number; front: number; wheelbase: number; tyre_radius: number;
+    overall_height: number; half_width: number; beltline: number; glass: number[]; roof: number[] };
+  can_undo: boolean;
+  can_redo: boolean;
+}
+
+export interface PackageValue { id: string; label: string; value: number; unit: string; note: string }
+
 export interface BomLine {
   item: string;
   category: string;

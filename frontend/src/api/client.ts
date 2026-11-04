@@ -29,6 +29,8 @@ import type {
   ModelPayload,
   ParameterDef,
   BomLine,
+  PackageValue,
+  Styling,
   PartDoc,
   PartOut,
   DerivedValue,
@@ -245,6 +247,18 @@ export const api = {
   specReset: (id: string) => request<SpecState>(`/projects/${id}/spec`, { method: "DELETE" }),
   specDesign: (id: string) => post<SpecDesign>(`/projects/${id}/spec/design`),
   specApply: (id: string) => post<{ result: CommandResult; requirements: string[] }>(`/projects/${id}/spec/apply`),
+  styling: (id: string) => request<Styling>(`/projects/${id}/styling`),
+  setStyling: (id: string, doc: Record<string, [number, number][]>) =>
+    request<Styling>(`/projects/${id}/styling`, { method: "PUT", body: JSON.stringify(doc) }),
+  undoStyling: (id: string) => post<Styling>(`/projects/${id}/styling/undo`),
+  redoStyling: (id: string) => post<Styling>(`/projects/${id}/styling/redo`),
+  package: (id: string) => request<PackageValue[]>(`/projects/${id}/package`),
+  packageSvgUrl: (id: string) => `${API}/projects/${id}/package.svg`,
+  packageSvg: async (id: string): Promise<string> => {
+    const response = await send(`${API}/projects/${id}/package.svg`, { headers: workspaceHeader() });
+    if (!response.ok) throw new ApiError(response.statusText, response.status);
+    return response.text();
+  },
   bom: (id: string) => request<BomLine[]>(`/projects/${id}/bom`),
   bomUrl: (id: string) => `${API}/projects/${id}/bom.csv`,
   partPresets: () => request<Record<string, PartDoc>>("/part-presets"),

@@ -258,3 +258,8 @@ textarea.json.bad { border-color: var(--bad); }
 .design-table td { padding: 1px 4px; }
 .design-table tr.active td { background: rgba(127, 178, 255, 0.08); }
 .sketcher .profile.open { fill: none; stroke-width: 2.5; }
+
+.package .drawing { background: #fff; border-radius: 6px; padding: 6px; }
+.package .drawing svg { width: 100%; height: auto; max-height: 520px; display: block; }
+.package-values td { padding: 2px 6px; font-size: 12px; }
+.package-values td.num { text-align: right; font-variant-numeric: tabular-nums; }

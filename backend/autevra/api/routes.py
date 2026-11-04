@@ -540,6 +540,20 @@ def redo_styling(project_id: str, ws: WorkspaceDep) -> dict:
         raise HTTPException(status_code=409, detail=str(exc)) from None
 
 
+@router.get("/projects/{project_id}/package", response_model=list[schemas.PackageValueOut])
+def package_values(project_id: str, ws: WorkspaceDep) -> list[schemas.PackageValueOut]:
+    """Package dimensions: overall size, overhangs, tracks, clearance angles, H-point."""
+    return [schemas.PackageValueOut(**vars(v)) for v in ws.package(project_id)]
+
+
+@router.get("/projects/{project_id}/package.svg")
+def package_drawing(project_id: str, ws: WorkspaceDep) -> Response:
+    """Dimensioned side, top and front views (mm) as SVG."""
+    disposition = f'inline; filename="{project_id}-package.svg"'
+    return Response(ws.package_svg(project_id), media_type="image/svg+xml",
+                    headers={"Content-Disposition": disposition})  # fmt: skip
+
+
 @router.get("/projects/{project_id}/bom", response_model=list[schemas.BomLineOut])
 def bill_of_materials(project_id: str, ws: WorkspaceDep) -> list[schemas.BomLineOut]:
     """Parts grouped into lines with quantities, sizes and volumes (no mass: several

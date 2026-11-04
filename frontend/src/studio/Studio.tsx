@@ -22,6 +22,8 @@ import { geometryCache, Viewport } from "../viewport/Viewport";
 import { AiEngineeringPanel } from "./AiEngineeringPanel";
 import { DigitalPanel } from "./DigitalPanel";
 import { ManufacturingPanel } from "./ManufacturingPanel";
+import { PackagePanel } from "./PackagePanel";
+import { StylingPanel } from "./StylingPanel";
 import { PartDesignPanel } from "./PartDesignPanel";
 import { SystemsPanel } from "./SystemsPanel";
 import { WORKSPACES, type WorkspaceId } from "./workspaces";
@@ -428,6 +430,12 @@ function StudioView({ projectId, workspace, navigate }: {
         )}
         {project && !collapsed && workspace === "part-design" && (
           <PartDesignPanel projectId={project.id} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "styling" && (
+          <StylingPanel projectId={project.id} version={history.cursor} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "package" && (
+          <PackagePanel projectId={project.id} version={history.cursor} />
         )}
         {project && !collapsed && workspace === "assembly" && (
           <div className="split">

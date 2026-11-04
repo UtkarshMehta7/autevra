@@ -1344,6 +1344,17 @@ class Workspace:
                 self._full_model(project_id), self.data_dir / "exports" / f"{project_id}.step"
             )
 
+    def package(self, project_id: str) -> list:
+        from autevra.domains.automotive import package
+
+        return package.package(self.project(project_id).values)
+
+    def package_svg(self, project_id: str) -> str:
+        from autevra.domains.automotive import package
+
+        project = self.project(project_id)
+        return package.drawing_svg(project.values, title=f"{project.name} — package drawing")
+
     def bom(self, project_id: str) -> list:
         from autevra.api import bom
 
