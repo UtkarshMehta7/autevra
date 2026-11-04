@@ -542,6 +542,16 @@ export type PartFeature = { id: string; type: string; name?: string; suppressed?
 
 export interface Placement { x?: number; y?: number; z?: number; rx?: number; ry?: number; rz?: number }
 
+export interface BomLine {
+  item: string;
+  category: string;
+  quantity: number;
+  size: [number, number, number];
+  volume: number;
+  source: string;
+  parts: string[];
+}
+
 export interface DesignTable {
   columns: string[];
   rows: { name: string; values: number[] }[];

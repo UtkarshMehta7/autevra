@@ -507,6 +507,23 @@ def spec_apply(project_id: str, ws: WorkspaceDep) -> schemas.SpecApplied:
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
+@router.get("/projects/{project_id}/bom", response_model=list[schemas.BomLineOut])
+def bill_of_materials(project_id: str, ws: WorkspaceDep) -> list[schemas.BomLineOut]:
+    """Parts grouped into lines with quantities, sizes and volumes (no mass: several
+    parts are solid envelopes)."""
+    return [schemas.BomLineOut(**vars(line) | {"parts": list(line.parts)})
+            for line in ws.bom(project_id)]  # fmt: skip
+
+
+@router.get("/projects/{project_id}/bom.csv")
+def bill_of_materials_csv(project_id: str, ws: WorkspaceDep) -> Response:
+    from autevra.api import bom
+
+    disposition = f'attachment; filename="{project_id}-bom.csv"'
+    return Response(bom.to_csv(ws.bom(project_id)), media_type="text/csv",
+                    headers={"Content-Disposition": disposition})  # fmt: skip
+
+
 # --- Part Design ---
 
 

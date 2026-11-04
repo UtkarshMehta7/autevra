@@ -74,7 +74,7 @@ Status: **have** (implemented and tested), **partial** (a working subset), **pla
 |---|---|---|
 | Requirements linked to design and tests (traceability) | **have** | Requirements, trace matrix, ReqIF 1.2 import and export |
 | Revisions and history | **have** | Command history, run revisions, staleness |
-| PLM: parts, BOM, workflows, access control | planned | Per-browser workspaces only; no accounts or BOM |
+| PLM: parts, BOM, workflows, access control | partial | Bill of materials with quantities, sizes and volumes (CSV); per-browser workspaces; no accounts, release states or workflows |
 | Multi-user collaboration and review | planned | |
 | Scripting and automation API | **have** | REST API, plugin API with entry points |
 | Visualisation and rendering (materials, environments) | partial | Physically based materials, studio environment; no ray tracing |
