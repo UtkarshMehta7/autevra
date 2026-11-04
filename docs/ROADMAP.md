@@ -136,6 +136,15 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-10-15: curvature display; live performance measured
+
+- **Curvature display mode** (viewer): each mesh vertex is coloured by a curvature estimate, the largest angle between adjacent face normals per unit edge length (1/mm, log colour scale from blue for flat to red for creases). Coincident vertices are merged, so seams count as the creases they are. Tested: zero on a flat plate and within a factor of two of 1/r on a sphere. Labelled as a mesh estimate, not exact surface curvature.
+- **Live performance** (Render free tier, 0.1 CPU), measured on the supercar template:
+  - the first full build of a new design takes about 80 s (4.5 s locally over 35 unique parts; the body is the largest at 1.3 s);
+  - the cached model reloads in about 6 s (1.2 MB);
+  - waking the instance from sleep takes up to about 2 minutes.
+  - Real work is better run locally (`make dev`) or on a larger instance.
+
 ### 2026-10-15: bill of materials
 
 - **Bill of materials** (`GET /api/projects/{id}/bom`, `bom.csv`): every part, parametric and Part Design, grouped by geometry and category into lines with a quantity, one part's bounding size and volume, and the source. Side and corner words are dropped from the line names ("Wheel" × 4).
