@@ -10,6 +10,7 @@ from autevra.assembly import transforms as tf
 from autevra.assembly.model import COMPONENTS
 from autevra.cad import kernel
 from autevra.cad.cache import GeometryCache
+from autevra.domains.automotive.styling_curves import STYLED_BUILDERS
 from autevra.part import build as part_build
 from autevra.part.features import PartDoc
 
@@ -31,13 +32,19 @@ class VehicleModel:
     shapes: dict[str, kernel.Shape]
 
 
-def build_model(values: Mapping[str, float], cache: GeometryCache) -> VehicleModel:
+def build_model(values: Mapping[str, float], cache: GeometryCache,
+                styling: Mapping[str, float] | None = None) -> VehicleModel:  # fmt: skip
+    """The placed parts of the design; ``styling`` adds the project's styling curves (flat
+    inputs) to the builders that follow the styled skin."""
     world = graph.place_all(values)
     parts, shapes = [], {}
     for c in COMPONENTS:
         if c.builder is None:
             continue
-        key, shape = cache.shape(c.builder, c.resolve_inputs(values))
+        inputs = c.resolve_inputs(values)
+        if styling and c.builder in STYLED_BUILDERS:
+            inputs = inputs | dict(styling)
+        key, shape = cache.shape(c.builder, inputs)
         if shape is None:  # not fitted in this configuration
             continue
         shapes[key] = shape

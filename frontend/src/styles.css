@@ -23,10 +23,28 @@ button:disabled { opacity: 0.45; }
 
 .app {
   display: grid; height: 100vh;
-  grid-template:
-    "head head head" auto "left main right" minmax(0, 1fr) "left dock right" auto
-    / 240px minmax(0, 1fr) 360px;
+  grid-template-areas:
+    "head head head head head"
+    "left lsplit main rsplit right"
+    "left lsplit hsplit rsplit right"
+    "left lsplit dock rsplit right";
+  grid-template-columns: 240px 5px minmax(0, 1fr) 5px 360px;
+  grid-template-rows: auto minmax(0, 1fr) 5px 360px;
 }
+/* Focus view: the 3D view takes everything below the header. */
+.app.focus { grid-template-columns: 0 0 minmax(0, 1fr) 0 0; grid-template-rows: auto minmax(0, 1fr) 0 0; }
+.app.focus > aside, .app.focus > .dock, .app.focus > .splitter { display: none; }
+.app > aside { min-width: 0; }
+.splitter { background: var(--line); position: relative; z-index: 2; touch-action: none; }
+.splitter.vertical { cursor: col-resize; }
+.splitter.horizontal { cursor: row-resize; }
+.splitter::after { content: ""; position: absolute; inset: -4px; } /* a wider grab area */
+.splitter:hover, .splitter:focus-visible, .splitter:active { background: var(--accent); outline: none; }
+body.resizing-x, body.resizing-x * { cursor: col-resize !important; user-select: none; }
+body.resizing-y, body.resizing-y * { cursor: row-resize !important; user-select: none; }
+.layout-buttons { display: flex; gap: 2px; }
+.layout-buttons button { padding: 4px 8px; font-size: 12px; color: var(--muted); }
+.layout-buttons button.on { color: var(--text); border-color: var(--accent); }
 .app > header {
   grid-area: head; display: flex; gap: 8px; align-items: center;
   padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel);
@@ -35,8 +53,8 @@ button:disabled { opacity: 0.45; }
 .spacer { flex: 1; }
 .toggle { display: flex; gap: 6px; align-items: center; color: var(--muted); }
 .app aside { overflow-y: auto; background: var(--panel); }
-.app .left { grid-area: left; border-right: 1px solid var(--line); }
-.app .right { grid-area: right; border-left: 1px solid var(--line); display: flex; flex-direction: column; }
+.app .left { grid-area: left; }
+.app .right { grid-area: right; display: flex; flex-direction: column; }
 .app > main { grid-area: main; position: relative; min-width: 0; }
 .viewport { position: absolute; inset: 0;
   background: radial-gradient(ellipse at 50% 35%, #2c3746 0%, #1a2029 55%, #11151b 100%); }
@@ -91,8 +109,8 @@ legend { color: var(--muted); padding: 0; margin-bottom: 4px; }
 .reply.test { border-left-color: var(--accent); }
 
 /* Engineering dock: test bench and integration */
-.dock { grid-area: dock; border-top: 1px solid var(--line); background: var(--panel);
-  height: 46vh; display: flex; flex-direction: column; min-width: 0; }
+.dock { grid-area: dock; background: var(--panel);
+  display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 .dock.closed { height: auto; }
 .tabs { display: flex; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 .tabs button { border: 0; background: none; color: var(--muted); }
@@ -263,3 +281,59 @@ textarea.json.bad { border-color: var(--bad); }
 .package .drawing svg { width: 100%; height: auto; max-height: 520px; display: block; }
 .package-values td { padding: 2px 6px; font-size: 12px; }
 .package-values td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Styling curves editor */
+.curve-editor { width: 100%; background: var(--panel-2, #11161d); border: 1px solid var(--line); border-radius: 6px; touch-action: none; display: block; margin: 4px 0 10px; }
+.curve-point { cursor: grab; stroke: #0b0e12; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.curve-insert { fill: rgba(255, 255, 255, 0.18); cursor: copy; }
+.ref-wheel { fill: rgba(255, 255, 255, 0.05); stroke: #6b7785; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.ref-ground { stroke: #6b7785; stroke-width: 1; stroke-dasharray: 8 6; vector-effect: non-scaling-stroke; }
+.ref-limit { stroke: #c0392b; stroke-width: 1; stroke-dasharray: 6 6; vector-effect: non-scaling-stroke; }
+.ref-belt { stroke: #95a5a6; stroke-width: 1; stroke-dasharray: 3 5; vector-effect: non-scaling-stroke; }
+.ref-mirror { fill: none; stroke: #8fd694; stroke-width: 1.2; stroke-dasharray: 5 5; opacity: 0.6; vector-effect: non-scaling-stroke; }
+.styling .bench-detail { min-width: 0; }
+
+.blueprint-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; margin: 4px 0; }
+.blueprint-controls label { display: flex; gap: 4px; align-items: center; }
+.blueprint-controls button.active { background: var(--accent-soft, #24364f); }
+
+/* Constrained sketcher (pad and shaft features) */
+.csketch { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.csketch-tools { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.csketch-tools button { padding: 3px 8px; font-size: 12px; }
+.csketch-tools button.active { border-color: var(--accent); background: rgba(79, 143, 230, 0.18); }
+.csketch-tools .sep { flex: 1; }
+.csketch-status { font-size: 12px; color: var(--muted); }
+.csketch-status.full { color: var(--good); }
+.csketch-status.conflict { color: var(--bad); }
+.csketch-canvas { width: 100%; height: 300px; background: #11161d; border: 1px solid var(--line); border-radius: 6px; touch-action: none; outline: none; }
+.csketch-canvas:focus-visible { border-color: var(--accent); }
+.csketch-canvas.tool-line, .csketch-canvas.tool-rect, .csketch-canvas.tool-circle, .csketch-canvas.tool-arc { cursor: crosshair; }
+.csketch .sk-axis { stroke: rgba(255, 255, 255, 0.16); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.csketch .sk-axis.revolve { stroke: #c9a227; stroke-dasharray: 6 4; }
+.csketch .sk-axis-label { fill: var(--muted); }
+.csketch .sk-geo { fill: none; stroke: #e8eef6; stroke-width: 1.6; vector-effect: non-scaling-stroke; cursor: pointer; }
+.csketch .sk-geo.full { stroke: var(--good); }
+.csketch .sk-geo.construction { stroke-dasharray: 5 4; opacity: 0.7; }
+.csketch .sk-geo.selected { stroke: #ffd166; stroke-width: 2.6; }
+.csketch .sk-geo.conflict { stroke: var(--bad); }
+.csketch .sk-preview { fill: none; stroke: var(--accent); stroke-dasharray: 4 3; stroke-width: 1.2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.csketch .sk-pt { fill: #e8eef6; stroke: #0b0e12; stroke-width: 1; vector-effect: non-scaling-stroke; cursor: grab; }
+.csketch .sk-pt.full { fill: var(--good); }
+.csketch .sk-pt.selected { fill: #ffd166; }
+.csketch .sk-pt.conflict { fill: var(--bad); }
+.csketch .sk-dim { fill: #7fb2ff; font-family: ui-monospace, monospace; pointer-events: none; paint-order: stroke; stroke: #11161d; stroke-width: 3px; }
+.csketch .sk-dim.conflict { fill: var(--bad); }
+.csketch-side { display: flex; flex-direction: column; gap: 6px; }
+.csketch-constrain { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.csketch-constrain button { padding: 2px 8px; font-size: 12px; }
+.csketch-constrain .hint { width: 100%; }
+.csketch-list { width: 100%; border-collapse: collapse; font-size: 12px; }
+.csketch-list td { padding: 2px 4px; border-bottom: 1px solid var(--line); }
+.csketch-list td.refs { color: var(--muted); font-family: ui-monospace, monospace; }
+.csketch-list tr { cursor: pointer; }
+.csketch-list tr.conflict td { color: var(--bad); }
+.csketch-list input { padding: 2px 6px; width: 7em; }
+.csketch-list button { padding: 0 6px; }
+.csketch-apply { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.csketch-apply .error { color: var(--bad); font-size: 12px; }

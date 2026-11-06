@@ -160,3 +160,37 @@ On top of the shared shape engine and the Part Design workbench:
 
 Each domain will state its limits as the automotive module does: representative geometry,
 no claim of certification, analysis only where a verified solver runs.
+
+
+## Workbench map (requested scope, November 2026)
+
+What a CATIA-class workbench offers, what Autevra has, and the build order. Status:
+**have**, **partial**, **planned**. No parity is claimed.
+
+| Capability | Autevra | Missing |
+|---|---|---|
+| Sketcher | partial: drag, insert and delete points on profiles | lines, arcs and circles; constraints (dimension, coincident, tangent, horizontal, vertical, symmetric); sketches on any plane |
+| Part Design | **have**: extrude, revolve, loft, sweep, shell, fillet and chamfer on selected edges, mirror, patterns, add/cut/intersect | holes, drafts, ribs |
+| Wireframe and Surface | planned | reference points, lines and planes; 3D curves; surface sweeps and offsets |
+| GSD / FreeStyle / Class-A | partial: styled freeform body, editable guide curves, blueprint tracing, zebra and curvature displays | section editor, fill and blend surfaces, continuity checks |
+| Assembly Design | partial: the vehicle assembly with mates, coincidences and impact analysis | assemblies of user parts with constraints and motion |
+| Drafting | partial: package drawing | 2D drawings of any part: projected views, dimensions, title block; PDF and DXF |
+| Sheet Metal | partial: bent sheet with K-factor flat length | flanges, reliefs, a flat-pattern view |
+| Hybrid Design | planned | surface and solid features in one part |
+| Knowledgeware and parameters | **have**: parameters, formulas, design rules, design tables | engineering checks inside parts |
+| Power Copies and Publications | partial: starting-point parts | user-saved feature templates with published inputs |
+| Draft Analysis | **have** (viewer, November 2026) | |
+| FEA and simulation | partial: ride and longitudinal solvers | stress, thermal and modal analysis with an external solver (CalculiX) |
+| MBSE and PLM | partial: requirements, traceability, ReqIF, systems graph, BOM | release states, change requests, accounts, electrical and software links |
+
+Build order:
+1. Styled body and curve editor.
+2. Draft analysis.
+3. Power copies.
+4. Sketcher constraints and primitives.
+5. Reference geometry and surfaces.
+6. Assemblies of user parts.
+7. Drafting from 3D.
+8. Sheet-metal flanges and flat pattern.
+9. FEA.
+10. PLM.

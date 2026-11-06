@@ -155,7 +155,7 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=1,
         min=0,
-        max=11,
+        max=12,
         step=1,
         options=(
             "Arctic White",
@@ -170,6 +170,7 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
             "Solar Yellow",
             "Champagne",
             "Satin Bronze",
+            "Sage Green",
         ),  # fmt: skip
         description="Body paint colour (appearance only; no effect on geometry or tests).",
         aliases=("paint colour", "paint color", "colour", "color", "paint"),
@@ -227,6 +228,34 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
             "rear lamp style",
             "tail lamp design",
         ),  # fmt: skip
+    ),
+    _p(
+        id="grille_style",
+        label="Front grille",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=3,
+        step=1,
+        options=("None", "Horizontal bars", "Mesh", "Sport mesh"),
+        description="Grille recessed in the nose below the head lamps: none (a closed nose), "
+        "horizontal bars, a diamond mesh, or a large trapezoid mesh reaching down the chin "
+        "with corner intakes (styling envelope; no cooling-air flow).",
+        aliases=("grille", "grille style", "front grille", "grill", "radiator grille"),
+    ),
+    _p(
+        id="side_vents",
+        label="Fender vents",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=2,
+        step=1,
+        options=("None", "Three gills", "Single slot"),
+        description="Vents cut into each front wing behind the wheel arch (styling only).",
+        aliases=("fender vents", "side vents", "wing vents", "gills", "fender gills"),
     ),
     # --- Body shaping (any style can be pushed towards any other) ---
     _p(
@@ -303,6 +332,33 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         aliases=("tumblehome", "roof inset", "glasshouse taper"),
     ),
     _p(
+        id="surface_quality",
+        label="Surface",
+        group=Group.SHAPE,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=1,
+        step=1,
+        options=("Styled freeform", "Draft (fast)"),
+        description="Styled: the whole body as one smooth freeform skin (seconds per build). "
+        "Draft: planar faces, about five times faster (for slow hosts and quick studies).",
+        aliases=("surface quality", "surface", "body surface", "surface mode"),
+    ),
+    _p(
+        id="roof_arc",
+        label="Roof arc",
+        group=Group.SHAPE,
+        unit=Unit.MM,
+        default=40,
+        min=0,
+        max=250,
+        step=5,
+        description="How far the roof ends drop below its highest point (styled surface): "
+        "0 is a flat roof panel, more is a flowing arched roofline.",
+        aliases=("roof arc", "roof curvature", "roofline curve", "roof camber"),
+    ),
+    _p(
         id="fender_rise",
         label="Fender rise",
         group=Group.SHAPE,
@@ -312,7 +368,8 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         max=200,
         step=5,
         description="How far the bonnet drops between raised front wings (the wings keep the "
-        "wheel-arch clearance).",
+        "wheel-arch clearance). On the styled surface the wings also swell up over the "
+        "wheels by up to half this, and an open car's deck sinks between the rear haunches.",
         aliases=("fender rise", "wing rise", "fender height", "raised wings", "fender peaks"),
     ),
     # --- Exterior options ---
@@ -554,6 +611,59 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         description="Shift of the cabin centre from the body centre (positive = forward).",
         aliases=("cabin offset", "cabin position", "greenhouse offset"),
     ),
+    # --- Seating package (allowances, editable per design) ---
+    _p(
+        id="seat_height",
+        label="Seat height",
+        group=Group.CABIN,
+        unit=Unit.MM,
+        default=280,
+        min=100,
+        max=450,
+        step=5,
+        description="Cushion top above the cabin floor (capped at 28 % of the floor-to-roof "
+        "height). Low sports seating is 150-200 mm.",
+        aliases=("seat height", "cushion height", "seating height", "seat position height"),
+    ),
+    _p(
+        id="seat_recline",
+        label="Seat recline",
+        group=Group.CABIN,
+        unit=Unit.DEG,
+        default=22,
+        min=10,
+        max=40,
+        step=1,
+        description="Backrest angle from vertical. A steeper recline lowers the seated head "
+        "height (sports cars use 28-35 degrees).",
+        aliases=("seat recline", "recline", "backrest angle", "seat back angle"),
+    ),
+    _p(
+        id="dash_zone",
+        label="Dashboard zone",
+        group=Group.CABIN,
+        unit=Unit.MM,
+        default=350,
+        min=200,
+        max=700,
+        step=10,
+        description="Depth kept for the dashboard behind the windscreen base, ahead of the "
+        "front seats.",
+        aliases=("dashboard zone", "dash zone", "dashboard depth", "instrument panel depth"),
+    ),
+    _p(
+        id="row_pitch",
+        label="Seat row pitch",
+        group=Group.CABIN,
+        unit=Unit.MM,
+        default=850,
+        min=650,
+        max=1100,
+        step=10,
+        description="Length taken by one row of seats; sets legroom and the cabin length "
+        "the seat rows need.",
+        aliases=("row pitch", "seat pitch", "seat row pitch", "couple distance", "legroom"),
+    ),
     # --- Wheels and tyres ---
     _p(
         id="track_front",
@@ -630,6 +740,26 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
             "rim color",
             "wheel colour",
             "wheel color",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="caliper_colour",
+        label="Brake calipers",
+        group=Group.WHEELS,
+        unit=Unit.NONE,
+        default=1,
+        min=0,
+        max=5,
+        step=1,
+        options=("Black", "Silver", "Red", "Yellow", "Blue", "Green"),
+        description="Brake caliper colour, seen through the wheels (appearance only).",
+        aliases=(
+            "caliper colour",
+            "caliper color",
+            "brake calipers",
+            "calipers",
+            "brake caliper colour",
+            "brake caliper color",
         ),  # fmt: skip
     ),
     _p(

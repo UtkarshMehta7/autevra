@@ -574,6 +574,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "tumblehome": 80,
     },
     "sports_car": {
+        "seat_height": 190,  # low sports seating
+        "seat_recline": 28,
         "fender_rise": 70,
         "roof_type": 0,
         "roof_rails": 0,
@@ -851,6 +853,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "tumblehome": 90,
     },
     "roadster": {
+        "seat_height": 170,  # low sports seating
+        "seat_recline": 30,
         "fender_rise": 90,
         "roof_type": 0,
         "roof_rails": 0,
@@ -898,6 +902,8 @@ TEMPLATES: dict[str, dict[str, float]] = {
         "tumblehome": 150,
     },
     "supercar": {
+        "seat_height": 150,  # low sports seating
+        "seat_recline": 34,
         "fender_rise": 120,
         "roof_type": 0,
         "roof_rails": 0,
