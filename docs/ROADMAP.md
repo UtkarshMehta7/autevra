@@ -156,7 +156,7 @@ geometry and surfaces, assemblies, drafting, sheet-metal flanges, FEA, PLM.
   - Solving is a damped minimum-move Gauss-Newton: an under-constrained sketch keeps its drawn shape, and a dragged point stays under the cursor where the constraints allow.
   - It reports the remaining degrees of freedom, redundant equations, conflicting constraints, and which points and entities are fully constrained.
   - New **Pad / pocket** and **Shaft / groove** features build from solved sketches, with holes nested by containment. Sketch dimensions bind to part parameters (`sketch.constraints.<i>.value`).
-- Next: the sketcher canvas in Part Design (draw, constrain, dimension and drag, with fully constrained geometry shown in green).
+- **Constrained sketcher** in Part Design for Pad and Shaft features: draw lines (chains), rectangles, circles and arcs; nearly horizontal or vertical lines get that constraint as drawn. Select geometry to add a constraint or dimension; dimensions start at the measured value, so adding one never moves the sketch. Drag points while the solver holds the constraints. Fully constrained geometry turns green and conflicting constraints red. A dimension takes a number or a formula of the part's parameters. Checked: a 150 × 60 × 20 mm pad with its width bound to a parameter and a Ø20 hole builds to the expected volume.
 
 ### 2026-11-04: closing the car module — package
 

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { DesignTable, FeatureTemplate, PartDoc, PartFeature, PartOut, Placement } from "../api/types";
+import type { DesignTable, FeatureTemplate, PartDoc, PartFeature, PartOut, Placement, Sketch } from "../api/types";
 import { DownloadLink } from "../DownloadLink";
+import { ConstraintSketcher } from "./ConstraintSketcher";
 import { Sketcher } from "./Sketcher";
+
+const NO_BINDINGS: Record<string, string> = {};
 
 /** A fully constrained w x h rectangle sketch anchored on the sketch origin (its left
  * side lies on the vertical axis, which is the revolve axis of a shaft). */
@@ -298,7 +301,7 @@ function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: 
   const set = (key: string, value: unknown) => onChange({ ...feature, [key]: value });
   const keys = Object.keys({ ...FEATURE_DEFAULTS[feature.type], ...feature })
     .filter((k) => !["id", "type", "suppressed", "op", "at", "name", "bindings"].includes(k));
-  const bound = feature.bindings ?? {};
+  const bound = feature.bindings ?? NO_BINDINGS;
   return (
     <div className="feature-fields">
       <label>Name<input value={feature.name ?? ""} placeholder={feature.id}
@@ -341,6 +344,17 @@ function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: 
                 onCommit={(v) => set(key, v)} />
               <JsonField value={value} onCommit={(v) => set(key, v)} />
             </label>
+          );
+        }
+        if (key === "sketch" && ["pad", "shaft"].includes(feature.type) && value && typeof value === "object") {
+          const plane = String(feature.plane ?? (feature.type === "shaft" ? "xz" : "xy"));
+          return (
+            <div key={key} className="wide">
+              <span className="hint">Constrained sketch on the {plane} plane{feature.type === "shaft" ? "; it revolves about the vertical axis" : ""}</span>
+              <ConstraintSketcher sketch={value as Sketch} bindings={bound} axis={feature.type === "shaft"}
+                labels={feature.type === "shaft" ? ["r", "z"] : [plane[0], plane[1]] as [string, string]}
+                onApply={(sk, b) => onChange({ ...feature, sketch: sk, bindings: b })} />
+            </div>
           );
         }
         return <label key={key} className="wide">{key}<JsonField value={value} onCommit={(v) => set(key, v)} /></label>;

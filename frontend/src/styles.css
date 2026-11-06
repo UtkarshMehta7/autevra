@@ -278,3 +278,44 @@ textarea.json.bad { border-color: var(--bad); }
 .blueprint-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; margin: 4px 0; }
 .blueprint-controls label { display: flex; gap: 4px; align-items: center; }
 .blueprint-controls button.active { background: var(--accent-soft, #24364f); }
+
+/* Constrained sketcher (pad and shaft features) */
+.csketch { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.csketch-tools { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.csketch-tools button { padding: 3px 8px; font-size: 12px; }
+.csketch-tools button.active { border-color: var(--accent); background: rgba(79, 143, 230, 0.18); }
+.csketch-tools .sep { flex: 1; }
+.csketch-status { font-size: 12px; color: var(--muted); }
+.csketch-status.full { color: var(--good); }
+.csketch-status.conflict { color: var(--bad); }
+.csketch-canvas { width: 100%; height: 300px; background: #11161d; border: 1px solid var(--line); border-radius: 6px; touch-action: none; outline: none; }
+.csketch-canvas:focus-visible { border-color: var(--accent); }
+.csketch-canvas.tool-line, .csketch-canvas.tool-rect, .csketch-canvas.tool-circle, .csketch-canvas.tool-arc { cursor: crosshair; }
+.csketch .sk-axis { stroke: rgba(255, 255, 255, 0.16); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.csketch .sk-axis.revolve { stroke: #c9a227; stroke-dasharray: 6 4; }
+.csketch .sk-axis-label { fill: var(--muted); }
+.csketch .sk-geo { fill: none; stroke: #e8eef6; stroke-width: 1.6; vector-effect: non-scaling-stroke; cursor: pointer; }
+.csketch .sk-geo.full { stroke: var(--good); }
+.csketch .sk-geo.construction { stroke-dasharray: 5 4; opacity: 0.7; }
+.csketch .sk-geo.selected { stroke: #ffd166; stroke-width: 2.6; }
+.csketch .sk-geo.conflict { stroke: var(--bad); }
+.csketch .sk-preview { fill: none; stroke: var(--accent); stroke-dasharray: 4 3; stroke-width: 1.2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.csketch .sk-pt { fill: #e8eef6; stroke: #0b0e12; stroke-width: 1; vector-effect: non-scaling-stroke; cursor: grab; }
+.csketch .sk-pt.full { fill: var(--good); }
+.csketch .sk-pt.selected { fill: #ffd166; }
+.csketch .sk-pt.conflict { fill: var(--bad); }
+.csketch .sk-dim { fill: #7fb2ff; font-family: ui-monospace, monospace; pointer-events: none; paint-order: stroke; stroke: #11161d; stroke-width: 3px; }
+.csketch .sk-dim.conflict { fill: var(--bad); }
+.csketch-side { display: flex; flex-direction: column; gap: 6px; }
+.csketch-constrain { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.csketch-constrain button { padding: 2px 8px; font-size: 12px; }
+.csketch-constrain .hint { width: 100%; }
+.csketch-list { width: 100%; border-collapse: collapse; font-size: 12px; }
+.csketch-list td { padding: 2px 4px; border-bottom: 1px solid var(--line); }
+.csketch-list td.refs { color: var(--muted); font-family: ui-monospace, monospace; }
+.csketch-list tr { cursor: pointer; }
+.csketch-list tr.conflict td { color: var(--bad); }
+.csketch-list input { padding: 2px 6px; width: 7em; }
+.csketch-list button { padding: 0 6px; }
+.csketch-apply { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.csketch-apply .error { color: var(--bad); font-size: 12px; }
