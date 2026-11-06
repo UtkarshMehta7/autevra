@@ -550,6 +550,32 @@ LANGUAGE = Language(
             "Conventional": ("conventional", "normal", "glass"),
             "Camera": ("camera", "digital", "virtual", "camera pods"),
         },
+        "grille_style": {
+            "None": ("no", "closed", "closed nose", "blanked"),
+            "Horizontal bars": ("bars", "slats", "horizontal slats", "bar grille"),
+            "Mesh": ("mesh", "honeycomb", "diamond mesh", "mesh grille"),
+            "Sport mesh": (
+                "sport",
+                "large grille",
+                "big grille",
+                "trapezoid",
+                "sport grille",
+                "large mesh",
+            ),  # fmt: skip
+        },
+        "side_vents": {
+            "None": ("no",),
+            "Three gills": ("gills", "three vents", "triple vents", "three gills"),
+            "Single slot": ("slot", "single vent", "one vent", "slot vent"),
+        },
+        "caliper_colour": {
+            "Black": ("black",),
+            "Silver": ("silver", "grey", "gray"),
+            "Red": ("red",),
+            "Yellow": ("yellow", "gold"),
+            "Blue": ("blue",),
+            "Green": ("green",),
+        },
         "tow_bar": {
             "None": ("no",),
             "Fitted": ("tow bar", "towbar", "tow hitch", "trailer hitch", "towing hitch"),
@@ -612,6 +638,14 @@ LANGUAGE = Language(
             "Solar Yellow": ("yellow",),
             "Champagne": ("gold", "beige"),
             "Satin Bronze": ("bronze", "brown"),
+            "Sage Green": (
+                "sage",
+                "olive",
+                "olive green",
+                "matte green",
+                "muted green",
+                "military green",
+            ),  # fmt: skip
         },
         "paint_finish": {
             "Gloss": ("glossy", "solid", "shiny"),

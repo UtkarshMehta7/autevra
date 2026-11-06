@@ -136,6 +136,21 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-11-06: an open grand tourer from a photo; resizable studio
+
+Rebuilding a photo of an open 2+2 grand tourer (matte green, black multi-spoke wheels,
+yellow calipers, large mesh grille, wing gills, tan seats) showed what the studio lacked.
+Added or fixed:
+
+- **Front grille** (`grille_style`): none, horizontal bars, diamond mesh, or a sport mesh (a large trapezoid down the chin with corner intakes). The grille sits in a recess that follows the nose profile, so it never changes the body extents. The mesh is one perforated extrusion: 0.7 s to build, where fusing crossing bars took 5.1 s.
+- **Fender vents** (`side_vents`): three gills or a single slot cut into each front wing, with dark inserts.
+- **Brakes**: a disc and a caliper inside every wheel, mated to the hubs like the rims and clear of the rim and tyre. `caliper_colour` (black, silver, red, yellow, blue, green) changes appearance only.
+- **Sage Green** paint (a muted green; "sage", "olive" and "matte green" select it).
+- **Sculpted wings** (styled surface): with a fender rise, the wing crowns now stand as ridges with the bonnet (and an open car's deck) sunk between them, and the wings swell up over each wheel by up to half the rise (the rear haunch at 70 %). The bonnet still clears the engine allowance by 25 mm. Every template keeps its overall height and builds as one solid.
+- **Open cars** keep thin A-pillars and a header rail; the solid wedge between the windscreen and the header is gone. The chassis is black e-coat, so the sills read as dark side skirts.
+- **Resizable studio**: drag the dividers to size the component tree, the parameters and the workspace tabs panel (double-click resets, arrow keys work). Sizes are remembered in the browser. Header buttons show or hide each panel, and **Focus view** (key F, Esc to leave) gives the 3D view the whole window.
+- The constrained sketcher no longer scrolls its panel when the canvas takes focus between clicks.
+
 ### 2026-11-04: workbenches — styled body, draft analysis, power copies, sketch solver
 
 Build order for the requested workbench scope (see `INDUSTRY_FEATURES.md`): styled body
@@ -164,7 +179,7 @@ Closing checklist for the automotive module (what a vehicle designer expects fro
 CATIA-class tool, beyond what is already in place):
 
 1. ✅ package dimensions and a package drawing;
-2. advanced allowances as parameters (every built-in allowance editable);
+2. ✅ seating allowances as parameters (seat height, recline, dashboard zone, row pitch);
 3. mass properties with materials (panels as area × thickness);
 4. clearance and interference matrix;
 5. wheel envelope at full bump and full steering lock;
@@ -179,6 +194,8 @@ optimiser, plain-English questions and impact analysis without further wiring.
 - These are derived values. "What is the approach angle?" is answered, and "the approach angle shall be at least 20 deg" is a design requirement.
 - **Package drawing** (`package.svg`): side, top and front views to scale, with dimension lines, the clearance-angle lines and the H-point. Shown in a new **Package** workspace in the studio.
 - Found by the new checks: the supercar template's seat allowance leaves −117 mm of front headroom. To be fixed with low sports seating in the ergonomics step.
+- **Seating allowances are parameters** (cabin group): seat height (cushion top above the floor), seat recline, dashboard zone and seat row pitch. They were fixed constants. The seated head height now follows the recline (cosine of the backrest angle about the hip). The seat-rows rule, headroom and H-point read them, and they are listed as controls of those derived values.
+- The sports car, roadster and supercar templates use low sports seating (150–190 mm cushion, 28–34° recline). Their front headroom goes from −45, −81 and −117 mm to +59, +42 and +41 mm; every template now clears the 25 mm check. The other templates are unchanged.
 
 ### 2026-10-15: curvature display; live performance measured
 

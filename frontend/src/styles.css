@@ -23,10 +23,28 @@ button:disabled { opacity: 0.45; }
 
 .app {
   display: grid; height: 100vh;
-  grid-template:
-    "head head head" auto "left main right" minmax(0, 1fr) "left dock right" auto
-    / 240px minmax(0, 1fr) 360px;
+  grid-template-areas:
+    "head head head head head"
+    "left lsplit main rsplit right"
+    "left lsplit hsplit rsplit right"
+    "left lsplit dock rsplit right";
+  grid-template-columns: 240px 5px minmax(0, 1fr) 5px 360px;
+  grid-template-rows: auto minmax(0, 1fr) 5px 360px;
 }
+/* Focus view: the 3D view takes everything below the header. */
+.app.focus { grid-template-columns: 0 0 minmax(0, 1fr) 0 0; grid-template-rows: auto minmax(0, 1fr) 0 0; }
+.app.focus > aside, .app.focus > .dock, .app.focus > .splitter { display: none; }
+.app > aside { min-width: 0; }
+.splitter { background: var(--line); position: relative; z-index: 2; touch-action: none; }
+.splitter.vertical { cursor: col-resize; }
+.splitter.horizontal { cursor: row-resize; }
+.splitter::after { content: ""; position: absolute; inset: -4px; } /* a wider grab area */
+.splitter:hover, .splitter:focus-visible, .splitter:active { background: var(--accent); outline: none; }
+body.resizing-x, body.resizing-x * { cursor: col-resize !important; user-select: none; }
+body.resizing-y, body.resizing-y * { cursor: row-resize !important; user-select: none; }
+.layout-buttons { display: flex; gap: 2px; }
+.layout-buttons button { padding: 4px 8px; font-size: 12px; color: var(--muted); }
+.layout-buttons button.on { color: var(--text); border-color: var(--accent); }
 .app > header {
   grid-area: head; display: flex; gap: 8px; align-items: center;
   padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel);
@@ -35,8 +53,8 @@ button:disabled { opacity: 0.45; }
 .spacer { flex: 1; }
 .toggle { display: flex; gap: 6px; align-items: center; color: var(--muted); }
 .app aside { overflow-y: auto; background: var(--panel); }
-.app .left { grid-area: left; border-right: 1px solid var(--line); }
-.app .right { grid-area: right; border-left: 1px solid var(--line); display: flex; flex-direction: column; }
+.app .left { grid-area: left; }
+.app .right { grid-area: right; display: flex; flex-direction: column; }
 .app > main { grid-area: main; position: relative; min-width: 0; }
 .viewport { position: absolute; inset: 0;
   background: radial-gradient(ellipse at 50% 35%, #2c3746 0%, #1a2029 55%, #11151b 100%); }
@@ -91,8 +109,8 @@ legend { color: var(--muted); padding: 0; margin-bottom: 4px; }
 .reply.test { border-left-color: var(--accent); }
 
 /* Engineering dock: test bench and integration */
-.dock { grid-area: dock; border-top: 1px solid var(--line); background: var(--panel);
-  height: 46vh; display: flex; flex-direction: column; min-width: 0; }
+.dock { grid-area: dock; background: var(--panel);
+  display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 .dock.closed { height: auto; }
 .tabs { display: flex; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 .tabs button { border: 0; background: none; color: var(--muted); }

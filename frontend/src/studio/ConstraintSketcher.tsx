@@ -203,7 +203,7 @@ export function ConstraintSketcher({ sketch, bindings, labels = ["u", "v"], axis
   const finishChain = () => { setClicks([]); setChainStart(null); };
 
   const onDown = (ev: React.PointerEvent<SVGSVGElement>) => {
-    svg.current?.focus();
+    svg.current?.focus({ preventScroll: true }); // focusing must not scroll the panel mid-drawing
     const m = toModel(ev);
     if (tool === "select") {
       const hp = hitPoint(m), he = hp ? null : hitEntity(m);

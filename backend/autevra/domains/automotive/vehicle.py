@@ -31,6 +31,7 @@ BODY_GEOMETRY = (
     "cabin_offset", "track_front", "track_rear", "arch_clearance", *TYRE, *d.CHASSIS_INPUTS,
     "head_lamp_style", "tail_lamp_style",  # the body is recessed for the lamps
     "roof_type",  # and opened for a panoramic roof or sunroof
+    "grille_style", "side_vents",  # and recessed for the grille and the wing vents
     *SHAPE,
 )  # fmt: skip
 
@@ -50,6 +51,7 @@ def _glass_inputs(p: Values) -> dict[str, float]:
 # Interior parts follow the cabin (greenhouse) plus their own choices.
 INTERIOR_GEOMETRY = (
     *GLASS_GEOMETRY, "seat_rows", "interior_trim", "driving_side",
+    "seat_height", "seat_recline", "dash_zone", "row_pitch",
     "surface_quality", "roof_arc",  # seats follow the styled roofline
 )  # fmt: skip
 
@@ -249,6 +251,7 @@ PAINT = (
     (0.86, 0.87, 0.88), (0.55, 0.57, 0.60), (0.16, 0.17, 0.19), (0.02, 0.022, 0.025),
     (0.55, 0.02, 0.025), (0.02, 0.06, 0.22), (0.02, 0.22, 0.70), (0.02, 0.10, 0.05),
     (0.80, 0.18, 0.02), (0.88, 0.58, 0.02), (0.60, 0.48, 0.32), (0.22, 0.12, 0.06),
+    (0.075, 0.125, 0.085),
 )  # fmt: skip
 PAINT_FINISHES = ("gloss", "metallic", "matte", "pearl")
 
@@ -259,7 +262,7 @@ def _paint(p: Values) -> tuple[tuple[float, float, float], str]:
     return colour, f"paint_{finish}"
 
 
-_FRAME_COLOR = (0.30, 0.32, 0.36)
+_FRAME_COLOR = (0.035, 0.037, 0.04)  # black e-coat (seen as the sills below the doors)
 _GLASS_COLOR = (0.08, 0.11, 0.15)
 _HEAD_LAMP_COLOR = (0.93, 0.92, 0.82)
 _TAIL_LAMP_COLOR = (0.72, 0.08, 0.08)
@@ -300,6 +303,35 @@ def _rim(cid: str, name: str, axle: str, side: str) -> ComponentDef:
         frames={"hub": ()}, interfaces=_hub,
         mate=Mate(axle, f"hub_{side}", "hub"), color=RIM_FINISHES[0][0], finish="metal",
         appearance=_rim_finish, appearance_inputs=("rim_finish",),
+    )  # fmt: skip
+
+
+# Caliper colours, in the order of the ``caliper_colour`` options.
+CALIPERS = (
+    (0.02, 0.02, 0.022), (0.50, 0.51, 0.53), (0.60, 0.015, 0.02), (0.90, 0.62, 0.0),
+    (0.02, 0.12, 0.60), (0.04, 0.30, 0.07),
+)  # fmt: skip
+
+
+def _caliper_colour(p: Values) -> tuple[tuple[float, float, float], str]:
+    colour = CALIPERS[min(max(int(round(p["caliper_colour"])), 0), len(CALIPERS) - 1)]
+    return colour, "paint_gloss"
+
+
+# Builder names stay clear of the example brake plugin's ("brake_disc", "disc_fl", ...).
+BRAKE_BUILDERS = {"disc": "brake_rotor", "caliper": "styling_caliper"}
+
+
+def _brake(cid: str, name: str, part: str, axle: str, side: str) -> ComponentDef:
+    caliper = part == "caliper"
+    extra = {"appearance": _caliper_colour, "appearance_inputs": ("caliper_colour",)}
+    return ComponentDef(
+        id=cid, name=name, category="wheel", builder=BRAKE_BUILDERS[part],
+        geometry=TYRE, inputs=_wheel_inputs,
+        frames={"hub": ()}, interfaces=_hub,
+        mate=Mate(axle, f"hub_{side}", "hub"),
+        color=CALIPERS[1] if caliper else (0.40, 0.40, 0.42), finish="metal",
+        **(extra if caliper else {}),  # type: ignore[arg-type]
     )  # fmt: skip
 
 
@@ -372,6 +404,10 @@ COMPONENTS: tuple[ComponentDef, ...] = (
     _option("spoiler", "Rear spoiler", "rear_spoiler", _BODY_COLOR, "paint", follows_body=True,
             painted=True),
     _option("tow_bar", "Tow bar", "tow_bar", (0.10, 0.10, 0.11), "metal"),
+    _option("grille", "Front grille", "grille_style", (0.025, 0.026, 0.03), "paint_gloss",
+            follows_body=True),
+    _option("side_vents", "Fender vents", "side_vents", (0.02, 0.02, 0.022), "trim",
+            follows_body=True),
     _interior("seats", "Seats", "seats", UPHOLSTERY[0], "leather", appearance=_upholstery,
               appearance_inputs=("interior_colour", "interior_trim")),
     _interior("dashboard", "Dashboard", "dashboard", (0.05, 0.052, 0.058), "trim"),
@@ -395,6 +431,14 @@ COMPONENTS: tuple[ComponentDef, ...] = (
     _rim("rim_fr", "Rim front right", "front_axle", "right"),
     _rim("rim_rl", "Rim rear left", "rear_axle", "left"),
     _rim("rim_rr", "Rim rear right", "rear_axle", "right"),
+    _brake("rotor_fl", "Brake disc front left", "disc", "front_axle", "left"),
+    _brake("rotor_fr", "Brake disc front right", "disc", "front_axle", "right"),
+    _brake("rotor_rl", "Brake disc rear left", "disc", "rear_axle", "left"),
+    _brake("rotor_rr", "Brake disc rear right", "disc", "rear_axle", "right"),
+    _brake("caliper_fl", "Brake caliper front left", "caliper", "front_axle", "left"),
+    _brake("caliper_fr", "Brake caliper front right", "caliper", "front_axle", "right"),
+    _brake("caliper_rl", "Brake caliper rear left", "caliper", "rear_axle", "left"),
+    _brake("caliper_rr", "Brake caliper rear right", "caliper", "rear_axle", "right"),
     _damper("damper_fl", "Damper front left", "front", "left"),
     _damper("damper_fr", "Damper front right", "front", "right"),
     _damper("damper_rl", "Damper rear left", "rear", "left"),

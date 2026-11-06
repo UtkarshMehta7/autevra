@@ -17,9 +17,11 @@ its curvature, and the cabin and wheel wells are cut as in the draft body. The e
 clipped to the design's, so length, width and height are exact.
 """
 
+import functools
 import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 
 import cadquery as cq
 
@@ -35,7 +37,36 @@ STEP = 100.0  # guide-curve sampling step, mm
 GLASS_INSET = 8.0  # the glazing sits this far inside the skin, mm
 
 
+LOW_MEMORY = 1 << 30  # bytes: below this the styled surface is off in "auto" mode
+
+
+def _memory_limit() -> int | None:
+    """The container's memory limit in bytes (cgroup v2 or v1), or None when unlimited."""
+    for path in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
+        try:
+            text = Path(path).read_text().strip()
+        except OSError:
+            continue
+        if text.isdigit() and int(text) < 1 << 60:  # cgroup v1 reports "no limit" as huge
+            return int(text)
+        return None
+    return None
+
+
+@functools.cache
+def styled_allowed() -> bool:
+    from autevra.config import Settings
+
+    mode = Settings().styled_surface.strip().lower()
+    if mode in ("on", "off"):
+        return mode == "on"
+    limit = _memory_limit()
+    return limit is None or limit >= LOW_MEMORY
+
+
 def surface(p: Inputs) -> str:
+    if not styled_allowed():
+        return "draft"
     return SURFACES[min(max(int(round(p.get("surface_quality", 0))), 0), len(SURFACES) - 1)]
 
 
@@ -172,23 +203,41 @@ def section_points(p: Inputs, g: Guides, x: float, inset: float = 0.0) -> list[t
     wtop = (1.0 - cw) * 0.8 * w + cw * roof_w
     tuck = min(p.get("sill_tuck", 60.0), 0.3 * w)
     w_bot = w - tuck
-    # Bonnet dip between raised wings (outside the cabin only).
-    dip = 0.6 * p.get("fender_rise", 0.0) * (1.0 - cw)
+    # Raised wings: outside the cabin the wing crowns stay on the top line and the bonnet
+    # (and an open car's deck) sinks between them, so the wings read as ridges over the
+    # wheels. Capped on shallow sections near the nose and the tail.
+    # The bonnet still clears the engine allowance (its top is 420 mm over the wheel
+    # centre, see ``powertrain.build_engine``) by 25 mm.
+    engine_top = p.get("tyre_radius", 330.0) + 420.0 + 25.0
+    dip = min(0.8 * p.get("fender_rise", 0.0), 0.3 * (zt - zb), max(zt - engine_top, 0.0))
+    dip *= 1.0 - cw
     # Body roundness softens the sill and the shoulder (the widest point stays put, so the
     # extents never change): 0 = crisp, 1 = full.
     rnd = min(max(p.get("body_roundness", 45.0) / 100.0, 0.0), 1.0)
+    # The wings also swell up over each wheel (the front more than the rear haunch), by up
+    # to half the fender rise, outside the cabin.
+    reach = 1.1 * p.get("arch_radius", 380.0)
+    swell = sum(share * math.exp(-(((x - xa) / reach) ** 2))
+                for xa, share in ((0.0, 1.0), (-p["wheelbase"], 0.7)))  # fmt: skip
+    lift = 0.5 * p.get("fender_rise", 0.0) * swell * (1.0 - cw)
     half = [
         (0.0, zb), ((0.7 - 0.3 * rnd) * w_bot, zb), (w_bot, zb + 10.0 + 50.0 * rnd),
         ((0.998 - 0.03 * rnd) * w, zs - 40.0), (w, zs + 30.0), ((0.99 - 0.035 * rnd) * w, zbelt),
-        (wtop + (0.975 * w - wtop) * 0.45, zbelt + 0.55 * (zt - zbelt)),
-        (wtop, zt - 0.12 * (zt - zbelt) - 8.0), (0.55 * wtop, zt - 4.0 - 0.7 * dip),
-        (0.0, zt - dip),
+        (wtop + (0.975 * w - wtop) * 0.45, zbelt + 0.55 * (zt - zbelt) + 0.3 * lift),
+        (wtop, zt - 0.12 * (zt - zbelt) - 8.0 + 0.8 * lift),
+        (0.6 * wtop, zt - 4.0 - 0.1 * dip + lift),  # the wing crown
+        (0.28 * wtop, zt - 2.0 - 0.8 * dip), (0.0, zt - dip),  # into the bonnet valley
     ]  # fmt: skip
     # A shallow section (near the tail or the nose) must not fold back on itself: keep the
-    # points rising from the sill to the roof and the widths positive.
+    # points rising from the sill to the wing crown and the widths positive; the valley
+    # may then fall to the centre line.
+    crown = len(half) - 3
     fixed = [half[0], half[1]]
-    for y, z in half[2:]:
-        fixed.append((max(y, 1.0) if z < half[-1][1] else y, max(z, fixed[-1][1] + 4.0)))
+    for i, (y, z) in enumerate(half[2:], start=2):
+        if i > crown and dip > 0.0:
+            fixed.append((y, min(z, fixed[crown][1])))
+            continue
+        fixed.append((max(y, 1.0), max(z, fixed[-1][1] + 4.0)))
     half = fixed
     left = [(-y, z) for y, z in reversed(half[1:-1])]
     return half + left
@@ -352,7 +401,10 @@ def build_styled_body(p: Inputs) -> k.Shape:
     cabin = k.box(*interior.cavity(p))
     opening = exterior.roof_opening(p, layout)
     roof = [k.box(*opening)] if opening is not None else []
-    body = k.cut(body, *wells, *lamps, cabin, *window_tools(p, layout, g), *roof)
+    from autevra.domains.automotive import details
+
+    trims = [*details.grille_tools(p, layout), *details.vent_tools(p)]
+    body = k.cut(body, *wells, *lamps, cabin, *window_tools(p, layout, g), *roof, *trims)
     if layout.open:  # windscreen surround of an open car, on a strip at the cowl
         (_, g1) = layout.glass
         roof_w = b.roof_half_width(p)

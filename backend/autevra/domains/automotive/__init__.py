@@ -13,6 +13,7 @@ from autevra import extensions
 from autevra.domains.automotive import (
     builders,
     derived,
+    details,
     exterior,
     integration,
     interior,
@@ -72,6 +73,10 @@ PLUGIN = extensions.Plugin(
         "axle": suspension.build_suspension,
         "wheel": builders.build_wheel,
         "rim": styling.build_rim,
+        "brake_rotor": details.build_brake_disc,
+        "styling_caliper": details.build_brake_caliper,
+        "grille": details.build_grille,
+        "side_vents": details.build_side_vents,
         "mirrors": exterior.build_mirrors,
         "roof_rails": exterior.build_roof_rails,
         "spoiler": exterior.build_spoiler,

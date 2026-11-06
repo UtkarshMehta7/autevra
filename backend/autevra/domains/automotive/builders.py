@@ -278,9 +278,26 @@ def _open_top(p: Inputs, layout: BodyLayout, shape: k.Shape) -> k.Shape:
     if not layout.open:
         return shape
     half_w = p["body_width"] / 2.0
+    belt, top = p["beltline_height"], layout.roof_z
     (_, g1), (_, r1) = layout.glass, layout.roof
     keep = k.box((r1 - PILLAR - 1.0, g1 + 20.0), (-half_w - 20.0, half_w + 20.0),
-                 (p["beltline_height"] - 5.0, layout.roof_z + 5.0))  # fmt: skip
+                 (belt - 5.0, top + 5.0))  # fmt: skip
+    # Behind the windscreen only the A-pillars and the header rail stay: the side wall
+    # between them is open (the side windows are down with the roof).
+    run, rise = g1 - r1, max(top - belt, 1.0)
+    back = 0.6 * PILLAR * math.hypot(run, rise) / rise  # a slim pillar, measured along x
+
+    def screen_x(z: float) -> float:
+        return g1 - run * (z - belt) / rise
+
+    # From above the cabin cut (which reaches 60 mm over the beltline), so the pillars stay
+    # joined to the body through the cowl sides.
+    z0, z1 = belt + 100.0, top - PILLAR
+    if z1 - z0 > 20.0:
+        air = k.prism_y([(r1 - PILLAR - 50.0, z0), (screen_x(z0) - back, z0),
+                         (screen_x(z1) - back, z1), (r1 - PILLAR - 50.0, z1)],
+                        (-half_w - 30.0, half_w + 30.0))  # fmt: skip
+        keep = k.cut(keep, air)
     return k.intersect(shape, keep)
 
 
@@ -368,7 +385,10 @@ def build_body(p: Inputs) -> k.Shape:
     cabin = k.box(*interior.cavity(p))  # the passenger space, open into the glasshouse
     opening = exterior.roof_opening(p, layout)  # panoramic roof or sunroof
     roof = [k.box(*opening)] if opening is not None else []
-    return k.cut(body, *wells, *lamps, cabin, *roof)  # one boolean for all the openings
+    from autevra.domains.automotive import details
+
+    trims = [*details.grille_tools(p, layout), *details.vent_tools(p)]
+    return k.cut(body, *wells, *lamps, cabin, *roof, *trims)  # one boolean for all openings
 
 
 build_body.mesh_angular = 0.12  # type: ignore[attr-defined]  (smooth highlights on the curves)

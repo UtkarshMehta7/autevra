@@ -27,6 +27,8 @@ import { StylingPanel } from "./StylingPanel";
 import { PartDesignPanel } from "./PartDesignPanel";
 import { SystemsPanel } from "./SystemsPanel";
 import { WORKSPACES, type WorkspaceId } from "./workspaces";
+import { clampDock, clampSide, DEFAULT_LAYOUT, type Layout, useLayout } from "./layout";
+import { Splitter } from "./Splitter";
 
 import { remember } from "./lastProject";
 import { DownloadLink } from "../DownloadLink";
@@ -77,6 +79,22 @@ function StudioView({ projectId, workspace, navigate }: {
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<ComponentTestStatus[]>([]);
   const [collapsed, setCollapsed] = useState(false);
+  // Resizable panels: side panel widths, dock height and a focus mode for the viewport.
+  const { layout, set: setLayout, toggleSide } = useLayout();
+  const dragStart = useRef<Layout>(layout);
+  const beginDrag = () => { dragStart.current = layout; };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) || t.isContentEditable) return;
+      if (e.key === "Escape" && layout.focus) setLayout({ focus: false });
+      if (e.key.toLowerCase() === "f" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        setLayout({ focus: !layout.focus });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [layout.focus, setLayout]);
   const [missing, setMissing] = useState(false);
   const go = useCallback((ws: WorkspaceId) => {
     setCollapsed(false);
@@ -356,7 +374,10 @@ function StudioView({ projectId, workspace, navigate }: {
   }
 
   return (
-    <div className="app">
+    <div className={`app${layout.focus ? " focus" : ""}`} style={layout.focus ? undefined : {
+      gridTemplateColumns: `${layout.left}px 5px minmax(0, 1fr) 5px ${layout.right}px`,
+      gridTemplateRows: `auto minmax(0, 1fr) 5px ${collapsed ? "auto" : `${layout.dock}px`}`,
+    }}>
       <header>
         <Link to="/" className="brand" title="AUTEVRA website">Autevra</Link>
         <Link to="/app" className="button subtle" title="Projects, models and runs">Workspace</Link>
@@ -372,7 +393,27 @@ function StudioView({ projectId, workspace, navigate }: {
           X-ray body
         </label>
         {project && <DownloadLink className="button" href={api.stepUrl(project.id)}>Export STEP</DownloadLink>}
+        <span className="layout-buttons" role="group" aria-label="Panels">
+          <button className={layout.left > 0 && !layout.focus ? "on" : ""} onClick={() => toggleSide("left")}
+            disabled={layout.focus} title="Show or hide the component tree">Tree</button>
+          <button className={!collapsed && !layout.focus ? "on" : ""} onClick={() => setCollapsed(!collapsed)}
+            disabled={layout.focus} title="Show or hide the workspace tabs panel">Tabs</button>
+          <button className={layout.right > 0 && !layout.focus ? "on" : ""} onClick={() => toggleSide("right")}
+            disabled={layout.focus} title="Show or hide the parameters">Parameters</button>
+          <button className={layout.focus ? "on" : ""} onClick={() => setLayout({ focus: !layout.focus })}
+            title="Give the 3D view the whole window (F; Esc to leave)">Focus view</button>
+        </span>
       </header>
+      <Splitter orientation="vertical" area="lsplit" label="Component tree width" onStart={beginDrag}
+        onDrag={(dx) => setLayout({ left: clampSide(dragStart.current.left + dx, "left") })}
+        onReset={() => setLayout({ left: DEFAULT_LAYOUT.left })} />
+      <Splitter orientation="vertical" area="rsplit" label="Parameters width" onStart={beginDrag}
+        onDrag={(dx) => setLayout({ right: clampSide(dragStart.current.right - dx, "right") })}
+        onReset={() => setLayout({ right: DEFAULT_LAYOUT.right })} />
+      <Splitter orientation="horizontal" area="hsplit" label="Workspace panel height"
+        onStart={() => { beginDrag(); if (collapsed) setCollapsed(false); }}
+        onDrag={(dy) => setLayout({ dock: clampDock(dragStart.current.dock - dy, window.innerHeight) })}
+        onReset={() => setLayout({ dock: DEFAULT_LAYOUT.dock })} />
       <aside className="left">
         <ComponentTree parts={model?.parts ?? []} selected={selected} highlighted={highlighted}
           statuses={statuses} onSelect={setSelected} />
@@ -397,6 +438,7 @@ function StudioView({ projectId, workspace, navigate }: {
             Live simulation
           </label>
           <button onClick={() => setCollapsed(!collapsed)}>{collapsed ? "Show" : "Hide"}</button>
+          <button onClick={() => setLayout({ focus: true })} title="Give the 3D view the whole window (F)">Focus view</button>
         </nav>
         {project && !collapsed && workspace === "simulation" && (
           <TestBench projectId={project.id} definitions={tests} runs={runs}
