@@ -634,4 +634,11 @@ export interface SketchSolve {
   fixed_points: string[];
   fixed_entities: string[];
   residual: number;
+  // Inspection (backend part/sketch.py): the system F(x) = 0 and the convergence history.
+  method?: string;
+  unknowns?: number;
+  equations?: { index: number | null; kind: string; text: string; rows: number; residual: number }[];
+  rank?: number;
+  iterations?: { step: number; cost: number; max_residual: number; damping: number; step_norm: number; accepted: boolean }[];
+  converged?: boolean;
 }

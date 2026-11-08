@@ -209,3 +209,18 @@ def test_sketch_solve_api(client: TestClient) -> None:
     bad = client.post("/api/sketch/solve", json={"sketch": {"points": [], "entities": [
         {"type": "line", "id": "l", "a": "x", "b": "y"}]}})  # fmt: skip
     assert bad.status_code == 422
+
+
+def test_a_solve_reports_its_equations_rank_and_convergence() -> None:
+    # A rectangle-ish quad with horizontal, vertical and length constraints, one point fixed.
+    out = sk.solve(sk.Sketch.model_validate(rectangle()))
+    assert out.ok and out.converged
+    assert out.unknowns == 6  # three free points, x and y each
+    rows = sum(e.rows for e in out.equations)
+    assert out.dof == out.unknowns - out.rank
+    assert out.redundant == rows - out.rank
+    assert all(e.residual < 1e-4 for e in out.equations)
+    assert any("y(" in e.text for e in out.equations if e.kind == "horizontal")
+    assert out.iterations and out.iterations[-1].accepted
+    costs = [it.cost for it in out.iterations if it.accepted]
+    assert costs == sorted(costs, reverse=True)  # accepted steps only ever lower |F|^2

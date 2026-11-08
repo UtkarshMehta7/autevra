@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
+import { SolverConsole } from "./SolverConsole";
 import type { Sketch, SketchConstraint, SketchEntity, SketchSolve } from "../api/types";
 
 type Pt = [number, number];
@@ -485,6 +486,7 @@ export function ConstraintSketcher({ sketch, bindings, labels = ["u", "v"], axis
           <button disabled={!dirty} onClick={() => { setDoc(sketch); setBinds(bindings); setDirty(false); void solve(sketch); }}>Revert</button>
           {error && <span className="error">{error}</span>}
         </div>
+        <SolverConsole status={status} />
       </div>
     </div>
   );

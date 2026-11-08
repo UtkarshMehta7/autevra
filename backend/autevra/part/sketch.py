@@ -162,6 +162,27 @@ class Sketch(BaseModel):
 # ---------------------------------------------------------------------------- solving
 
 
+class Iteration(BaseModel):
+    """One step of the damped Gauss-Newton solve."""
+
+    step: int
+    cost: float  # sum of squared residuals |f|^2 at the trial point
+    max_residual: float  # the largest single residual at the trial point
+    damping: float  # lambda used for this step
+    step_norm: float  # |dx|
+    accepted: bool  # the trial lowered the cost (else lambda grows and the step is retried)
+
+
+class Equation(BaseModel):
+    """A constraint as the equations the solver drives to zero."""
+
+    index: int | None  # the constraint's index (None: an arc's own equal-radius equation)
+    kind: str
+    text: str  # the equation(s), with the sketch's point and entity names
+    rows: int  # equations it contributes (rows of the Jacobian)
+    residual: float  # the largest of its residuals at the solution
+
+
 class SolveResult(BaseModel):
     sketch: Sketch
     ok: bool  # every constraint met
@@ -171,6 +192,13 @@ class SolveResult(BaseModel):
     fixed_points: list[str]  # points the constraints pin down completely
     fixed_entities: list[str]  # entities whose every point (and radius) is pinned
     residual: float
+    # Inspection: the nonlinear system F(x) = 0 and how the solver converged.
+    method: str = ""
+    unknowns: int = 0  # n: free point coordinates and circle radii
+    equations: list[Equation] = []  # m rows in all
+    rank: int = 0  # of the Jacobian at the solution (DOF = n - rank, redundant = m - rank)
+    iterations: list[Iteration] = []
+    converged: bool = False
 
 
 class _System:
@@ -339,7 +367,8 @@ class _System:
         lam = 1e-3
         f = self.vector(x)
         cost = float(f @ f)
-        for _ in range(iterations):
+        self.history: list[Iteration] = []
+        for step in range(iterations):
             if cost < 1e-20 or x.size == 0:
                 break
             jac = self.jacobian(x)
@@ -351,6 +380,10 @@ class _System:
             trial = x + dx
             ft = self.vector(trial)
             ct = float(ft @ ft)
+            self.history.append(Iteration(
+                step=step + 1, cost=ct, max_residual=float(np.max(np.abs(ft))) if ft.size else 0.0,
+                damping=lam, step_norm=float(np.linalg.norm(dx)), accepted=ct < cost,
+            ))  # fmt: skip
             if ct < cost:
                 x, f, cost = trial, ft, ct
                 lam = max(lam / 3, 1e-12)
@@ -421,6 +454,7 @@ def solve(sk: Sketch, drag: tuple[str, float, float] | None = None) -> SolveResu
         if all(q in fp for q in pts) and (not isinstance(e, Circle) or pinned(system.index[e.id])):
             fixed_entities.append(e.id)
     residual = float(np.max(np.abs(f))) if f.size else 0.0
+    equations = _equations(sk, parts)
     return SolveResult(
         sketch=system.write(x),
         ok=not conflicting and not arcs_bad,
@@ -430,7 +464,102 @@ def solve(sk: Sketch, drag: tuple[str, float, float] | None = None) -> SolveResu
         fixed_points=fixed_points,
         fixed_entities=fixed_entities,
         residual=residual,
+        method="Damped minimum-move Gauss-Newton (Levenberg-Marquardt): each step solves "
+        "(J W Jᵀ + λI) y = −F, Δx = W Jᵀ y; λ shrinks after a step that lowers |F|² and "
+        "grows after one that does not. J by forward differences.",
+        unknowns=int(x.size),
+        equations=equations,
+        rank=rank,
+        iterations=getattr(system, "history", []),
+        converged=residual <= TOL * 100,
     )
+
+
+def _equations(sk: Sketch, parts: list[np.ndarray]) -> list[Equation]:
+    """Each constraint written as the equation(s) the solver drives to zero."""
+    entity = {e.id: e for e in sk.entities}
+
+    def pt(pid: str) -> str:
+        return f"P{pid}"
+
+    def seg(lid: str) -> tuple[str, str]:
+        e = entity[lid]
+        return pt(e.a), pt(e.b)  # type: ignore[union-attr]
+
+    def centre(eid: str) -> str:
+        return pt(entity[eid].center)  # type: ignore[union-attr]
+
+    def unit(lid: str) -> str:
+        a, b = seg(lid)
+        return f"û({a}{b})"
+
+    def text(c: Constraint) -> str:  # noqa: C901
+        r, v = c.refs, c.value
+        match c.kind:
+            case "coincident":
+                return f"{pt(r[0])} − {pt(r[1])} = 0"
+            case "horizontal":
+                a, b = seg(r[0])
+                return f"y({b}) − y({a}) = 0"
+            case "vertical":
+                a, b = seg(r[0])
+                return f"x({b}) − x({a}) = 0"
+            case "parallel":
+                return f"{unit(r[0])} × {unit(r[1])} = 0"
+            case "perpendicular":
+                return f"{unit(r[0])} · {unit(r[1])} = 0"
+            case "angle":
+                u, w = unit(r[0]), unit(r[1])
+                return f"({u} × {w}) cos {v:g}° − ({u} · {w}) sin {v:g}° = 0"
+            case "equal":
+                if entity[r[0]].type == "line" and entity[r[1]].type == "line":
+                    (a, b), (p, q) = seg(r[0]), seg(r[1])
+                    return f"|{b} − {a}| − |{q} − {p}| = 0"
+                return f"r({r[0]}) − r({r[1]}) = 0"
+            case "tangent":
+                if entity[r[0]].type == "line":
+                    a, b = seg(r[0])
+                    return f"dist({centre(r[1])}, {a}{b}) − r({r[1]}) = 0"
+                return f"|{centre(r[0])} − {centre(r[1])}| − (r({r[0]}) ± r({r[1]})) = 0"
+            case "point_on":
+                if entity[r[1]].type == "line":
+                    a, b = seg(r[1])
+                    return f"({b} − {a}) × ({pt(r[0])} − {a}) / |{b} − {a}| = 0"
+                return f"|{pt(r[0])} − {centre(r[1])}| − r({r[1]}) = 0"
+            case "midpoint":
+                a, b = seg(r[1])
+                return f"{pt(r[0])} − ({a} + {b})/2 = 0"
+            case "symmetric":
+                p, q = pt(r[0]), pt(r[1])
+                return f"midpoint({p}, {q}) on {r[2]}; ({q} − {p}) · {unit(r[2])} = 0"
+            case "distance":
+                return f"|{pt(r[1])} − {pt(r[0])}| − {v:g} = 0"
+            case "hdistance":
+                return f"x({pt(r[1])}) − x({pt(r[0])}) − {v:g} = 0"
+            case "vdistance":
+                return f"y({pt(r[1])}) − y({pt(r[0])}) − {v:g} = 0"
+            case "length":
+                a, b = seg(r[0])
+                return f"|{b} − {a}| − {v:g} = 0"
+            case "radius":
+                return f"r({r[0]}) − {v:g} = 0"
+            case "diameter":
+                return f"2 r({r[0]}) − {v:g} = 0"
+        return c.kind
+
+    out = []
+    for i, c in enumerate(sk.constraints):
+        res = parts[i] if i < len(parts) else np.zeros(1)
+        out.append(Equation(index=i, kind=c.kind, text=text(c), rows=int(res.size),
+                            residual=float(np.max(np.abs(res))) if res.size else 0.0))  # fmt: skip
+    arcs = [e for e in sk.entities if isinstance(e, Arc)]
+    for e, res in zip(arcs, parts[len(sk.constraints) :], strict=False):
+        c, a, b = pt(e.center), pt(e.start), pt(e.end)
+        out.append(Equation(
+            index=None, kind="arc", text=f"|{b} − {c}| − |{a} − {c}| = 0",
+            rows=int(res.size), residual=float(np.max(np.abs(res))) if res.size else 0.0,
+        ))  # fmt: skip
+    return out
 
 
 # ---------------------------------------------------------------------------- profiles

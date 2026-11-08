@@ -367,3 +367,17 @@ textarea.json.bad { border-color: var(--bad); }
   border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; display: grid; gap: 2px; }
 .inspector .muted { color: var(--muted); }
 .good-text { color: var(--good); }
+
+/* Solver console (sketcher) */
+.solver-console { margin-top: 8px; font-size: 12px; }
+.solver-console summary { cursor: pointer; color: var(--muted); }
+.solver-console .math { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; display: grid; gap: 2px; margin: 6px 0; }
+.solver-console table.equations td.eq { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+.solver-console table.equations tr.conflict td { background: rgba(220, 80, 80, 0.08); }
+.chart.convergence { width: 100%; max-width: 360px; }
+.chart.convergence .series { fill: none; stroke: #6fa8ff; stroke-width: 1.5; }
+.chart.convergence .pt { fill: #6fa8ff; }
+.chart.convergence .pt.rejected { fill: none; stroke: #ffc94a; }
+.chart.convergence .grid { stroke: var(--line); stroke-width: 0.5; }
+.chart.convergence .tick { fill: var(--muted); font-size: 8px; }
