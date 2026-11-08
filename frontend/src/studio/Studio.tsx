@@ -25,6 +25,7 @@ import { ManufacturingPanel } from "./ManufacturingPanel";
 import { PackagePanel } from "./PackagePanel";
 import { StylingPanel } from "./StylingPanel";
 import { PartDesignPanel } from "./PartDesignPanel";
+import { SurfacesPanel } from "./SurfacesPanel";
 import { SystemsPanel } from "./SystemsPanel";
 import { WORKSPACES, type WorkspaceId } from "./workspaces";
 import { clampDock, clampSide, DEFAULT_LAYOUT, type Layout, useLayout } from "./layout";
@@ -481,6 +482,7 @@ function StudioView({ projectId, workspace, navigate }: {
             onVerify={() => requirementAction(() => api.verifyRequirements(project.id))}
             onImport={(xml) => requirementAction(() => api.importReqif(project.id, xml))} />
         )}
+        {!collapsed && workspace === "surfaces" && <SurfacesPanel />}
         {project && !collapsed && workspace === "part-design" && (
           <PartDesignPanel projectId={project.id} onModelChanged={() => refresh(project.id)} />
         )}

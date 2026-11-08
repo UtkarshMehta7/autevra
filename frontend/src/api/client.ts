@@ -1,6 +1,5 @@
 import type {
-  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation,
-} from "./types";
+  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -234,6 +233,15 @@ export const api = {
   solveSketch: (sketch: Sketch, drag?: { point: string; x: number; y: number }) =>
     post<SketchSolve>("/sketch/solve", { sketch, drag: drag ?? null }),
   partPresets: () => request<Record<string, PartDoc>>("/part-presets"),
+  // Surface laboratory (NURBS mathematics, continuity)
+  evaluateSurface: (surface: NurbsSurface, samples = 33, selected: [number, number] | null = null) =>
+    post<NurbsEvaluation>("/surfaces/evaluate", { surface, samples, selected }),
+  insertKnot: (surface: NurbsSurface, direction: "u" | "v", t: number) =>
+    post<{ surface: Required<NurbsSurface>; max_shape_change: number }>("/surfaces/insert-knot", { surface, direction, t }),
+  joinSurface: (surface: NurbsSurface, target: "G0" | "G1" | "G2", bend: number) =>
+    post<{ surface: Required<NurbsSurface> }>("/surfaces/join", { surface, target, bend }),
+  surfaceContinuity: (a: NurbsSurface, b: NurbsSurface, combScale: number) =>
+    post<ContinuityReport>("/surfaces/continuity", { a, b, comb_scale: combScale }),
   parts: (id: string) => request<PartOut[]>(`/projects/${id}/parts`),
   createPart: (id: string, doc: PartDoc) => post<PartOut>(`/projects/${id}/parts`, doc),
   updatePart: (id: string, part: string, doc: PartDoc) =>

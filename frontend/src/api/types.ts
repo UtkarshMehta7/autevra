@@ -642,3 +642,30 @@ export interface SketchSolve {
   iterations?: { step: number; cost: number; max_residual: number; damping: number; step_norm: number; accepted: boolean }[];
   converged?: boolean;
 }
+
+/** A NURBS surface (backend geometry/nurbs.py): control grid [u][v] of (x, y, z), weights. */
+export interface NurbsSurface {
+  degree_u: number;
+  degree_v: number;
+  control: [number, number, number][][];
+  weights?: number[][];
+  knots_u?: number[];
+  knots_v?: number[];
+}
+
+export interface NurbsEvaluation {
+  surface: Required<NurbsSurface>;
+  grid: { u: number[]; v: number[]; points: [number, number, number][]; normals: [number, number, number][];
+    gaussian: number[]; mean: number[]; triangles: number[] };
+  basis_u: { t: number[]; functions: number[][] };
+  basis_v: { t: number[]; functions: number[][] };
+  domain: [[number, number], [number, number]];
+  support: { u: [number, number]; v: [number, number]; point: [number, number, number]; weight: number } | null;
+}
+
+export interface ContinuityReport {
+  report: { samples: number; gap: number; angle: number; curvature_a: number[]; curvature_b: number[];
+    curvature_jump: number; rate_jump: number; level: "none" | "G0" | "G1" | "G2" | "G3"; explanation: string };
+  tolerances: { g0: number; g1_deg: number; g2_rel: number; g3_rel: number };
+  combs: { points: [number, number, number][]; tips: [number, number, number][]; curvature: number[] }[];
+}

@@ -11,6 +11,7 @@ from autevra.ai.llm.clients import LLMClient, make_client
 from autevra.api import access
 from autevra.api.routes import EXCEPTION_HANDLERS, router
 from autevra.api.service import Workspace
+from autevra.api.surfaces import router as surfaces_router
 from autevra.config import Settings
 from autevra.storage.database import Database, migrate
 
@@ -44,6 +45,7 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None) -
     for exc_type, handler in EXCEPTION_HANDLERS.items():
         app.add_exception_handler(exc_type, handler)
     app.include_router(router)
+    app.include_router(surfaces_router, prefix="/api")
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

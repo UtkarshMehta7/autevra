@@ -381,3 +381,36 @@ textarea.json.bad { border-color: var(--bad); }
 .chart.convergence .pt.rejected { fill: none; stroke: #ffc94a; }
 .chart.convergence .grid { stroke: var(--line); stroke-width: 0.5; }
 .chart.convergence .tick { fill: var(--muted); font-size: 8px; }
+
+/* Surface laboratory */
+.surfaces-lab { display: grid; grid-template-columns: minmax(280px, 1.3fr) minmax(300px, 1fr); gap: 10px; min-height: 360px; }
+.surfaces-lab .lab-view { position: relative; min-height: 340px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 35%, #2c3746 0%, #1a2029 60%, #11151b 100%); }
+.surface-view { position: absolute; inset: 0; }
+.lab-toolbar { position: absolute; top: 6px; left: 6px; display: flex; gap: 2px; align-items: center; font-size: 11px;
+  background: rgba(16,20,26,0.82); border: 1px solid var(--line); border-radius: 6px; padding: 2px; }
+.lab-toolbar button { font-size: 11px; padding: 3px 7px; border: 0; background: transparent; color: var(--muted); border-radius: 4px; }
+.lab-toolbar button.on { color: #fff; background: #24406a; }
+.lab-side { display: grid; gap: 6px; align-content: start; font-size: 12px; overflow: auto; }
+.lab-side .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.lab-side .math { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; display: grid; gap: 2px; overflow-wrap: anywhere; }
+.lab-side .math .sel-head { color: #ffc94a; margin-top: 4px; }
+.lab-side .math .muted, .lab-side .muted { color: var(--muted); }
+.lab-side .point-edit input[type="number"] { width: 70px; }
+.chart.basis, .chart.param { width: 100%; max-width: 340px; }
+.chart.param { max-width: 140px; }
+.chart.basis .fn { fill: none; stroke: #5d6b7c; stroke-width: 1; }
+.chart.basis .fn.on { stroke: #ffc94a; stroke-width: 2.2; }
+.chart.basis .knot, .chart.param .knot { stroke: #3a4552; stroke-width: 0.6; stroke-dasharray: 2 2; }
+.chart.param .domain { fill: rgba(255,255,255,0.02); stroke: var(--line); }
+.chart.param .support { fill: rgba(255, 184, 64, 0.28); stroke: #ffb840; stroke-width: 0.8; }
+.chart.basis .tick, .chart.param .tick, .chart.basis .chart-title { fill: var(--muted); font-size: 8px; }
+.math.continuity .level { font-weight: 700; font-size: 13px; }
+.level-G2, .level-G3 { color: var(--good); }
+.level-G1 { color: #ffc94a; }
+.level-G0, .level-none { color: var(--bad); }
+.chart.param { width: 140px; height: 140px; flex: none; }
+.chart.basis { height: auto; }
+.basis-row { display: flex; gap: 8px; align-items: flex-start; }
+.basis-col { display: grid; gap: 4px; flex: 1; min-width: 0; }
