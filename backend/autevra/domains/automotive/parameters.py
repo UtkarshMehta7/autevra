@@ -195,9 +195,9 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=0,
         min=0,
-        max=3,
+        max=4,
         step=1,
-        options=("LED strip", "Matrix LED", "Round", "Split"),
+        options=("LED strip", "Matrix LED", "Round", "Split", "Swept"),
         description="Head lamp layout on the front face (styling envelope; no photometry).",
         aliases=(
             "head lamp signature",
@@ -256,6 +256,71 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         options=("None", "Three gills", "Single slot"),
         description="Vents cut into each front wing behind the wheel arch (styling only).",
         aliases=("fender vents", "side vents", "wing vents", "gills", "fender gills"),
+    ),
+    _p(
+        id="lamp_housing",
+        label="Head lamp housing",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=1,
+        step=1,
+        options=("None", "Smoked"),
+        description="A dark smoked housing round each head lamp (the lamp runs along its top "
+        "edge), as on many sports and luxury cars (styled surface; styling only).",
+        aliases=(
+            "lamp housing",
+            "headlamp housing",
+            "smoked lamps",
+            "dark headlights",
+            "smoked headlights",
+            "lamp surround",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="door_lines",
+        label="Door shut lines",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=2,
+        step=1,
+        options=("None", "Shut lines", "Shut lines and handles"),
+        description="Panel gaps cut round each door between the wheel arches (two long doors "
+        "on coupes, roadsters and supercars, else front and rear doors), optionally with "
+        "flush handle recesses (styling only; the doors do not open).",
+        aliases=(
+            "door lines",
+            "shut lines",
+            "door gaps",
+            "panel gaps",
+            "door handles",
+            "door cut lines",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="lower_trim",
+        label="Lower trim",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=1,
+        step=1,
+        options=("Body colour", "Gloss black"),
+        description="Finish of the band round the foot of the body: the front splitter, side "
+        "skirts and rear valance (styled surface; styling only).",
+        aliases=(
+            "lower trim",
+            "splitter",
+            "side skirts",
+            "skirts",
+            "valance",
+            "lower body trim",
+            "contrast trim",
+        ),  # fmt: skip
     ),
     # --- Body shaping (any style can be pushed towards any other) ---
     _p(
@@ -371,6 +436,48 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         "wheel-arch clearance). On the styled surface the wings also swell up over the "
         "wheels by up to half this, and an open car's deck sinks between the rear haunches.",
         aliases=("fender rise", "wing rise", "fender height", "raised wings", "fender peaks"),
+    ),
+    _p(
+        id="nose_rake",
+        label="Nose rake",
+        group=Group.SHAPE,
+        unit=Unit.PERCENT,
+        default=0,
+        min=0,
+        max=80,
+        step=5,
+        description="How far the bonnet's leading edge sits back from the bumper line, as a "
+        "share of the front face's height: 0 is an upright face, more rakes the nose back so "
+        "the bonnet falls to a low, pointed front (the lamps and grille follow the face).",
+        aliases=(
+            "nose rake",
+            "front rake",
+            "face rake",
+            "nose slope",
+            "pointed nose",
+            "raked nose",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="bonnet_dome",
+        label="Bonnet dome",
+        group=Group.SHAPE,
+        unit=Unit.PERCENT,
+        default=0,
+        min=0,
+        max=80,
+        step=5,
+        description="A power dome along the middle of the bonnet, rising from the valley "
+        "between raised wings (as a share of the fender rise), framed by two creases; "
+        "needs a fender rise on the styled surface.",
+        aliases=(
+            "bonnet dome",
+            "hood bulge",
+            "power dome",
+            "bonnet bulge",
+            "hood scoop bulge",
+            "power bulge",
+        ),  # fmt: skip
     ),
     # --- Exterior options ---
     _p(
@@ -716,9 +823,17 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=0,
         min=0,
-        max=5,
+        max=6,
         step=1,
-        options=("Five-spoke", "Multi-spoke", "Twin-spoke", "Mesh", "Aero disc", "Steel"),
+        options=(
+            "Five-spoke",
+            "Multi-spoke",
+            "Twin-spoke",
+            "Mesh",
+            "Aero disc",
+            "Steel",
+            "Y-spoke",
+        ),  # fmt: skip
         description="Rim face design (styling; the ride models use the tyre size only).",
         aliases=("wheel design", "rim design", "wheel style", "rim style", "alloy design"),
     ),

@@ -500,10 +500,11 @@ LANGUAGE = Language(
                 "10-spoke",
                 "fine spoke",
             ),
-            "Twin-spoke": ("twin spoke", "double spoke", "split spoke", "y spoke", "y-spoke"),
+            "Twin-spoke": ("twin spoke", "double spoke", "split spoke"),
             "Mesh": ("cross spoke", "lattice", "bbs style"),
             "Aero disc": ("aero", "aero disc", "aerodynamic", "covered", "turbine", "disc"),
             "Steel": ("steelies", "steel wheels", "plain steel", "basic"),
+            "Y-spoke": ("y spoke", "y-spoke", "forked spoke", "forked spokes"),
         },
         "rim_finish": {
             "Silver": ("silver", "bright silver", "painted silver"),
@@ -518,6 +519,7 @@ LANGUAGE = Language(
             "Matrix LED": ("matrix", "adaptive", "pixel", "segmented"),
             "Round": ("round", "circular", "retro", "classic"),
             "Split": ("split", "split level", "split-level", "stacked"),
+            "Swept": ("swept", "boomerang", "wraparound", "wrap around", "swept back"),
         },
         "tail_lamp_style": {
             "Light bar": ("light bar", "full width", "full-width", "bar", "lightbar"),
@@ -562,6 +564,30 @@ LANGUAGE = Language(
                 "sport grille",
                 "large mesh",
             ),  # fmt: skip
+        },
+        "lamp_housing": {
+            "None": ("clear", "no housing", "plain lamps"),
+            "Smoked": ("smoked", "dark", "tinted", "black housing"),
+        },
+        "door_lines": {
+            "None": ("no door lines", "seamless", "no shut lines"),
+            "Shut lines": ("shut lines", "door lines", "panel gaps", "door gaps"),
+            "Shut lines and handles": (
+                "door handles",
+                "flush handles",
+                "handles",
+                "lines and handles",
+            ),  # fmt: skip
+        },
+        "lower_trim": {
+            "Body colour": (
+                "body colour",
+                "body color",
+                "colour coded",
+                "color coded",
+                "painted",
+            ),  # fmt: skip
+            "Gloss black": ("gloss black", "black", "piano black", "contrast", "blacked out"),
         },
         "side_vents": {
             "None": ("no",),

@@ -22,16 +22,17 @@ TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
 # Shape controls: the sculpted lower body reads all of them, the greenhouse (and so the
 # glazing and the cabin) the haunch and the tumblehome.
 SHAPE = ("haunch", "nose_taper", "tail_taper", "sill_tuck", "body_roundness", "tumblehome",
-         "fender_rise", "surface_quality", "roof_arc")  # fmt: skip
+         "fender_rise", "surface_quality", "roof_arc", "nose_rake", "bonnet_dome")  # fmt: skip
 GREENHOUSE_SHAPE = ("haunch", "tumblehome")
 
 BODY_GEOMETRY = (
     "body_style", "wheelbase", "front_overhang", "rear_overhang", "body_width", "overall_height",
     "beltline_height", "ground_clearance", "rail_height", "cabin_length", "roof_length",
     "cabin_offset", "track_front", "track_rear", "arch_clearance", *TYRE, *d.CHASSIS_INPUTS,
-    "head_lamp_style", "tail_lamp_style",  # the body is recessed for the lamps
+    "head_lamp_style", "tail_lamp_style", "lamp_housing",  # the body is recessed for the lamps
     "roof_type",  # and opened for a panoramic roof or sunroof
     "grille_style", "side_vents",  # and recessed for the grille and the wing vents
+    "door_lines",  # and cut for the door shut lines and handles
     *SHAPE,
 )  # fmt: skip
 
@@ -63,7 +64,7 @@ def _interior_inputs(p: Values) -> dict[str, float]:
 # Powertrain and electrical equipment follow the chassis, the drive layout and the tyres.
 POWERTRAIN_GEOMETRY = (
     *d.CHASSIS_INPUTS, "front_overhang", "rear_overhang", "beltline_height", "front_drive_share",
-    "engine_cylinders", *TYRE,
+    "engine_cylinders", "nose_rake", *TYRE,
 )  # fmt: skip
 
 
@@ -407,6 +408,10 @@ COMPONENTS: tuple[ComponentDef, ...] = (
     _option("grille", "Front grille", "grille_style", (0.025, 0.026, 0.03), "paint_gloss",
             follows_body=True),
     _option("side_vents", "Fender vents", "side_vents", (0.02, 0.02, 0.022), "trim",
+            follows_body=True),
+    _option("lower_trim", "Lower trim", "lower_trim", (0.015, 0.016, 0.018), "paint_gloss",
+            follows_body=True),
+    _option("lamp_housings", "Lamp housings", "lamp_housing", (0.02, 0.024, 0.03), "paint_gloss",
             follows_body=True),
     _interior("seats", "Seats", "seats", UPHOLSTERY[0], "leather", appearance=_upholstery,
               appearance_inputs=("interior_colour", "interior_trim")),

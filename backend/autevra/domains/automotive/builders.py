@@ -120,8 +120,13 @@ def body_layout(p: Inputs) -> BodyLayout:
     def nose_at(share: float) -> float:  # hood height at the nose, above the front arch
         return min(max(floor + share * depth, arch_top + 40.0 - drop), belt - 20.0)
 
+    # The nose rake sets the bonnet's leading edge back from the bumper line (a share of the
+    # front face's height), so the bonnet falls to a low, pointed nose, not a vertical slab.
+    rake_share = min(max(p.get("nose_rake", 0.0), 0.0), 100.0) / 100.0
+
     def hood(share: float) -> list[tuple[float, float]]:  # nose, curved hood, windscreen base
-        nose = (front, nose_at(share))
+        z = nose_at(share)
+        nose = (front - rake_share * max(z - bumper, 0.0), z)
         return [nose, *_hood_curve(nose, (cowl, belt)), (cowl, belt)]
 
     # Windscreen base and rear screen base; the greenhouse keeps at least MIN_GREENHOUSE
@@ -387,7 +392,11 @@ def build_body(p: Inputs) -> k.Shape:
     roof = [k.box(*opening)] if opening is not None else []
     from autevra.domains.automotive import details
 
-    trims = [*details.grille_tools(p, layout), *details.vent_tools(p)]
+    trims = [
+        *details.grille_tools(p, layout),
+        *details.vent_tools(p),
+        *details.door_tools(p, layout),
+    ]
     return k.cut(body, *wells, *lamps, cabin, *roof, *trims)  # one boolean for all openings
 
 
@@ -395,7 +404,10 @@ build_body.mesh_angular = 0.12  # type: ignore[attr-defined]  (smooth highlights
 
 
 def _ladder(p: Inputs, z: tuple[float, float]) -> k.Shape:
-    front = p["front_overhang"] - 150.0
+    # The crash rails end inside the nose: behind the chin, which slopes back from the
+    # bumper line to the floor over up to 220 mm (see ``body_layout``).
+    length = p["wheelbase"] + p["front_overhang"] + p["rear_overhang"]
+    front = p["front_overhang"] - max(150.0, min(0.06 * length, 220.0) + 30.0)
     rear = -(p["wheelbase"] + p["rear_overhang"] - 150.0)
     w, t = p["rail_width"], p["rail_wall"]
     half = p["rail_spacing"] / 2.0
@@ -422,7 +434,8 @@ def build_frame(p: Inputs) -> k.Shape:
     if kind == "ladder":
         return _ladder(p, (gc, gc + p["rail_height"]))
     w, t = p["rail_width"], p["rail_wall"]
-    front = p["front_overhang"] - 150.0
+    length = p["wheelbase"] + p["front_overhang"] + p["rear_overhang"]
+    front = p["front_overhang"] - max(150.0, min(0.06 * length, 220.0) + 30.0)  # behind the chin
     rear = -(p["wheelbase"] + p["rear_overhang"] - 150.0)
     half_rail = p["rail_spacing"] / 2.0
     sill = p["body_width"] / 2.0 - 110.0

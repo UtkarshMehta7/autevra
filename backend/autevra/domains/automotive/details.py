@@ -72,15 +72,23 @@ def _openings(p: Inputs, layout) -> list[list[tuple[float, float]]]:  # type: ig
     floor, bumper, nose = layout.profile[1][1], layout.profile[2][1], layout.profile[3][1]
     h, chin = nose - bumper, bumper - floor
     top = nose - max(0.30 * h, 60.0)  # clear of every head lamp signature
-    if style == "sport":  # a large trapezoid reaching down the chin, and corner intakes
+    if style == "sport":  # a large trapezoid filling the face, flared at the foot, and intakes
+        from autevra.domains.automotive import styling
+
+        if styling.head_lamp_style(p) == "swept":  # slim lamps high on the corners
+            top = nose - max(0.26 * h, 55.0)
         bottom = floor + 0.2 * chin
         if top - bottom < 60.0:
             return []
         intake_top = min(bumper + 0.25 * h, top) - 10.0
-        out = [_trapezoid(0.30 * hw, 0.40 * hw, bottom, top)]
+        out = [_trapezoid(0.40 * hw, 0.48 * hw, bottom, top)]
         if intake_top - bottom > 50.0:
+            # Inside the flat part of the nose in plan (its width is the nose taper).
+            outer = min(0.64, 0.9 * p.get("nose_taper", 72.0) / 100.0) * hw
             for s in (1.0, -1.0):
-                y0, y1 = sorted((s * 0.47 * hw, s * 0.62 * hw))
+                if outer - 0.53 * hw < 40.0:
+                    break  # a narrow nose leaves no room for corner intakes
+                y0, y1 = sorted((s * 0.53 * hw, s * outer))
                 out.append([(y0, bottom + 15.0), (y1, bottom + 15.0), (y1, intake_top),
                             (y0, intake_top)])  # fmt: skip
         return out
@@ -190,7 +198,14 @@ def build_grille(p: Inputs) -> k.Shape | None:
         pattern = "bars" if style == "bars" and i == 0 else "mesh"  # intakes are meshed
         mesh = _mesh(_inset(o, SURROUND - 2.0), pattern, x)
         parts.append(k.intersect(mesh, _band(layout, GRILLE_DEPTH - 10.0, GRILLE_DEPTH, hw)))
-    return k.fuse(*parts)
+    grille = k.fuse(*parts)
+    from autevra.domains.automotive import styled
+
+    if styled.styled_ok(p):
+        # A styled nose rounds off towards its tip: keep the grille inside the skin there,
+        # as the lamp lenses are.
+        grille = k.intersect(grille, styled.skin(p, layout))
+    return grille if k.solid_count(grille) else None
 
 
 # --- Fender vents ---
@@ -238,6 +253,106 @@ def build_side_vents(p: Inputs) -> k.Shape | None:
         y = _wing_y(p, sum(x for x, _ in o) / len(o)) - VENT_DEPTH
         parts += [k.prism_y(o, (y, y + 4.0)), k.prism_y(o, (-y - 4.0, -y))]  # in the slot
     return k.fuse(*parts) if parts else None
+
+
+# --- Door shut lines and handles ---
+
+DOOR_LINES = ("none", "lines", "lines_handles")
+SHUT_GAP = 4.0  # width of a shut line, mm
+SHUT_DEPTH = 25.0  # how far the shut-line cut reaches in from the skin, mm
+TWO_DOOR_STYLES = ("coupe", "roadster", "supercar")
+
+
+def door_lines(p: Inputs) -> str:
+    return _choice(p, "door_lines", DOOR_LINES)
+
+
+def doors(p: Inputs, layout) -> list[tuple[float, float]]:  # type: ignore[no-untyped-def]
+    """(rear x, front x) of each door on one side, front door first. Two long doors on
+    coupes, roadsters and supercars, else a front and (with a second seat row) a rear door;
+    vans and trucks keep their own panels (none here). Doors stay between the wheel arches,
+    behind any wing vents."""
+    if layout.cargo is not None or layout.style in ("van", "mpv", "box_truck"):
+        return []
+    arch = p["arch_radius"]
+    front = min(layout.glass[1] - 40.0, -arch - 60.0)
+    vents = _vent_outlines(p)
+    if vents:
+        front = min(front, min(x for o in vents for x, _ in o) - 60.0)
+    limit = -p["wheelbase"] + arch + 60.0  # ahead of the rear wheel arch
+    if layout.style in TWO_DOOR_STYLES or layout.style == "pickup" and p.get("seat_rows", 2) < 2:
+        return [(max(front - 1250.0, limit), front)] if front - limit > 600.0 else []
+    out = [(max(front - 1050.0, limit), front)]
+    if p.get("seat_rows", 2) >= 2 and out[0][0] - limit > 500.0:
+        out.append((max(out[0][0] - 950.0, limit), out[0][0]))
+    return out
+
+
+def door_tools(p: Inputs, layout) -> list[k.Shape]:  # type: ignore[no-untyped-def]
+    """Cutters for the shut lines round each door (the front and rear edges from the sill
+    to the beltline, and the bottom edge) and, with handles, a shallow flush-handle recess
+    near the top rear of each door; both sides of the car."""
+    style = door_lines(p)
+    if style == "none":
+        return []
+    rear_x, front_x = -(p["wheelbase"] + p["rear_overhang"]), p["front_overhang"]
+    floor, belt, hw = p["body_floor"], p["beltline_height"], p["body_width"] / 2.0
+    bottom = floor + 0.2 * (belt - floor)
+
+    def side(x: float) -> float:  # just inside the body side at x
+        return 0.95 * sculpt.width_at(p, x, (rear_x, front_x)) - 6.0
+
+    out: list[k.Shape] = []
+    for x0, x1 in doors(p, layout):
+        g = SHUT_GAP / 2.0
+        y_in = min(side(x0), side(x1)) - SHUT_DEPTH
+        pieces = [((x1 - g, x1 + g), (bottom, belt + 10.0)),
+                  ((x0 - g, x0 + g), (bottom, belt + 10.0)),
+                  ((x0 - g, x1 + g), (bottom - g, bottom + g))]  # fmt: skip
+        if style == "lines_handles":
+            hx = (x0 + 90.0, x0 + 260.0)
+            hz = (belt - 110.0, belt - 80.0)
+            y_h = side(sum(hx) / 2.0) - 8.0
+            out += [k.box(hx, (y_h, hw + 20.0), hz), k.box(hx, (-hw - 20.0, -y_h), hz)]
+        for xs, zs in pieces:
+            out += [k.box(xs, (y_in, hw + 20.0), zs), k.box(xs, (-hw - 20.0, -y_in), zs)]
+    return out
+
+
+# --- Lower trim ---
+
+LOWER_TRIMS = ("body", "gloss_black")
+TRIM_PROUD = 4.0  # the trim stands this far proud of the body skin, mm
+
+
+def lower_trim(p: Inputs) -> str:
+    return _choice(p, "lower_trim", LOWER_TRIMS)
+
+
+def build_lower_trim(p: Inputs) -> k.Shape | None:
+    """A contrasting band round the foot of the styled body: the front splitter under the
+    grille, the side skirts along the sills and the rear valance (one piece, standing
+    ``TRIM_PROUD`` off the skin, cut round the wheel arches and the grille openings)."""
+    from autevra.domains.automotive import builders as b
+    from autevra.domains.automotive import styled
+
+    if lower_trim(p) == "body" or not styled.styled_ok(p):
+        return None
+    layout = b.body_layout(p)
+    floor, belt, hw = p["body_floor"], p["beltline_height"], p["body_width"] / 2.0
+    rear, front = -(p["wheelbase"] + p["rear_overhang"]), p["front_overhang"]
+    height = min(max(0.2 * (belt - floor), 70.0), 170.0)
+    band = k.box((rear - 50.0, front + 50.0), (-hw - 50.0, hw + 50.0),
+                 (floor - 20.0, floor + height))  # fmt: skip
+    trim = k.intersect(styled.skin(p, layout, -TRIM_PROUD), band)
+    wheel_z, r = p["tyre_radius"], p["arch_radius"] + TRIM_PROUD
+    wells = [k.cylinder_y(r, (-hw - 60.0, hw + 60.0), x=x, z=wheel_z)
+             for x in (0.0, -p["wheelbase"])]  # fmt: skip
+    # Only a band round the edge: the floor in between stays the body's.
+    inner = k.box((rear + 220.0, front - 260.0), (-hw + 130.0, hw - 130.0),
+                  (floor - 30.0, floor + height + 1.0))  # fmt: skip
+    trim = k.cut(trim, inner, *wells, *grille_tools(p, layout))
+    return trim if k.solid_count(trim) else None
 
 
 # --- Brakes ---

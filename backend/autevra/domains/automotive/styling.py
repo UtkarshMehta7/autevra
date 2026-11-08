@@ -18,8 +18,8 @@ Inputs = Mapping[str, float]
 RIM_BARREL = 12.0  # radial thickness of the rim barrel, mm
 FACE_THICKNESS = 18.0  # mm
 FACE_SET = 15.0  # dish: the face sits this far inboard of the rim's outer edge, mm
-WHEEL_DESIGNS = ("five_spoke", "multi_spoke", "twin_spoke", "mesh", "aero", "steel")
-HEAD_LAMP_STYLES = ("strip", "matrix", "round", "split")
+WHEEL_DESIGNS = ("five_spoke", "multi_spoke", "twin_spoke", "mesh", "aero", "steel", "y_spoke")
+HEAD_LAMP_STYLES = ("strip", "matrix", "round", "split", "swept")
 TAIL_LAMP_STYLES = ("bar", "clusters", "vertical")
 LAMP_DEPTH = 15.0  # lamps sit in recesses this deep, flush with the body face, mm
 
@@ -90,6 +90,13 @@ def build_rim(p: Inputs) -> k.Shape:
     elif design == "multi_spoke":
         spokes = [_spoke(36.0 * i, 0.8 * hub_r, reach, 0.12 * face_r, 0.08 * face_r, y)
                   for i in range(10)]  # fmt: skip
+    elif design == "y_spoke":  # five stems, each forking into two arms near the rim
+        for i in range(5):
+            stem = _spoke(72.0 * i, 0.8 * hub_r, 0.62 * face_r, 0.2 * face_r, 0.15 * face_r, y)
+            spokes.append(stem)
+            for fork in (-11.0, 11.0):
+                spokes.append(_spoke(72.0 * i + fork, 0.52 * face_r, reach, 0.085 * face_r,
+                                     0.07 * face_r, y))  # fmt: skip
     elif design == "twin_spoke":
         spokes = [_spoke(72.0 * i + s, 0.8 * hub_r, reach, 0.13 * face_r, 0.09 * face_r, y)
                   for i in range(5) for s in (-7.0, 7.0)]  # fmt: skip
@@ -107,21 +114,63 @@ def build_rim(p: Inputs) -> k.Shape:
 # --- Lamps ---
 
 
+def swept_outline(p: Inputs, layout, side: float) -> list[tuple[float, float]]:  # type: ignore[no-untyped-def]
+    """(y, z) outline of a swept head lamp on one side (+1 left): a slim slanted band that
+    rises from its inner end towards the outer corner of the nose."""
+    half_w = p["body_width"] / 2.0
+    bumper, nose = layout.profile[2][1], layout.profile[3][1]
+    h = nose - bumper
+    top = nose - 0.08 * h
+    t = max(0.12 * h, 24.0)  # thickness
+    rise = 0.16 * h
+    yi, yo = side * 0.32 * half_w, side * 0.70 * half_w
+    return [(yi, top - rise - t), (yo, top - t), (yo, top), (yi, top - rise)]
+
+
+LAMP_HOUSINGS = ("none", "smoked")
+
+
+def lamp_housing(p: Inputs) -> str:
+    i = int(round(p.get("lamp_housing", 0.0)))
+    return LAMP_HOUSINGS[min(max(i, 0), len(LAMP_HOUSINGS) - 1)]
+
+
+def housing_outline(p: Inputs, layout, side: float,  # type: ignore[no-untyped-def]
+                    lamp: list[tuple[float, float]]) -> list[tuple[float, float]]:  # fmt: skip
+    """(y, z) outline of a smoked head lamp housing round one side's lamp outline: the lamp
+    runs along its top edge and the dark eye opens below it, a little wider at each end."""
+    bumper, nose = layout.profile[2][1], layout.profile[3][1]
+    drop = max(0.32 * (nose - bumper), 45.0)
+    ys = [y for y, _ in lamp]
+    yi, yo = (min(ys), max(ys)) if side > 0 else (max(ys), min(ys))
+    grow = 25.0 * side
+
+    def z_at(y: float, top: bool) -> float:  # the lamp's top or bottom edge at y
+        pts = sorted(lamp, key=lambda q: abs(q[0] - y))[:2]
+        return max(z for _, z in pts) if top else min(z for _, z in pts)
+
+    return [(yi - grow, z_at(yi, False) - drop), (yo + grow, z_at(yo, False) - 0.5 * drop),
+            (yo + grow, z_at(yo, True) + 4.0), (yi - grow, z_at(yi, True) + 4.0)]  # fmt: skip
+
+
 def lamp_solids(p: Inputs, end: str, layout) -> list[k.Shape]:  # type: ignore[no-untyped-def]
     """Lamp solids at the front ("head") or rear ("tail") face, by signature.
 
-    Head: slim LED strips joined by a light line, segmented matrix units, round lamps, or a
-    split layout (a thin daytime running strip above a separate main lamp). Tail: a
+    Head: slim LED strips joined by a light line, segmented matrix units, round lamps, a
+    split layout (a thin daytime running strip above a separate main lamp), or slim swept
+    lamps reaching the upper corners (they wrap round the curved corner of a styled nose). Tail: a
     full-width light bar, separate clusters at the corners, or vertical lamps at the corners.
     """
-    rear, front = -(p["wheelbase"] + p["rear_overhang"]), p["front_overhang"]
+    rear = -(p["wheelbase"] + p["rear_overhang"])
     half_w = p["body_width"] / 2.0
     floor, belt = p["body_floor"], p["beltline_height"]
     if end == "head":
-        bumper, nose = layout.profile[2][1], layout.profile[3][1]
+        (xb, bumper), (xn, nose) = layout.profile[2], layout.profile[3]
         h = nose - bumper
         top = nose - 0.08 * h
-        x = (front - LAMP_DEPTH, front)
+        # On the (possibly raked) front face, at the lamps' height.
+        xf = xb + (xn - xb) * (top - 0.1 * h - bumper) / max(h, 1.0)
+        x = (xf - LAMP_DEPTH, xf)
         style = head_lamp_style(p)
         out: list[k.Shape] = []
         for s in (1.0, -1.0):
@@ -141,6 +190,8 @@ def lamp_solids(p: Inputs, end: str, layout) -> list[k.Shape]:  # type: ignore[n
             elif style == "round":
                 r = min(0.32 * h, 0.13 * half_w, 120.0)
                 out.append(k.cylinder_x(r, x, y=s * 0.46 * half_w, z=top - r))
+            elif style == "swept":  # slim lamps rising towards the upper corners
+                out.append(k.prism_x(swept_outline(p, layout, s), x))
             else:  # split
                 out.append(k.box(x, span(0.26, 0.66), (top - 14.0, top)))
                 lower = (top - 0.62 * h, top - 0.32 * h)

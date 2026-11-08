@@ -55,7 +55,8 @@ def test_acceptance_increase_wheelbase_by_100_mm(
     rebuilt = set(reply["result"]["impact"]["rebuild"])
     assert {"body", "frame", "glass", "seats", "fuel_tank"} <= rebuilt  # cabin and equipment
     assert not {"wheel_fl", "front_axle"} & rebuilt
-    rear_group = {"rear_axle", "wheel_rl", "wheel_rr", "rim_rl", "rim_rr", "damper_rl", "damper_rr"}
+    rear_group = {"rear_axle", "wheel_rl", "wheel_rr", "rim_rl", "rim_rr", "damper_rl", "damper_rr",
+                  "rotor_rl", "rotor_rr", "caliper_rl", "caliper_rr"}  # fmt: skip
     assert set(reply["result"]["impact"]["move"]) == rear_group
 
     after = _model(client, project)
@@ -164,7 +165,7 @@ def test_project_crud_and_404(client: TestClient) -> None:
 def test_catalogue(client: TestClient) -> None:
     body = client.get("/api/parameters").json()
     ids = [p["id"] for p in body["parameters"]]
-    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 87
+    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 92
 
 
 def test_state_survives_app_restart(tmp_path: Path) -> None:

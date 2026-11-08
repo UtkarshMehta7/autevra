@@ -66,6 +66,14 @@ def _mirror_x(layout: b.BodyLayout) -> float:
     return min(g1 - 80.0, max((g1 + r1) / 2.0, r1 - b.PILLAR + 70.0))
 
 
+def _rounded(solid: k.Shape, radius: float) -> k.Shape:
+    """A box with every edge filleted (or the box itself if the kernel cannot)."""
+    try:
+        return solid.fillet(radius, solid.Edges())
+    except Exception:  # the kernel raises several types; a sharp box is a safe answer
+        return solid
+
+
 def build_mirrors(p: Inputs) -> k.Shape:
     layout = b.body_layout(p)
     xm, belt = _mirror_x(layout), p["beltline_height"]
@@ -82,11 +90,11 @@ def build_mirrors(p: Inputs) -> k.Shape:
                                (belt + 55.0, belt + 80.0)))  # fmt: skip
             parts.append(k.box((xm - 40.0, xm + 45.0), y(side + reach - 70.0, side + reach),
                                (belt + 45.0, belt + 95.0)))  # fmt: skip
-        else:  # arm and housing
-            parts.append(k.box((xm - 30.0, xm + 30.0), y(side - 40.0, side + 60.0),
-                               (belt + 40.0, belt + 80.0)))  # fmt: skip
-            parts.append(k.box((xm - 60.0, xm + 60.0), y(side + 40.0, side + reach),
-                               (belt + 30.0, belt + 180.0)))  # fmt: skip
+        else:  # arm and housing, rounded like a moulded part
+            parts.append(_rounded(k.box((xm - 30.0, xm + 30.0), y(side - 40.0, side + 60.0),
+                                        (belt + 40.0, belt + 80.0)), 12.0))  # fmt: skip
+            parts.append(_rounded(k.box((xm - 60.0, xm + 60.0), y(side + 40.0, side + reach),
+                                        (belt + 30.0, belt + 180.0)), 28.0))  # fmt: skip
     return k.fuse(*parts)
 
 

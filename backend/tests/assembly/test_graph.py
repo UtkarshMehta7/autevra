@@ -48,7 +48,7 @@ EQUIPMENT = {
 }  # fmt: skip
 INTERIOR = {"seats", "dashboard", "display", "steering_wheel", "console"}
 EXTERIOR = {"mirrors", "roof_rails", "spoiler", "tow_bar"}  # greenhouse options and spoiler
-DETAILS = {"grille", "side_vents"}  # recessed in the body, so they follow it
+DETAILS = {"grille", "side_vents", "lower_trim", "lamp_housings"}  # they follow the body
 
 
 def brakes(*corners: str) -> set[str]:

@@ -83,7 +83,14 @@ def required_length(c: Cabin) -> float:
 def cavity(p: Inputs) -> tuple[tuple[float, float], ...]:
     """Box cut from the body for the passenger space (x, y, z extents)."""
     c = cabin(p)
-    return ((c.rear, c.cowl - 30.0), (-c.half_w, c.half_w), (c.floor, c.belt + 60.0))
+    rear = c.rear
+    if b.body_layout(p).open:
+        # An open car's cockpit ends just behind the last row's reclined backrest; the deck
+        # behind it is a closed tonneau over the rear axle.
+        last = min(x for x, _ in seat_positions(p)) - 500.0  # the last row's hinge line
+        lean = math.sin(math.radians(c.recline)) * (c.belt + 60.0 - cushion_top(c))
+        rear = max(rear, last - 110.0 - lean - 40.0)
+    return ((rear, c.cowl - 30.0), (-c.half_w, c.half_w), (c.floor, c.belt + 60.0))
 
 
 def seat_positions(p: Inputs) -> list[tuple[float, float]]:
@@ -97,6 +104,14 @@ def seat_positions(p: Inputs) -> list[tuple[float, float]]:
     return out
 
 
+def _soft(solid: k.Shape, radius: float) -> k.Shape:
+    """A box with its edges rounded like an upholstered pad (the box if the kernel cannot)."""
+    try:
+        return solid.fillet(radius, solid.Edges())
+    except Exception:  # the kernel raises several types; a sharp box is a safe answer
+        return solid
+
+
 def _seat(c: Cabin, x_front: float, y: float, level: str) -> k.Shape:
     """Cushion on a base, and a backrest (with headrest on posts, or integrated for Premium)
     reclined about the hinge at the rear of the cushion; one solid per seat."""
@@ -105,7 +120,7 @@ def _seat(c: Cabin, x_front: float, y: float, level: str) -> k.Shape:
     top = cushion_top(c)
     x0 = x_front - 500.0  # hinge line (rear of the cushion)
     lower = [
-        k.box((x0, x_front), (y0, y1), (top - 110.0, top)),
+        _soft(k.box((x0, x_front), (y0, y1), (top - 110.0, top)), 40.0),
         k.box((x_front - 420.0, x_front - 80.0), (y0 + 60.0, y1 - 60.0), (c.floor, top - 100.0)),
     ]
     # The reclined seat must clear the roof liner by 60 mm: scale the backrest (and the
@@ -115,7 +130,13 @@ def _seat(c: Cabin, x_front: float, y: float, level: str) -> k.Shape:
     allowed = (c.roof - 60.0 - top) / math.cos(math.radians(c.recline))
     scale = min(1.0, allowed / nominal)
     back_h, head = (nominal - head) * scale, head * scale
-    upper = [k.box((x0 - 110.0, x0), (y0, y1), (top - 40.0, top + back_h))]  # overlaps the hinge
+    if level == "premium":  # sports seat: shoulders narrowing into an integrated head rest
+        shoulder = top + 0.74 * back_h
+        upper = [_soft(k.box((x0 - 110.0, x0), (y0, y1), (top - 40.0, shoulder)), 45.0),
+                 _soft(k.box((x0 - 100.0, x0 - 5.0), (y - 150.0, y + 150.0),
+                             (shoulder - 80.0, top + back_h)), 45.0)]  # fmt: skip
+    else:
+        upper = [k.box((x0 - 110.0, x0), (y0, y1), (top - 40.0, top + back_h))]  # past the hinge
     if head:
         for post in (y - 70.0, y + 70.0):
             upper.append(k.box((x0 - 70.0, x0 - 50.0), (post - 8.0, post + 8.0),
@@ -124,11 +145,12 @@ def _seat(c: Cabin, x_front: float, y: float, level: str) -> k.Shape:
                            (top + back_h + 0.2 * head, top + back_h + head)))  # fmt: skip
     if level in ("comfort", "premium"):
         for edge in (y0, y1 - 60.0):  # side bolsters
-            upper.append(k.box((x0 - 140.0, x0), (edge, edge + 60.0),
-                               (top, top + 0.8 * back_h)))  # fmt: skip
+            reach = 0.66 if level == "premium" else 0.8  # under the shoulders
+            upper.append(_soft(k.box((x0 - 140.0, x0), (edge, edge + 60.0),
+                                     (top, top + reach * back_h)), 25.0))  # fmt: skip
             if level == "premium":
-                lower.append(k.box((x0 + 20.0, x_front - 40.0), (edge, edge + 60.0),
-                                   (top - 20.0, top + 50.0)))  # fmt: skip
+                lower.append(_soft(k.box((x0 + 20.0, x_front - 40.0), (edge, edge + 60.0),
+                                         (top - 20.0, top + 50.0)), 25.0))  # fmt: skip
     back = k.rotate_y(k.fuse(*upper), -c.recline, (x0, 0.0, top))
     return k.fuse(*lower, back)
 

@@ -211,6 +211,12 @@ def section_points(p: Inputs, g: Guides, x: float, inset: float = 0.0) -> list[t
     engine_top = p.get("tyre_radius", 330.0) + 420.0 + 25.0
     dip = min(0.8 * p.get("fender_rise", 0.0), 0.3 * (zt - zb), max(zt - engine_top, 0.0))
     dip *= 1.0 - cw
+    # On the bonnet (ahead of the windscreen base) a power dome rises from the valley floor
+    # between two creases; the deck of an open car stays a plain valley.
+    cowl = b.body_layout(p).glass[1]
+    dome = min(max(p.get("bonnet_dome", 0.0), 0.0), 100.0) / 100.0
+    bulge = dome * dip * _smoothstep(cowl, cowl + 350.0, x) * (1.0 - _smoothstep(
+        g.front - 450.0, g.front - 120.0, x))  # fmt: skip
     # Body roundness softens the sill and the shoulder (the widest point stays put, so the
     # extents never change): 0 = crisp, 1 = full.
     rnd = min(max(p.get("body_roundness", 45.0) / 100.0, 0.0), 1.0)
@@ -226,18 +232,20 @@ def section_points(p: Inputs, g: Guides, x: float, inset: float = 0.0) -> list[t
         (wtop + (0.975 * w - wtop) * 0.45, zbelt + 0.55 * (zt - zbelt) + 0.3 * lift),
         (wtop, zt - 0.12 * (zt - zbelt) - 8.0 + 0.8 * lift),
         (0.6 * wtop, zt - 4.0 - 0.1 * dip + lift),  # the wing crown
-        (0.28 * wtop, zt - 2.0 - 0.8 * dip), (0.0, zt - dip),  # into the bonnet valley
+        (0.32 * wtop, zt - 2.0 - 0.85 * dip),  # into the bonnet valley: a crease
+        (0.16 * wtop, zt - dip + 0.9 * bulge), (0.0, zt - dip + bulge),  # the power dome
     ]  # fmt: skip
     # A shallow section (near the tail or the nose) must not fold back on itself: keep the
     # points rising from the sill to the wing crown and the widths positive; the valley
     # may then fall to the centre line.
-    crown = len(half) - 3
+    crown = len(half) - 4
     fixed = [half[0], half[1]]
     for i, (y, z) in enumerate(half[2:], start=2):
         if i > crown and dip > 0.0:
             fixed.append((y, min(z, fixed[crown][1])))
             continue
-        fixed.append((max(y, 1.0), max(z, fixed[-1][1] + 4.0)))
+        step = 4.0 if i <= crown else 0.0  # past the crown: no overshoot above the roof
+        fixed.append((max(y, 1.0), max(z, fixed[-1][1] + step)))
     half = fixed
     left = [(-y, z) for y, z in reversed(half[1:-1])]
     return half + left
@@ -346,6 +354,56 @@ def window_tools(p: Inputs, layout: b.BodyLayout, g: Guides) -> list[k.Shape]:
     return tools
 
 
+def head_outlines(p: Inputs, layout: b.BodyLayout) -> list[tuple[float, list[tuple[float, float]]]]:
+    """(side, (y, z) outline) of each head lamp: the swept lamps' own slanted outline, else
+    the bounding rectangle of that side's lamp units."""
+    from autevra.domains.automotive import styling
+
+    if styling.head_lamp_style(p) == "swept":
+        return [(s, styling.swept_outline(p, layout, s)) for s in (1.0, -1.0)]
+    out = []
+    for s in (1.0, -1.0):
+        boxes = [k.bounds(x) for x in styling.lamp_solids(p, "head", layout)]
+        boxes = [bx for bx in boxes if s * bx[0][1] > 1.0]
+        if boxes:
+            y0, y1 = min(bx[0][1] for bx in boxes), max(bx[1][1] for bx in boxes)
+            z0, z1 = min(bx[0][2] for bx in boxes), max(bx[1][2] for bx in boxes)
+            out.append((s, [(y0, z0), (y1, z0), (y1, z1), (y0, z1)]))
+    return out
+
+
+def _head_x(p: Inputs, layout: b.BodyLayout) -> tuple[float, float]:
+    face = p["front_overhang"]
+    depth = 90.0 + max(face - layout.profile[3][0], 0.0)  # a raked face sets the lamps back
+    return (face - depth, face + 60.0)
+
+
+def housing_tools(p: Inputs, layout: b.BodyLayout) -> list[k.Shape]:
+    """Cutters for the smoked head lamp housings (empty without them)."""
+    from autevra.domains.automotive import styling
+
+    if styling.lamp_housing(p) == "none":
+        return []
+    xr = _head_x(p, layout)
+    return [k.prism_x(styling.housing_outline(p, layout, s, o), xr)
+            for s, o in head_outlines(p, layout)]  # fmt: skip
+
+
+def build_lamp_housings(p: Inputs) -> k.Shape | None:
+    """The dark eye of each smoked head lamp: the skin inside the housing outline, round
+    the lamp lens."""
+    if not styled_ok(p):
+        return None
+    layout = b.body_layout(p)
+    tools = housing_tools(p, layout)
+    if not tools:
+        return None
+    eye = k.intersect(skin(p, layout), k.fuse(*tools) if len(tools) > 1 else tools[0])
+    lenses = lamp_tools(p, layout, "head")
+    eye = k.cut(eye, *lenses)
+    return eye if k.solid_count(eye) else None
+
+
 def lamp_tools(p: Inputs, layout: b.BodyLayout, end: str) -> list[k.Shape]:
     """Deep cutters behind the lamps' face outline (one envelope per side of the car, so
     the booleans on the skin stay few): cut from the skin they leave lamp lenses that
@@ -355,8 +413,12 @@ def lamp_tools(p: Inputs, layout: b.BodyLayout, end: str) -> list[k.Shape]:
     sign = 1.0 if end == "head" else -1.0
     face = p["front_overhang"] if end == "head" else -(p["wheelbase"] + p["rear_overhang"])
     depth = 90.0 if end == "head" else 70.0
+    if end == "head":  # a raked face sets the lamps back: reach behind its leading edge
+        depth += max(face - layout.profile[3][0], 0.0)
     xr = tuple(sorted((face + sign * 60.0, face - sign * depth)))
     round_head = end == "head" and styling.head_lamp_style(p) == "round"
+    if end == "head" and styling.head_lamp_style(p) == "swept":  # slanted: their own outline
+        return [k.prism_x(styling.swept_outline(p, layout, s), xr) for s in (1.0, -1.0)]
     groups: dict[str, list[tuple[float, float, float, float]]] = {}
     for solid in styling.lamp_solids(p, end, layout):
         (_, y0, z0), (_, y1, z1) = k.bounds(solid)
@@ -397,13 +459,21 @@ def build_styled_body(p: Inputs) -> k.Shape:
         inner = track / 2.0 - p["tyre_width"] / 2.0 - p["arch_clearance"]
         wells.append(k.cylinder_y(r, (inner, half_w + 1), x=x, z=wheel_z))
         wells.append(k.cylinder_y(r, (-half_w - 1, -inner), x=x, z=wheel_z))
-    lamps = [*lamp_tools(p, layout, "head"), *lamp_tools(p, layout, "tail")]
+    lamps = [
+        *lamp_tools(p, layout, "head"),
+        *lamp_tools(p, layout, "tail"),
+        *housing_tools(p, layout),
+    ]
     cabin = k.box(*interior.cavity(p))
     opening = exterior.roof_opening(p, layout)
     roof = [k.box(*opening)] if opening is not None else []
     from autevra.domains.automotive import details
 
-    trims = [*details.grille_tools(p, layout), *details.vent_tools(p)]
+    trims = [
+        *details.grille_tools(p, layout),
+        *details.vent_tools(p),
+        *details.door_tools(p, layout),
+    ]
     body = k.cut(body, *wells, *lamps, cabin, *window_tools(p, layout, g), *roof, *trims)
     if layout.open:  # windscreen surround of an open car, on a strip at the cowl
         (_, g1) = layout.glass

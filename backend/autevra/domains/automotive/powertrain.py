@@ -113,9 +113,15 @@ def build_exhaust(p: Inputs) -> k.Shape | None:
 def build_radiator(p: Inputs) -> k.Shape:
     """Front cooling module (engine radiator or battery and power-electronics cooling)."""
     front, half, gc = p["front_overhang"], p["body_width"] / 2.0, p["ground_clearance"]
-    return k.box(
-        (front - 190.0, front - 150.0), (-0.38 * half, 0.38 * half), (gc + 140.0, gc + 560.0)
-    )
+    # Its top stays under a low, raked nose (the bonnet's leading edge is at least about
+    # 100 mm under the top of the tyre).
+    top = min(gc + 560.0, _wheel_z(p) + 230.0)
+    # Behind a raked front face (it leans back from the bumper line, a quarter of the way up
+    # the body side, by the nose rake), with room for the rounded nose.
+    floor, belt = p["body_floor"], p["beltline_height"]
+    rake = p.get("nose_rake", 0.0) / 100.0 * max(top - (floor + 0.25 * (belt - floor)), 0.0)
+    x1 = front - 150.0 - (rake + 60.0 if rake > 0.0 else 0.0)
+    return k.box((x1 - 40.0, x1), (-0.38 * half, 0.38 * half), (gc + 140.0, top))
 
 
 # --- Electrified ----------------------------------------------------------------------
@@ -227,9 +233,10 @@ def build_hv_cables(p: Inputs) -> k.Shape | None:
 
 def build_battery_12v(p: Inputs) -> k.Shape:
     z = _wheel_z(p)
-    x = p["front_overhang"] - 420.0
-    y = -0.55 * p["body_width"] / 2.0
-    return k.box((x, x + 260.0), (y - 90.0, y + 90.0), (z + 120.0, z + 300.0))
+    # Behind the nose and inboard of the wing, low enough for a bonnet sunk between wings.
+    x = p["front_overhang"] - 540.0
+    y = -0.45 * p["body_width"] / 2.0
+    return k.box((x, x + 260.0), (y - 90.0, y + 90.0), (z + 60.0, z + 240.0))
 
 
 def build_ecus(p: Inputs) -> k.Shape:
@@ -254,12 +261,21 @@ def build_harness(p: Inputs) -> k.Shape:
     """Main wiring trunk along the left sill, with a riser to the dashboard and branches to
     the front and rear lamps."""
     half, floor, belt = p["body_width"] / 2.0, p["body_floor"], p["beltline_height"]
-    front, rear = p["front_overhang"] - 120.0, -(p["wheelbase"] + p["rear_overhang"]) + 120.0
-    y, z = half - 140.0, floor + 30.0
-    trunk = k.cylinder_x(11.0, (rear, front), y=y, z=z)
+    # The ends stay behind the chins, which slope up from the floor over up to 220 mm at the
+    # front (60 % of that at the rear), and the trunk inside a pinched waist.
+    length = p["wheelbase"] + p["front_overhang"] + p["rear_overhang"]
+    chin = min(0.06 * length, 220.0)
+    front = p["front_overhang"] - max(120.0, chin + 60.0)
+    rear = -(p["wheelbase"] + p["rear_overhang"]) + max(120.0, 0.6 * chin + 60.0)
+    y, z = min(half - 140.0, 0.75 * half), floor + 70.0  # above a rounded sill
+    tail = min(y, 0.55 * half)  # the tail narrows in plan towards the rear face
+    trunk = k.cylinder_x(11.0, (rear + 150.0, front), y=y, z=z)
     riser = cq.Solid.makeCylinder(
         9.0, max(belt - 300.0 - z, 1.0), cq.Vector(-150.0, y, z), cq.Vector(0, 0, 1)
     )
-    across_front = k.cylinder_y(8.0, (-y, y), x=front, z=z)
-    across_rear = k.cylinder_y(8.0, (-y, y), x=rear, z=z)
+    across_front = k.cylinder_y(8.0, (-y, y), x=front, z=z)  # behind the nose, under the bay
+    # At the rear the trunk steps in (a spur and a short run) to a branch across the tail.
+    spur = k.cylinder_y(9.0, (tail - 9.0, y + 9.0), x=rear + 150.0, z=z)
+    run = k.cylinder_x(9.0, (rear - 8.0, rear + 159.0), y=tail, z=z)
+    across_rear = k.fuse(k.cylinder_y(8.0, (-tail, tail), x=rear, z=z), spur, run)
     return k.fuse(trunk, riser, across_front, across_rear)
