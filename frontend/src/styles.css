@@ -58,6 +58,23 @@ body.resizing-y, body.resizing-y * { cursor: row-resize !important; user-select:
 .app > main { grid-area: main; position: relative; min-width: 0; }
 .viewport { position: absolute; inset: 0;
   background: radial-gradient(ellipse at 50% 35%, #2c3746 0%, #1a2029 55%, #11151b 100%); }
+/* Reference photo beside the 3D view: the view and its toolbar give way on the right. */
+.app > main { --ref-w: 44%; }
+.app > main.with-ref .viewport { right: var(--ref-w); }
+.app > main.with-ref .cad-toolbar { right: calc(var(--ref-w) + 8px); }
+.reference { position: absolute; top: 0; right: 0; bottom: 0; width: var(--ref-w); display: flex;
+  flex-direction: column; background: #0d1014; border-left: 1px solid var(--line); z-index: 3; }
+.reference.over { outline: 2px dashed #4f86d6; outline-offset: -6px; }
+.reference header { display: flex; align-items: center; gap: 6px; padding: 6px 8px; font-size: 12px;
+  border-bottom: 1px solid var(--line); min-width: 0; }
+.reference header .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.reference header button { font-size: 11px; padding: 2px 7px; }
+.reference header button.on { color: #fff; background: #24406a; }
+.reference img { flex: 1; min-height: 0; width: 100%; object-fit: contain; }
+.reference-empty { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 24px;
+  text-align: center; font-size: 13px; color: var(--text); }
+.reference .error { color: var(--bad); padding: 6px 10px; font-size: 12px; }
+@media (max-width: 720px) { .app > main { --ref-w: 50%; } }
 .status {
   position: absolute; left: 10px; bottom: 8px; color: var(--muted);
   background: #0008; padding: 3px 8px; border-radius: 4px; pointer-events: none;

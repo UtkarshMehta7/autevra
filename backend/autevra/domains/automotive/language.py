@@ -664,6 +664,7 @@ LANGUAGE = Language(
             "Tan": ("tan", "camel", "beige interior"),
             "Cognac": ("cognac", "brown interior", "saddle"),
             "Oxblood": ("oxblood", "red interior", "burgundy"),
+            "Taupe": ("taupe", "mocha", "grey brown", "gray brown"),
         },
         "seat_accent": {
             "Single tone": ("single tone", "one tone", "plain seats"),

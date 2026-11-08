@@ -231,8 +231,10 @@ def test_wing_crease_raises_a_line_along_the_front_wing_and_keeps_the_width() ->
     # The flank below the line is drawn in.
     below = [y for y, z in loop if z < z1 and y > 0.0]
     assert max(below) < y1 - 40.0
-    # Behind the door front the section is untouched.
-    back = cowl - 1400.0
+    # The line runs on along the doors, and stops over the rear wheel.
+    door = styled.section_points(p | {"wing_crease": 100.0}, g, cowl - 1000.0)
+    assert door != styled.section_points(p, g, cowl - 1000.0)
+    back = -p["wheelbase"]
     assert styled.section_points(p | {"wing_crease": 100.0}, g, back) == styled.section_points(
         p, g, back
     )
@@ -241,5 +243,32 @@ def test_wing_crease_raises_a_line_along_the_front_wing_and_keeps_the_width() ->
 @pytest.mark.parametrize("style", ["sedan", "roadster", "supercar", "suv"])
 def test_a_creased_body_builds_one_valid_solid(style: str) -> None:
     v = default_values() | spec.TEMPLATES[style] | {"surface_quality": 1.0, "wing_crease": 100.0}
+    body = b.build_body(BY_ID["body"].resolve_inputs(v))
+    assert k.solid_count(body) == 1 and body.isValid()
+
+
+def test_a_full_front_face_stands_upright_and_keeps_the_length() -> None:
+    def nose(face: float) -> tuple[list[tuple[float, float]], float]:
+        p = _body({"front_face": face, "nose_rake": 15.0})
+        layout = b.body_layout(p)
+        g = styled.guides(p, layout)
+        # Height of the skin 60 mm behind the tip: a bullet nose has almost none.
+        x = g.front - 60.0
+        return layout.profile[:4], g.top(x) - g.bottom(x)
+
+    (round_profile, round_h), (full_profile, full_h) = nose(0.0), nose(100.0)
+    assert full_profile[2][1] < round_profile[2][1] - 60.0  # a lower bumper line
+    assert full_profile[1][0] > round_profile[1][0]  # a shorter undercut to the floor
+    assert full_h > round_h
+    p = _body({"front_face": 100.0})
+    body = b.build_body(p)
+    assert k.solid_count(body) == 1 and body.isValid()
+    (x0, _, _), (x1, _, _) = k.bounds(body)
+    assert x1 == pytest.approx(p["front_overhang"], abs=1.0)  # the length is unchanged
+
+
+@pytest.mark.parametrize("style", ["sedan", "sports_car", "supercar", "suv", "van"])
+def test_full_front_faces_build_one_valid_solid(style: str) -> None:
+    v = default_values() | spec.TEMPLATES[style] | {"surface_quality": 0.0, "front_face": 100.0}
     body = b.build_body(BY_ID["body"].resolve_inputs(v))
     assert k.solid_count(body) == 1 and body.isValid()

@@ -176,9 +176,12 @@ def _roof_over(p: Inputs, c: Cabin) -> Callable[[float], float]:
     fastback) less the liner allowance, or the draft roof panel."""
     from autevra.domains.automotive import styled
 
+    layout = b.body_layout(p)
+    if layout.open:  # no roof: the seats stand up above the doors, as in any open car
+        return lambda x: max(c.roof, c.belt + 520.0)
     if styled.surface(p) != "styled":
         return lambda x: c.roof
-    g = styled.guides(p, b.body_layout(p))
+    g = styled.guides(p, layout)
     return lambda x: min(c.roof, g.top(x) - 70.0)
 
 

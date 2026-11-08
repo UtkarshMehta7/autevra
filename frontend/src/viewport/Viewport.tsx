@@ -13,6 +13,7 @@ import {
   type DisplayMode, type SectionAxis, type StandardView, VIEWS, curvatureColors, curvatureEstimate,
   edgesOf, featureEdges, framing, measure, sectionPlane,
 } from "./tools";
+import { type Studio, createStudio } from "./render";
 
 interface Props {
   model: ModelPayload | null;
@@ -28,6 +29,7 @@ interface Scene {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
+  studio: Studio;
   perspective: THREE.PerspectiveCamera;
   orthographic: THREE.OrthographicCamera;
   controls: OrbitControls;
@@ -132,10 +134,11 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
 
     const root = new THREE.Group();
     scene.add(root);
+    const studio = createStudio(renderer, scene, [grid]);
     const marks = new THREE.Group();
     scene.add(marks);
     markers.current = marks;
-    ctx.current = { renderer, scene, camera: perspective, perspective, orthographic, controls, root,
+    ctx.current = { renderer, scene, camera: perspective, studio, perspective, orthographic, controls, root,
       geometries: geometryCache, meshes: new Map(), framed: false };
     if (import.meta.env.DEV) (window as unknown as { __autevra: unknown }).__autevra = ctx.current;
 
@@ -149,6 +152,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = el;
       renderer.setSize(w, h);
+      studio.resize(w, h, renderer.getPixelRatio());
       perspective.aspect = w / Math.max(h, 1);
       perspective.updateProjectionMatrix();
       setOrthoFrustum(orthographic, orthographic.top || 1, perspective.aspect);
@@ -209,7 +213,8 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       controls.update();
       const { clientWidth: w, clientHeight: h } = el;
       renderer.setViewport(0, 0, w, h);
-      renderer.render(scene, c.camera);
+      if (c.studio.on) c.studio.render(c.camera);
+      else renderer.render(scene, c.camera);
       // Triad: the view's orientation, drawn on top in a 90 px corner, never clipped.
       const size = 90;
       triadCamera.position.set(0, 0, 3).applyQuaternion(c.camera.quaternion);
@@ -230,6 +235,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       cancelAnimationFrame(frame);
       observer.disconnect();
       controls.dispose();
+      studio.dispose();
       renderer.dispose();
       el.removeChild(renderer.domElement);
       ctx.current = null;
@@ -351,6 +357,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
           display === "wireframe" ? (id === selected ? 0x7fb2ff : 0xc9d4e0) : 0x0b0e12);
       }
     }
+    c.studio.set(display === "render", modelBox(c.root, c.meshes));
   }, [model, selected, highlighted, xray, display, hidden, section.axis, pull, minDraft]);
 
   // Section plane.
@@ -427,13 +434,14 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       <div className="viewport" ref={host} />
       <div className="cad-toolbar" role="toolbar" aria-label="View tools">
         <div className="seg" aria-label="Display mode">
-          {(["shaded", "edges", "wireframe", "zebra", "curvature", "draft"] as DisplayMode[]).map((d) => (
+          {(["render", "shaded", "edges", "wireframe", "zebra", "curvature", "draft"] as DisplayMode[]).map((d) => (
             <button key={d} className={display === d ? "on" : ""} onClick={() => setDisplay(d)}
-              title={{ shaded: "Shading", edges: "Shading with edges", wireframe: "Wireframe (edges only)",
+              title={{ render: "Render: studio look development (soft shadows, satin floor, backdrop, lamp glow)",
+                shaded: "Shading", edges: "Shading with edges", wireframe: "Wireframe (edges only)",
                 zebra: "Zebra: highlight lines for surface continuity",
                 curvature: "Curvature (mesh estimate): blue flat, red tight curves and creases",
                 draft: "Draft analysis: green releases from the mould, yellow short of draft, red undercut" }[d]}>
-              {{ shaded: "Shaded", edges: "Edges", wireframe: "Wire", zebra: "Zebra", curvature: "Curvature", draft: "Draft" }[d]}
+              {{ render: "Render", shaded: "Shaded", edges: "Edges", wireframe: "Wire", zebra: "Zebra", curvature: "Curvature", draft: "Draft" }[d]}
             </button>
           ))}
         </div>

@@ -81,14 +81,14 @@ def _openings(p: Inputs, layout) -> list[list[tuple[float, float]]]:  # type: ig
         if top - bottom < 60.0:
             return []
         intake_top = min(bumper + 0.25 * h, top) - 10.0
-        out = [_trapezoid(0.40 * hw, 0.48 * hw, bottom, top)]
+        out = [_trapezoid(0.44 * hw, 0.53 * hw, bottom, top)]
         if intake_top - bottom > 50.0:
             # Inside the flat part of the nose in plan (its width is the nose taper).
-            outer = min(0.64, 0.9 * p.get("nose_taper", 72.0) / 100.0) * hw
+            outer = min(0.74, 0.9 * p.get("nose_taper", 72.0) / 100.0) * hw
             for s in (1.0, -1.0):
-                if outer - 0.53 * hw < 40.0:
+                if outer - 0.59 * hw < 40.0:
                     break  # a narrow nose leaves no room for corner intakes
-                y0, y1 = sorted((s * 0.53 * hw, s * outer))
+                y0, y1 = sorted((s * 0.59 * hw, s * outer))
                 out.append([(y0, bottom + 15.0), (y1, bottom + 15.0), (y1, intake_top),
                             (y0, intake_top)])  # fmt: skip
         return out

@@ -226,13 +226,14 @@ def section_points(p: Inputs, g: Guides, x: float, inset: float = 0.0) -> list[t
     swell = sum(share * math.exp(-(((x - xa) / reach) ** 2))
                 for xa, share in ((0.0, 1.0), (-p["wheelbase"], 0.7)))  # fmt: skip
     lift = 0.5 * p.get("fender_rise", 0.0) * swell * (1.0 - cw)
-    # Wing crease: from the head lamp back into the front of the door the widest point
-    # rises into a sharp line (rising gently towards the door) and the flank below it is
-    # drawn in, so the line catches the light; the width stays the same.
+    # Wing crease: from the head lamp along the wing and the doors into the rear haunch the
+    # widest point rises into a sharp line (climbing gently towards the haunch) and the
+    # flank below it is drawn in, so the line catches the light; the width stays the same.
+    wb = p["wheelbase"]
     crease = min(max(p.get("wing_crease", 0.0), 0.0), 100.0) / 100.0
-    crease *= _smoothstep(cowl - 1100.0, cowl - 550.0, x) * (1.0 - _smoothstep(
-        g.front - 380.0, g.front - 120.0, x)) * (1.0 - cw)  # fmt: skip
-    rise = 0.3 + 0.2 * _smoothstep(g.front - 400.0, cowl - 550.0, x)  # up towards the door
+    crease *= _smoothstep(-wb + 150.0, -wb + 750.0, x) * (1.0 - _smoothstep(
+        g.front - 380.0, g.front - 120.0, x))  # fmt: skip
+    rise = 0.3 + 0.3 * _smoothstep(g.front - 400.0, -wb + 600.0, x)  # up towards the haunch
     z_line = zs + 30.0 + crease * rise * max(zbelt - zs - 30.0, 0.0)
     half = [
         (0.0, zb), ((0.7 - 0.3 * rnd) * w_bot, zb), (w_bot, zb + 10.0 + 50.0 * rnd),
@@ -277,12 +278,17 @@ def skin(p: Inputs, layout: b.BodyLayout, inset: float = 0.0) -> k.Shape:
     xs[near] = peak
     if inset:
         xs = [rear + inset] + xs[1:-1] + [front - inset]
-    # Round the nose and tail over three sections on each end.
+    # Round the nose and tail over three sections on each end; a full front face keeps the
+    # nose sections nearly whole, so the front stands as a broad fascia.
     ends = {0: (0.45, 0.55), 1: (0.82, 0.85), 2: (0.95, 0.96)}
+    face = min(max(p.get("front_face", 0.0), 0.0), 100.0) / 100.0
+    full = {0: (0.86, 0.9), 1: (0.97, 0.98), 2: (0.995, 0.997)}
+    nose_ends = {i: (a + face * (fa - a), b_ + face * (fb - b_))
+                 for i, ((a, b_), (fa, fb)) in enumerate(zip(ends.values(), full.values()))}  # fmt: skip
     wires = []
     for i, x in enumerate(xs):
         loop = section_points(p, g, x, inset)
-        end = ends.get(min(i, STATIONS - 1 - i))
+        end = nose_ends.get(STATIONS - 1 - i) if i > STATIONS // 2 else ends.get(i)
         if end is not None:
             sy, sz = end
             zc = sum(z for _, z in loop) / len(loop)

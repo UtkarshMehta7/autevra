@@ -29,6 +29,7 @@ import { SystemsPanel } from "./SystemsPanel";
 import { WORKSPACES, type WorkspaceId } from "./workspaces";
 import { clampDock, clampSide, DEFAULT_LAYOUT, type Layout, useLayout } from "./layout";
 import { Splitter } from "./Splitter";
+import { ReferencePanel } from "./Reference";
 
 import { remember } from "./lastProject";
 import { DownloadLink } from "../DownloadLink";
@@ -79,6 +80,13 @@ function StudioView({ projectId, workspace, navigate }: {
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<ComponentTestStatus[]>([]);
   const [collapsed, setCollapsed] = useState(false);
+  const [reference, setReference] = useState(() => {
+    try { return localStorage.getItem("autevra.reference.open") === "1"; } catch { return false; }
+  });
+  const showReference = (open: boolean) => {
+    setReference(open);
+    try { localStorage.setItem("autevra.reference.open", open ? "1" : "0"); } catch { /* blocked */ }
+  };
   // Resizable panels: side panel widths, dock height and a focus mode for the viewport.
   const { layout, set: setLayout, toggleSide } = useLayout();
   const dragStart = useRef<Layout>(layout);
@@ -400,6 +408,8 @@ function StudioView({ projectId, workspace, navigate }: {
             disabled={layout.focus} title="Show or hide the workspace tabs panel">Tabs</button>
           <button className={layout.right > 0 && !layout.focus ? "on" : ""} onClick={() => toggleSide("right")}
             disabled={layout.focus} title="Show or hide the parameters">Parameters</button>
+          <button className={reference ? "on" : ""} onClick={() => showReference(!reference)}
+            title="Show a reference photo beside the 3D view (paste, drop or load)">Reference</button>
           <button className={layout.focus ? "on" : ""} onClick={() => setLayout({ focus: !layout.focus })}
             title="Give the 3D view the whole window (F; Esc to leave)">Focus view</button>
         </span>
@@ -419,7 +429,8 @@ function StudioView({ projectId, workspace, navigate }: {
           statuses={statuses} onSelect={setSelected} />
         <HistoryPanel entries={history.entries} cursor={history.cursor} />
       </aside>
-      <main>
+      <main className={reference && project ? "with-ref" : undefined}>
+        {reference && project && <ReferencePanel project={project.id} onClose={() => showReference(false)} />}
         <Viewport model={model} selected={selected} highlighted={highlighted} xray={xray}
           animation={animation} onStop={() => setAnimation(null)} onSelect={setSelected} />
         <div className="status">{busy ? "Working…" : status}</div>

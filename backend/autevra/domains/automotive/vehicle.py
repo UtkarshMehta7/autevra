@@ -23,7 +23,7 @@ TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
 # glazing and the cabin) the haunch and the tumblehome.
 SHAPE = ("haunch", "nose_taper", "tail_taper", "sill_tuck", "body_roundness", "tumblehome",
          "fender_rise", "surface_quality", "roof_arc", "nose_rake", "bonnet_dome",
-         "wing_crease")  # fmt: skip
+         "wing_crease", "front_face")  # fmt: skip
 GREENHOUSE_SHAPE = ("haunch", "tumblehome")
 
 BODY_GEOMETRY = (
@@ -130,7 +130,7 @@ EQUIPMENT = (
 # Interior colour palette, in the order of the ``interior_colour`` options.
 UPHOLSTERY = (
     (0.035, 0.036, 0.04), (0.28, 0.28, 0.27), (0.62, 0.56, 0.44), (0.42, 0.24, 0.11),
-    (0.30, 0.11, 0.04), (0.22, 0.02, 0.03),
+    (0.30, 0.11, 0.04), (0.22, 0.02, 0.03), (0.105, 0.085, 0.068),
 )  # fmt: skip
 _TRIM_FINISH = ("fabric", "leather", "leather")
 SEAT_ACCENTS = (UPHOLSTERY[0], UPHOLSTERY[0], UPHOLSTERY[2], UPHOLSTERY[3], UPHOLSTERY[5])
@@ -280,7 +280,7 @@ _GLASS_COLOR = (0.08, 0.11, 0.15)
 _HEAD_LAMP_COLOR = (0.93, 0.92, 0.82)
 _TAIL_LAMP_COLOR = (0.72, 0.08, 0.08)
 _AXLE_COLOR = (0.45, 0.45, 0.48)
-_WHEEL_COLOR = (0.12, 0.12, 0.13)
+_WHEEL_COLOR = (0.022, 0.022, 0.024)  # tyre black (linear)
 _DAMPER_COLOR = (0.85, 0.55, 0.12)
 
 

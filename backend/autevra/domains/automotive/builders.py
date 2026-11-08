@@ -109,8 +109,10 @@ def body_layout(p: Inputs) -> BodyLayout:
     centre = (rear + front) / 2.0 + p["cabin_offset"]
     # The wheel arches shape only the lower profile; the glazing is built without them.
     arch_top = p.get("tyre_radius", 0.0) + p.get("arch_radius", 0.0)
-    under = min(0.06 * length, 220.0)
-    bumper = floor + 0.25 * depth
+    # A full front face stands upright from a low chin (a short undercut, a low bumper line).
+    face = min(max(p.get("front_face", 0.0), 0.0), 100.0) / 100.0
+    under = min(0.06 * length, 220.0) * (1.0 - 0.6 * face)
+    bumper = floor + 0.25 * depth * (1.0 - 0.45 * face)
     tail_low = floor + 0.3 * depth
 
     # The bonnet clears the front arch by 40 mm, or drops between raised wings by the

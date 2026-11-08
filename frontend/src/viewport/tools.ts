@@ -1,13 +1,15 @@
 import * as THREE from "three";
 
 /** CAD viewer conventions (vehicle frame, ISO 8855: X forward, Y left, Z up). */
-export type DisplayMode = "shaded" | "edges" | "wireframe" | "zebra" | "curvature" | "draft";
-export type StandardView = "iso" | "front" | "back" | "left" | "right" | "top" | "bottom";
+export type DisplayMode = "render" | "shaded" | "edges" | "wireframe" | "zebra" | "curvature" | "draft";
+export type StandardView = "iso" | "hero" | "front" | "back" | "left" | "right" | "top" | "bottom";
 export type SectionAxis = "off" | "x" | "y" | "z";
 
 /** Direction from the target to the camera, and the camera's up vector, for each view. */
 export const VIEWS: Record<StandardView, { dir: THREE.Vector3; up: THREE.Vector3; label: string }> = {
   iso: { dir: new THREE.Vector3(0.62, -0.62, 0.48).normalize(), up: new THREE.Vector3(0, 0, 1), label: "Isometric" },
+  // A low front three-quarter, as in press photographs of a car (eye level, right side).
+  hero: { dir: new THREE.Vector3(0.68, -0.72, 0.13).normalize(), up: new THREE.Vector3(0, 0, 1), label: "Hero" },
   front: { dir: new THREE.Vector3(1, 0, 0), up: new THREE.Vector3(0, 0, 1), label: "Front" },
   back: { dir: new THREE.Vector3(-1, 0, 0), up: new THREE.Vector3(0, 0, 1), label: "Back" },
   left: { dir: new THREE.Vector3(0, 1, 0), up: new THREE.Vector3(0, 0, 1), label: "Left" },

@@ -481,6 +481,27 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         ),  # fmt: skip
     ),
     _p(
+        id="front_face",
+        label="Front face",
+        group=Group.SHAPE,
+        unit=Unit.PERCENT,
+        default=0,
+        min=0,
+        max=100,
+        step=5,
+        description="How broad and upright the front face is: 0 rounds the nose off into a "
+        "bullet, 100 keeps a full, near-vertical fascia down to a low chin, as a grand tourer "
+        "wearing a large grille (the overall length is unchanged).",
+        aliases=(
+            "front face",
+            "fascia",
+            "front fascia",
+            "blunt nose",
+            "nose fullness",
+            "upright nose",
+        ),  # fmt: skip
+    ),
+    _p(
         id="wing_crease",
         label="Wing crease",
         group=Group.SHAPE,
@@ -489,9 +510,9 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         min=0,
         max=100,
         step=5,
-        description="A sharp character line along each front wing, from the head lamp back "
-        "into the front of the door, with the flank drawn in beneath it (styled surface; the "
-        "body width is unchanged).",
+        description="A sharp character line down each side, from the head lamp along the "
+        "wing and the doors into the rear haunch, with the flank drawn in beneath it (styled "
+        "surface; the body width is unchanged).",
         aliases=(
             "wing crease",
             "character line",
@@ -704,9 +725,9 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=0,
         min=0,
-        max=5,
+        max=6,
         step=1,
-        options=("Charcoal", "Stone Grey", "Cream", "Tan", "Cognac", "Oxblood"),
+        options=("Charcoal", "Stone Grey", "Cream", "Tan", "Cognac", "Oxblood", "Taupe"),
         description="Seat and trim colour (appearance only).",
         aliases=("interior colour", "interior color", "upholstery", "seat colour", "seat color"),
     ),
