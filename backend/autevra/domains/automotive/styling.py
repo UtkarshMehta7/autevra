@@ -138,16 +138,17 @@ def tail_swept_outline(p: Inputs, layout, side: float) -> list[tuple[float, floa
 
 
 def swept_outline(p: Inputs, layout, side: float) -> list[tuple[float, float]]:  # type: ignore[no-untyped-def]
-    """(y, z) outline of a swept head lamp on one side (+1 left): a slim slanted band that
-    rises from its inner end towards the outer corner of the nose."""
+    """(y, z) outline of a swept head lamp on one side (+1 left): a slanted band that rises
+    from a slim inner end and thickens towards the outer corner of the nose, which it wraps
+    (on a styled nose the corner curves back, so the lamp runs on into the top of the wing)."""
     half_w = p["body_width"] / 2.0
     bumper, nose = layout.profile[2][1], layout.profile[3][1]
     h = nose - bumper
     top = nose - 0.08 * h
-    t = max(0.12 * h, 24.0)  # thickness
+    t_in, t_out = max(0.1 * h, 22.0), max(0.2 * h, 36.0)  # thickness at each end
     rise = 0.16 * h
-    yi, yo = side * 0.32 * half_w, side * 0.70 * half_w
-    return [(yi, top - rise - t), (yo, top - t), (yo, top), (yi, top - rise)]
+    yi, yo = side * 0.36 * half_w, side * 0.84 * half_w
+    return [(yi, top - rise - t_in), (yo, top - t_out), (yo, top), (yi, top - rise)]
 
 
 LAMP_HOUSINGS = ("none", "smoked")

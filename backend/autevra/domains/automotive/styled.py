@@ -31,8 +31,8 @@ from autevra.domains.automotive import sculpt
 
 Inputs = Mapping[str, float]
 SURFACES = ("styled", "draft")
-STATIONS = 40  # sections along the car
-SECTION_POINTS = 40  # points round each section (the skin is faceted between them)
+STATIONS = 48  # sections along the car (all templates build valid bodies at 48 x 48)
+SECTION_POINTS = 48  # points round each section (the skin is faceted between them)
 STEP = 100.0  # guide-curve sampling step, mm
 GLASS_INSET = 8.0  # the glazing sits this far inside the skin, mm
 
@@ -226,6 +226,12 @@ def section_points(p: Inputs, g: Guides, x: float, inset: float = 0.0) -> list[t
     swell = sum(share * math.exp(-(((x - xa) / reach) ** 2))
                 for xa, share in ((0.0, 1.0), (-p["wheelbase"], 0.7)))  # fmt: skip
     lift = 0.5 * p.get("fender_rise", 0.0) * swell * (1.0 - cw)
+    # Hips: the rear wings swell up over the rear wheel above the door line (the deck between
+    # them stays low), never above the overall height (an open car's is its windscreen).
+    hip_reach = 1.4 * p.get("arch_radius", 380.0)
+    hip = p.get("hip_rise", 0.0) * math.exp(-(((x + p["wheelbase"] - 120.0) / hip_reach) ** 2))
+    ceiling = max(g.roof_z, p["overall_height"]) - 2.0
+    hip = max(min(hip * (1.0 - cw), ceiling - (zt + lift)), 0.0)
     # Wing crease: from the head lamp along the wing and the doors into the rear haunch the
     # widest point rises into a sharp line (climbing gently towards the haunch) and the
     # flank below it is drawn in, so the line catches the light; the width stays the same.
@@ -238,10 +244,10 @@ def section_points(p: Inputs, g: Guides, x: float, inset: float = 0.0) -> list[t
     half = [
         (0.0, zb), ((0.7 - 0.3 * rnd) * w_bot, zb), (w_bot, zb + 10.0 + 50.0 * rnd),
         ((0.998 - 0.03 * rnd - 0.035 * crease) * w, zs - 40.0 + 0.5 * crease * (z_line - zs)),
-        (w, z_line), ((0.99 - 0.035 * rnd) * w, max(zbelt, z_line + 20.0)),
-        (wtop + (0.975 * w - wtop) * 0.45, zbelt + 0.55 * (zt - zbelt) + 0.3 * lift),
-        (wtop, zt - 0.12 * (zt - zbelt) - 8.0 + 0.8 * lift),
-        (0.6 * wtop, zt - 4.0 - 0.1 * dip + lift),  # the wing crown
+        (w, z_line), ((0.99 - 0.035 * rnd) * w, max(zbelt, z_line + 20.0) + 0.45 * hip),
+        (wtop + (0.975 * w - wtop) * 0.45, zbelt + 0.55 * (zt - zbelt) + 0.3 * lift + 0.8 * hip),
+        (wtop, zt - 0.12 * (zt - zbelt) - 8.0 + 0.8 * lift + hip),
+        (0.6 * wtop, zt - 4.0 - 0.1 * dip + lift + hip),  # the wing crown
         (0.32 * wtop, zt - 2.0 - 0.85 * dip),  # into the bonnet valley: a crease
         (0.16 * wtop, zt - dip + 0.9 * bulge), (0.0, zt - dip + bulge),  # the power dome
     ]  # fmt: skip

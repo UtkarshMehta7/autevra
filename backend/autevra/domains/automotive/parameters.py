@@ -481,6 +481,27 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         ),  # fmt: skip
     ),
     _p(
+        id="hip_rise",
+        label="Hip rise",
+        group=Group.SHAPE,
+        unit=Unit.MM,
+        default=0,
+        min=0,
+        max=150,
+        step=5,
+        description="How far the rear wings swell up over the rear wheels above the door line "
+        "(muscular rear haunches; the deck between them stays low; styled surface, the "
+        "overall height is unchanged).",
+        aliases=(
+            "hip rise",
+            "rear haunch",
+            "rear haunches",
+            "hips",
+            "muscular hips",
+            "rear shoulders",
+        ),  # fmt: skip
+    ),
+    _p(
         id="front_face",
         label="Front face",
         group=Group.SHAPE,

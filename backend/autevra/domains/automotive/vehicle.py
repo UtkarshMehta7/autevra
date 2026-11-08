@@ -23,7 +23,7 @@ TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
 # glazing and the cabin) the haunch and the tumblehome.
 SHAPE = ("haunch", "nose_taper", "tail_taper", "sill_tuck", "body_roundness", "tumblehome",
          "fender_rise", "surface_quality", "roof_arc", "nose_rake", "bonnet_dome",
-         "wing_crease", "front_face")  # fmt: skip
+         "wing_crease", "front_face", "hip_rise")  # fmt: skip
 GREENHOUSE_SHAPE = ("haunch", "tumblehome")
 
 BODY_GEOMETRY = (

@@ -272,3 +272,21 @@ def test_full_front_faces_build_one_valid_solid(style: str) -> None:
     v = default_values() | spec.TEMPLATES[style] | {"surface_quality": 0.0, "front_face": 100.0}
     body = b.build_body(BY_ID["body"].resolve_inputs(v))
     assert k.solid_count(body) == 1 and body.isValid()
+
+
+def test_hips_rise_over_the_rear_wheels_and_keep_the_height() -> None:
+    p = _body({"hip_rise": 0.0})
+    g = styled.guides(p, b.body_layout(p))
+    x = -p["wheelbase"] + 120.0  # over the rear wheel
+
+    def shoulder(q: dict[str, float], at: float) -> float:
+        loop = styled.section_points(q, g, at)
+        return max(z for y, z in loop if y > 0.5 * max(yy for yy, _ in loop))
+
+    hips = p | {"hip_rise": 100.0}
+    assert shoulder(hips, x) > shoulder(p, x) + 60.0
+    assert shoulder(hips, 0.0) == pytest.approx(shoulder(p, 0.0), abs=2.0)  # not at the front
+    body = b.build_body(hips)
+    assert k.solid_count(body) == 1 and body.isValid()
+    (_, _, _), (_, _, z1) = k.bounds(body)
+    assert z1 == pytest.approx(p["overall_height"], abs=1.0)
