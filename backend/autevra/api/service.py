@@ -1477,7 +1477,8 @@ class Workspace:
         shape = report.shape
         return schemas.PartOut(
             id=part_id, document=doc, can_undo=can_undo, can_redo=can_redo,
-            built=report.built, info=report.info,
+            built=report.built, info=report.info, topology=report.topology,
+            sections=report.sections,
             errors=[schemas.FeatureErrorOut(feature=e.feature, message=e.message)
                     for e in report.errors],
             volume=kernel.volume(shape) if shape is not None else None,

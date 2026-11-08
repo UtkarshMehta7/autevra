@@ -1,4 +1,5 @@
-"""The only module that talks to the CAD kernel (CadQuery on Open CASCADE).
+"""The CAD kernel interface (CadQuery on Open CASCADE); with ``topology`` (B-rep inspection),
+the only code that talks to the kernel.
 
 Everything else in Autevra handles ``Shape`` values opaquely and calls the
 functions here, so swapping CadQuery for build123d or raw OCP stays local.

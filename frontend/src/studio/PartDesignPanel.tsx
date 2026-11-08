@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import type { DesignTable, FeatureTemplate, PartDoc, PartFeature, PartOut, Placement, Sketch } from "../api/types";
 import { DownloadLink } from "../DownloadLink";
 import { ConstraintSketcher } from "./ConstraintSketcher";
+import { TopologyInspector } from "./TopologyInspector";
 import { Sketcher } from "./Sketcher";
 
 const NO_BINDINGS: Record<string, string> = {};
@@ -522,6 +523,12 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
                       {" "}{part.info[f.id].bends} bend(s) (K-factor allowance)</div>
                   )}
                   {f.id === feature && <FeatureFields feature={f} onChange={(next) => editFeature(i, next)} />}
+                  {f.id === feature && (
+                    <details className="inspect" open>
+                      <summary>Inspect topology</summary>
+                      <TopologyInspector part={part} featureId={f.id} />
+                    </details>
+                  )}
                 </li>
               ))}
             </ol>

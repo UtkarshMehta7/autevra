@@ -354,3 +354,16 @@ textarea.json.bad { border-color: var(--bad); }
 .csketch-list button { padding: 0 6px; }
 .csketch-apply { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .csketch-apply .error { color: var(--bad); font-size: 12px; }
+
+/* Topology inspector (Part Design) */
+.inspect { margin: 6px 0 4px; }
+.inspect summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.inspector { display: grid; gap: 6px; font-size: 12px; padding: 6px 0; }
+.inspector table.mini { border-collapse: collapse; width: auto; }
+.inspector table.mini th, .inspector table.mini td { padding: 2px 10px 2px 0; text-align: right; }
+.inspector table.mini th:first-child, .inspector table.mini td:first-child { text-align: left; }
+.inspector td.changed { color: #ffc94a; font-weight: 600; }
+.inspector .math { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; display: grid; gap: 2px; }
+.inspector .muted { color: var(--muted); }
+.good-text { color: var(--good); }

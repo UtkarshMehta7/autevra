@@ -12,6 +12,7 @@ import cadquery as cq
 
 from autevra.assembly.transforms import Matrix
 from autevra.cad import kernel as k
+from autevra.cad import topology as topo
 from autevra.part import expressions as ex
 from autevra.part import features as f
 from autevra.part import sketch as sk
@@ -31,6 +32,10 @@ class BuildResult:
     errors: list[FeatureError] = field(default_factory=list)
     built: list[str] = field(default_factory=list)  # ids of features applied
     info: dict[str, dict[str, float]] = field(default_factory=dict)  # per feature (flat size)
+    # Per feature: the topology after it, and for a boolean on an existing body the section
+    # curves along which the kernel joined, cut or intersected the tool (inspection).
+    topology: dict[str, dict] = field(default_factory=dict)
+    sections: dict[str, dict] = field(default_factory=dict)
 
 
 def placement_matrix(at: f.Placement) -> Matrix:
@@ -315,6 +320,29 @@ def _apply(result: k.Shape | None, op: f.Op, tools: list[k.Shape]) -> k.Shape:
     return out
 
 
+def _topology(shape: k.Shape) -> dict:
+    try:
+        return topo.topology(shape).as_dict()
+    except Exception as exc:  # inspection never stops a build
+        return {"error": _message(exc)}
+
+
+def _boolean_section(body: k.Shape | None, tools: list[k.Shape], op: f.Op) -> dict:
+    """The curves where the tools meet the body (what the boolean is computed along); for
+    a pattern, those of its first copies."""
+    if body is None:
+        return {}
+    try:
+        parts = [topo.section(body, tool) for tool in tools[:4]]
+    except Exception as exc:
+        return {"error": _message(exc)}
+    return {
+        "op": op.value, "tools": len(tools), "curves": sum(p.curves for p in parts),
+        "length": sum(p.length for p in parts),
+        "polylines": [line for p in parts for line in p.polylines][:400],
+    }  # fmt: skip
+
+
 def _message(exc: Exception) -> str:
     text = str(exc).strip()
     return text or f"the geometry kernel could not build this feature ({type(exc).__name__})"
@@ -379,13 +407,17 @@ def build_part(doc: f.PartDoc) -> BuildResult:
             if feat.type in f.SOLID_TYPES:
                 tool = _place(_solid(feat), feat.at)  # type: ignore[arg-type]
                 op = feat.op  # type: ignore[union-attr]
+                if result is not None:
+                    out.sections[feat.id] = _boolean_section(result, [tool], op)
                 result = _apply(result, op, [tool])
                 last = (tool, op)
             elif feat.type in ("linear_pattern", "circular_pattern"):
                 if last is None:
                     raise ValueError("a pattern repeats the solid feature before it; add one")
                 tool, op = last
-                result = _apply(result, op, _copies(tool, feat))  # type: ignore[arg-type]
+                copies = _copies(tool, feat)  # type: ignore[arg-type]
+                out.sections[feat.id] = _boolean_section(result, copies, op)
+                result = _apply(result, op, copies)
             else:
                 if result is None:
                     raise ValueError("add a solid before this modifier")
@@ -397,4 +429,5 @@ def build_part(doc: f.PartDoc) -> BuildResult:
             break
         out.built.append(feat.id)
         out.shape = result
+        out.topology[feat.id] = _topology(result)
     return out

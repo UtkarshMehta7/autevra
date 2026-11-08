@@ -14,6 +14,7 @@ import {
   edgesOf, featureEdges, framing, measure, sectionPlane,
 } from "./tools";
 import { type Look, type Studio, createStudio } from "./render";
+import { type Overlay, currentOverlay, onOverlay } from "./overlay";
 
 interface Props {
   model: ModelPayload | null;
@@ -361,6 +362,36 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
     }
     c.studio.set(display === "render", modelBox(c.root, c.meshes), look);
   }, [model, selected, highlighted, xray, display, hidden, section.axis, pull, minDraft, look]);
+
+  // Inspection overlay (e.g. a boolean's section curves), drawn over the part, on top.
+  const [overlay, setOverlayState] = useState<Overlay | null>(currentOverlay());
+  useEffect(() => onOverlay(setOverlayState), []);
+  useEffect(() => {
+    const c = ctx.current;
+    if (!c) return;
+    for (const mesh of c.meshes.values()) {
+      for (const child of [...mesh.children]) {
+        if (child.userData.overlay) {
+          mesh.remove(child);
+          (child as THREE.LineSegments).geometry.dispose();
+          ((child as THREE.LineSegments).material as THREE.Material).dispose();
+        }
+      }
+    }
+    const mesh = overlay ? c.meshes.get(overlay.partId) : undefined;
+    if (!overlay || !mesh) return;
+    const pts: number[] = [];
+    for (const line of overlay.polylines) {
+      for (let i = 1; i < line.length; i++) pts.push(...line[i - 1], ...line[i]);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+    const lines = new THREE.LineSegments(g, new THREE.LineBasicMaterial({
+      color: overlay.color ?? 0xffc94a, depthTest: false, toneMapped: false }));
+    lines.renderOrder = 20;
+    lines.userData.overlay = true;
+    mesh.add(lines);
+  }, [overlay, model]);
 
   // Section plane.
   useEffect(() => {

@@ -587,6 +587,22 @@ export interface PartDoc {
   finish?: string;
 }
 
+/** B-rep topology after a feature (backend cad/topology.py). */
+export interface Topology {
+  vertices: number; edges: number; loops: number; faces: number; shells: number; solids: number;
+  rings: number; euler: number; genus: number; balanced: boolean;
+  free_edges: number; nonmanifold_edges: number; degenerate_edges: number; seam_edges: number;
+  watertight: boolean; valid: boolean;
+  surfaces: Record<string, number>; curves: Record<string, number>;
+  area: number; volume: number;
+}
+
+/** Where a boolean's tool met the body (the curves the boolean is computed along). */
+export interface BooleanSection {
+  op: "add" | "cut" | "intersect"; tools: number; curves: number; length: number;
+  polylines: [number, number, number][][];
+}
+
 export interface PartOut {
   id: string;
   document: PartDoc;
@@ -595,6 +611,8 @@ export interface PartOut {
   built: string[];
   errors: { feature: string; message: string }[];
   info?: Record<string, Record<string, number>>;
+  topology?: Record<string, Topology | { error: string }>; // per feature, after it
+  sections?: Record<string, BooleanSection>; // per boolean feature on an existing body
   volume: number | null;
   bounds: [[number, number, number], [number, number, number]] | null;
 }
