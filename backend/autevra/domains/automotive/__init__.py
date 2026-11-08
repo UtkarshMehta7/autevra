@@ -46,6 +46,7 @@ PLUGIN = extensions.Plugin(
         "head_lamps": builders.build_head_lamps,
         "tail_lamps": builders.build_tail_lamps,
         "seats": interior.build_seats,
+        "seat_accents": interior.build_seat_accents,
         "dashboard": interior.build_dashboard,
         "display": interior.build_display,
         "steering_wheel": interior.build_steering_wheel,

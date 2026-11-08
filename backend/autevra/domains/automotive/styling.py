@@ -20,7 +20,7 @@ FACE_THICKNESS = 18.0  # mm
 FACE_SET = 15.0  # dish: the face sits this far inboard of the rim's outer edge, mm
 WHEEL_DESIGNS = ("five_spoke", "multi_spoke", "twin_spoke", "mesh", "aero", "steel", "y_spoke")
 HEAD_LAMP_STYLES = ("strip", "matrix", "round", "split", "swept")
-TAIL_LAMP_STYLES = ("bar", "clusters", "vertical")
+TAIL_LAMP_STYLES = ("bar", "clusters", "vertical", "swept")
 LAMP_DEPTH = 15.0  # lamps sit in recesses this deep, flush with the body face, mm
 
 
@@ -114,6 +114,29 @@ def build_rim(p: Inputs) -> k.Shape:
 # --- Lamps ---
 
 
+def tail_band(p: Inputs, layout) -> tuple[float, float]:  # type: ignore[no-untyped-def]
+    """(bottom, top) z of the rear face that carries the tail lamps."""
+    floor, belt = p["body_floor"], p["beltline_height"]
+    rear = -(p["wheelbase"] + p["rear_overhang"])
+    at_rear = [zz for xx, zz in layout.profile if abs(xx - rear) < 1e-6]
+    bottom, top = (min(at_rear), max(at_rear)) if at_rear else (floor, floor)
+    if layout.cargo is not None or top - bottom < 60.0:  # box truck: low on the box
+        bottom, top = floor + 0.25 * (belt - floor), floor + 0.55 * (belt - floor)
+    return bottom, top
+
+
+def tail_swept_outline(p: Inputs, layout, side: float) -> list[tuple[float, float]]:  # type: ignore[no-untyped-def]
+    """(y, z) outline of a swept tail lamp on one side: a slim band rising from inboard
+    towards the upper outer corner of the tail."""
+    half_w = p["body_width"] / 2.0
+    bottom, top = tail_band(p, layout)
+    h = top - bottom
+    upper = top - 0.1 * h
+    t, rise = max(0.11 * h, 26.0), 0.14 * h
+    yi, yo = side * 0.34 * half_w, side * 0.80 * half_w
+    return [(yi, upper - rise - t), (yo, upper - t), (yo, upper), (yi, upper - rise)]
+
+
 def swept_outline(p: Inputs, layout, side: float) -> list[tuple[float, float]]:  # type: ignore[no-untyped-def]
     """(y, z) outline of a swept head lamp on one side (+1 left): a slim slanted band that
     rises from its inner end towards the outer corner of the nose."""
@@ -163,7 +186,6 @@ def lamp_solids(p: Inputs, end: str, layout) -> list[k.Shape]:  # type: ignore[n
     """
     rear = -(p["wheelbase"] + p["rear_overhang"])
     half_w = p["body_width"] / 2.0
-    floor, belt = p["body_floor"], p["beltline_height"]
     if end == "head":
         (xb, bumper), (xn, nose) = layout.profile[2], layout.profile[3]
         h = nose - bumper
@@ -199,13 +221,12 @@ def lamp_solids(p: Inputs, end: str, layout) -> list[k.Shape]:  # type: ignore[n
         if style in ("strip", "matrix"):
             out.append(k.box(x, (-0.26 * half_w - 1.0, 0.26 * half_w + 1.0), (top - 12.0, top)))
         return out
-    at_rear = [zz for xx, zz in layout.profile if abs(xx - rear) < 1e-6]
-    top, bottom = (max(at_rear), min(at_rear)) if at_rear else (floor, floor)
-    if layout.cargo is not None or top - bottom < 60.0:  # box truck: low on the box
-        bottom, top = floor + 0.25 * (belt - floor), floor + 0.55 * (belt - floor)
+    bottom, top = tail_band(p, layout)
     h = top - bottom
     x = (rear, rear + LAMP_DEPTH)
     style = tail_lamp_style(p)
+    if style == "swept":
+        return [k.prism_x(tail_swept_outline(p, layout, s), x) for s in (1.0, -1.0)]
     if style == "bar":
         bar = (top - 0.12 * h - max(0.14 * h, 35.0), top - 0.12 * h)
         return [k.box(x, (-0.78 * half_w, 0.78 * half_w), bar)]

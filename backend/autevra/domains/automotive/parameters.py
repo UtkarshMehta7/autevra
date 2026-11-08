@@ -216,9 +216,9 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=0,
         min=0,
-        max=2,
+        max=3,
         step=1,
-        options=("Light bar", "Separate clusters", "Vertical"),
+        options=("Light bar", "Separate clusters", "Vertical", "Swept"),
         description="Tail lamp layout on the rear face (styling envelope; no photometry).",
         aliases=(
             "tail lamp signature",
@@ -256,6 +256,28 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         options=("None", "Three gills", "Single slot"),
         description="Vents cut into each front wing behind the wheel arch (styling only).",
         aliases=("fender vents", "side vents", "wing vents", "gills", "fender gills"),
+    ),
+    _p(
+        id="exhaust_tips",
+        label="Exhaust tips",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=3,
+        step=1,
+        options=("Hidden", "Twin", "Quad", "Centre"),
+        description="Visible tailpipes through the rear valance (combustion and hybrid "
+        "drives): one each side, a pair each side, or a pair in the middle (styling only; "
+        "no flow or noise model).",
+        aliases=(
+            "exhaust tips",
+            "tailpipes",
+            "tail pipes",
+            "exhaust outlets",
+            "quad exhaust",
+            "twin exhaust",
+        ),  # fmt: skip
     ),
     _p(
         id="lamp_housing",
@@ -456,6 +478,26 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
             "nose slope",
             "pointed nose",
             "raked nose",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="wing_crease",
+        label="Wing crease",
+        group=Group.SHAPE,
+        unit=Unit.PERCENT,
+        default=0,
+        min=0,
+        max=100,
+        step=5,
+        description="A sharp character line along each front wing, from the head lamp back "
+        "into the front of the door, with the flank drawn in beneath it (styled surface; the "
+        "body width is unchanged).",
+        aliases=(
+            "wing crease",
+            "character line",
+            "fender crease",
+            "side crease",
+            "feature line",
         ),  # fmt: skip
     ),
     _p(
@@ -667,6 +709,27 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         options=("Charcoal", "Stone Grey", "Cream", "Tan", "Cognac", "Oxblood"),
         description="Seat and trim colour (appearance only).",
         aliases=("interior colour", "interior color", "upholstery", "seat colour", "seat color"),
+    ),
+    _p(
+        id="seat_accent",
+        label="Seat accent",
+        group=Group.INTERIOR,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=4,
+        step=1,
+        options=("Single tone", "Charcoal", "Cream", "Tan", "Oxblood"),
+        description="Two-tone seats: the side bolsters and head rest panels in a contrast "
+        "colour (Single tone keeps them in the interior colour).",
+        aliases=(
+            "seat accent",
+            "two tone seats",
+            "two-tone seats",
+            "bolster colour",
+            "bolster color",
+            "contrast seats",
+        ),  # fmt: skip
     ),
     _p(
         id="driving_side",

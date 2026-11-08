@@ -22,7 +22,8 @@ TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
 # Shape controls: the sculpted lower body reads all of them, the greenhouse (and so the
 # glazing and the cabin) the haunch and the tumblehome.
 SHAPE = ("haunch", "nose_taper", "tail_taper", "sill_tuck", "body_roundness", "tumblehome",
-         "fender_rise", "surface_quality", "roof_arc", "nose_rake", "bonnet_dome")  # fmt: skip
+         "fender_rise", "surface_quality", "roof_arc", "nose_rake", "bonnet_dome",
+         "wing_crease")  # fmt: skip
 GREENHOUSE_SHAPE = ("haunch", "tumblehome")
 
 BODY_GEOMETRY = (
@@ -54,17 +55,22 @@ INTERIOR_GEOMETRY = (
     *GLASS_GEOMETRY, "seat_rows", "interior_trim", "driving_side",
     "seat_height", "seat_recline", "dash_zone", "row_pitch",
     "surface_quality", "roof_arc",  # seats follow the styled roofline
+    "seat_accent",  # two-tone seats split the accent panels off the seats
 )  # fmt: skip
 
 
 def _interior_inputs(p: Values) -> dict[str, float]:
-    return {k: p[k] for k in INTERIOR_GEOMETRY} | {"body_floor": d.body_floor_height(p)}
+    # Only whether the seats are two-tone changes the shape; the accent colour is appearance.
+    return {k: p[k] for k in INTERIOR_GEOMETRY} | {
+        "body_floor": d.body_floor_height(p),
+        "seat_accent": float(p["seat_accent"] > 0),
+    }
 
 
 # Powertrain and electrical equipment follow the chassis, the drive layout and the tyres.
 POWERTRAIN_GEOMETRY = (
     *d.CHASSIS_INPUTS, "front_overhang", "rear_overhang", "beltline_height", "front_drive_share",
-    "engine_cylinders", "nose_rake", *TYRE,
+    "engine_cylinders", "nose_rake", "exhaust_tips", *TYRE,
 )  # fmt: skip
 
 
@@ -127,10 +133,16 @@ UPHOLSTERY = (
     (0.30, 0.11, 0.04), (0.22, 0.02, 0.03),
 )  # fmt: skip
 _TRIM_FINISH = ("fabric", "leather", "leather")
+SEAT_ACCENTS = (UPHOLSTERY[0], UPHOLSTERY[0], UPHOLSTERY[2], UPHOLSTERY[3], UPHOLSTERY[5])
 
 
 def _upholstery(p: Values) -> tuple[tuple[float, float, float], str]:
     colour = UPHOLSTERY[min(max(int(round(p["interior_colour"])), 0), len(UPHOLSTERY) - 1)]
+    return colour, _TRIM_FINISH[min(max(int(round(p["interior_trim"])), 0), 2)]
+
+
+def _accent(p: Values) -> tuple[tuple[float, float, float], str]:
+    colour = SEAT_ACCENTS[min(max(int(round(p["seat_accent"])), 0), len(SEAT_ACCENTS) - 1)]
     return colour, _TRIM_FINISH[min(max(int(round(p["interior_trim"])), 0), 2)]
 
 
@@ -415,6 +427,8 @@ COMPONENTS: tuple[ComponentDef, ...] = (
             follows_body=True),
     _interior("seats", "Seats", "seats", UPHOLSTERY[0], "leather", appearance=_upholstery,
               appearance_inputs=("interior_colour", "interior_trim")),
+    _interior("seat_accents", "Seat accents", "seat_accents", UPHOLSTERY[0], "leather",
+              appearance=_accent, appearance_inputs=("seat_accent", "interior_trim")),
     _interior("dashboard", "Dashboard", "dashboard", (0.05, 0.052, 0.058), "trim"),
     _interior("display", "Display", "display", (0.02, 0.03, 0.05), "screen"),
     _interior("steering_wheel", "Steering wheel", "steering_wheel", (0.03, 0.03, 0.035), "leather"),

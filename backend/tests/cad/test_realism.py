@@ -155,3 +155,91 @@ def test_smoked_housings_frame_the_head_lamps() -> None:
     (_, _, z0), (_, _, z1) = k.bounds(eye)
     (_, _, lz0), (_, _, lz1) = k.bounds(lamps)
     assert z0 < lz0 - 40.0  # the dark eye opens below the lamp line
+
+
+@pytest.mark.parametrize(("tips", "count"), [(1.0, 2), (2.0, 4), (3.0, 2)])
+def test_exhaust_tips_exit_through_the_rear_valance(tips: float, count: int) -> None:
+    v = default_values() | GT | {"powertrain_type": 0.0}
+    hidden = powertrain.build_exhaust(BY_ID["exhaust"].resolve_inputs(v | {"exhaust_tips": 0.0}))
+    p = BY_ID["exhaust"].resolve_inputs(v | {"exhaust_tips": tips})
+    shown = powertrain.build_exhaust(p)
+    rear = -(v["wheelbase"] + v["rear_overhang"])
+    # At the tail (the rear face slopes in towards the floor): the hidden pipe's end, and
+    # one more piece per tip.
+    face = k.box((rear - 10.0, rear + 100.0), (-2000.0, 2000.0), (0.0, 2000.0))
+    ends = len(k.intersect(hidden, face).Solids())
+    assert len(k.intersect(shown, face).Solids()) == ends + count
+
+
+def test_swept_tail_lamps_rise_towards_the_outer_corners() -> None:
+    from autevra.domains.automotive import styling
+
+    p = _body({"tail_lamp_style": 3.0})
+    layout = b.body_layout(p)
+    (yi, zi), (yo, zo) = styling.tail_swept_outline(p, layout, 1.0)[:2]
+    assert yo > yi and zo > zi
+    lamps = b.build_lamps(p, "tail")
+    assert lamps is not None and k.solid_count(lamps) == 2
+
+
+def test_mirrors_are_pods_on_stalks_outboard_of_the_body() -> None:
+    from autevra.domains.automotive import exterior
+
+    v = default_values() | GT
+    p = BY_ID["mirrors"].resolve_inputs(v)
+    mirrors = exterior.build_mirrors(p)
+    assert k.solid_count(mirrors) == 2
+    (_, y0, _), (_, y1, _) = k.bounds(mirrors)
+    assert y1 > v["body_width"] / 2.0 + 100.0 and y0 < -v["body_width"] / 2.0 - 100.0
+
+
+@pytest.mark.parametrize("trim", [0.0, 1.0, 2.0])
+def test_two_tone_seats_split_the_accent_panels_off_the_seats(trim: float) -> None:
+    v = default_values() | GT | {"interior_trim": trim}
+    one = BY_ID["seats"].resolve_inputs(v | {"seat_accent": 0.0})
+    two = BY_ID["seats"].resolve_inputs(v | {"seat_accent": 3.0})
+    assert interior.build_seat_accents(BY_ID["seat_accents"].resolve_inputs(v)) is None
+    plain, split = interior.build_seats(one), interior.build_seats(two)
+    accents = interior.build_seat_accents(
+        BY_ID["seat_accents"].resolve_inputs(v | {"seat_accent": 3.0})
+    )
+    assert accents is not None and k.volume(accents) > 0.0
+    assert k.volume(split) < k.volume(plain)  # the panels leave the seats
+    # Seat and panels together fill the single-tone seats (the panels overlap the seat).
+    whole = k.volume(k.fuse(split, accents))
+    assert whole == pytest.approx(k.volume(plain), rel=0.002)
+    # The accent colour is appearance only: changing it keeps the shape inputs.
+    other = BY_ID["seats"].resolve_inputs(v | {"seat_accent": 1.0})
+    assert other == two
+
+
+def test_wing_crease_raises_a_line_along_the_front_wing_and_keeps_the_width() -> None:
+    p = _body({"wing_crease": 0.0})
+    g = styled.guides(p, b.body_layout(p))
+    cowl = b.body_layout(p).glass[1]
+    x = (cowl - 550.0 + g.front - 380.0) / 2.0  # mid wing
+
+    def widest(q: dict[str, float]) -> tuple[float, float, list[tuple[float, float]]]:
+        loop = styled.section_points(q, g, x)
+        y, z = max(loop, key=lambda pt: pt[0])
+        return y, z, loop
+
+    y0, z0, _ = widest(p)
+    y1, z1, loop = widest(p | {"wing_crease": 100.0})
+    assert y1 == pytest.approx(y0)  # the body width is unchanged
+    assert z1 > z0 + 40.0  # the line sits higher on the wing
+    # The flank below the line is drawn in.
+    below = [y for y, z in loop if z < z1 and y > 0.0]
+    assert max(below) < y1 - 40.0
+    # Behind the door front the section is untouched.
+    back = cowl - 1400.0
+    assert styled.section_points(p | {"wing_crease": 100.0}, g, back) == styled.section_points(
+        p, g, back
+    )
+
+
+@pytest.mark.parametrize("style", ["sedan", "roadster", "supercar", "suv"])
+def test_a_creased_body_builds_one_valid_solid(style: str) -> None:
+    v = default_values() | spec.TEMPLATES[style] | {"surface_quality": 1.0, "wing_crease": 100.0}
+    body = b.build_body(BY_ID["body"].resolve_inputs(v))
+    assert k.solid_count(body) == 1 and body.isValid()

@@ -21,6 +21,17 @@ NORMALISERS = (
         lambda m: "track" if m.group(1) == "track" else "overhangs",
     ),
     (r"\bthe (car|vehicle)\b", "it"),
+    # Two-tone seats: "(two tone seats with) tan bolsters" sets the seat accent.
+    (
+        r"\b(?:(?:make )?(?:the )?two[- ]tone seats? (?:with )?)?"
+        r"(charcoal|black|cream|white|tan|oxblood|red) bolsters\b",
+        r"seat accent \1",
+    ),
+    (r"\b(?:make )?(?:the )?seats? two[- ]tone\b|^two[- ]tone seats?$", "seat accent charcoal"),
+    (
+        r"\b(?:make )?(?:the )?(?:single|one)[- ]tone seats?\b|\bseats? (?:single|one)[- ]tone\b",
+        "seat accent single tone",
+    ),  # fmt: skip
 )
 
 COMPARATIVES: dict[str, tuple[str, bool]] = {
@@ -525,6 +536,7 @@ LANGUAGE = Language(
             "Light bar": ("light bar", "full width", "full-width", "bar", "lightbar"),
             "Separate clusters": ("clusters", "separate", "corner clusters", "two clusters"),
             "Vertical": ("vertical", "upright", "tall"),
+            "Swept": ("swept", "boomerang", "wraparound", "slim", "swept back"),
         },
         "roof_type": {
             "Solid": ("solid", "metal", "steel"),
@@ -564,6 +576,12 @@ LANGUAGE = Language(
                 "sport grille",
                 "large mesh",
             ),  # fmt: skip
+        },
+        "exhaust_tips": {
+            "Hidden": ("hidden exhaust", "no tailpipes", "hidden"),
+            "Twin": ("twin", "dual", "twin tailpipes", "dual exhaust"),
+            "Quad": ("quad", "four tailpipes", "quad tailpipes"),
+            "Centre": ("centre", "center", "central", "centre exit", "center exit"),
         },
         "lamp_housing": {
             "None": ("clear", "no housing", "plain lamps"),
@@ -646,6 +664,13 @@ LANGUAGE = Language(
             "Tan": ("tan", "camel", "beige interior"),
             "Cognac": ("cognac", "brown interior", "saddle"),
             "Oxblood": ("oxblood", "red interior", "burgundy"),
+        },
+        "seat_accent": {
+            "Single tone": ("single tone", "one tone", "plain seats"),
+            "Charcoal": ("black", "black bolsters", "charcoal bolsters"),
+            "Cream": ("white", "cream bolsters", "white bolsters"),
+            "Tan": ("tan bolsters",),
+            "Oxblood": ("red", "red bolsters", "oxblood bolsters"),
         },
         "driving_side": {
             "Left-hand drive": ("lhd", "left hand drive", "left-hand-drive"),

@@ -23,9 +23,9 @@ export function materialFor(finish: string | undefined, color: [number, number, 
         sheen: 0.6, sheenRoughness: 0.8, sheenColor: c.clone().lerp(new THREE.Color(1, 1, 1), 0.2) });
     case "trim":
       return new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, metalness: 0.05 });
-    case "screen":
-      return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.08, metalness: 0.2,
-        clearcoat: 1, emissive: new THREE.Color(0.08, 0.22, 0.45), emissiveIntensity: 0.9 });
+    case "screen": // glossy black glass with a faint backlight, as a display reads by day
+      return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.06, metalness: 0.2,
+        clearcoat: 1, emissive: new THREE.Color(0.03, 0.07, 0.13), emissiveIntensity: 0.7 });
     case "lamp":
       return new THREE.MeshStandardMaterial({ color: c, roughness: 0.2, metalness: 0,
         emissive: c, emissiveIntensity: 0.55 });

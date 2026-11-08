@@ -46,7 +46,7 @@ EQUIPMENT = {
     "rear_motor", "inverters", "charger", "charge_port", "hv_cables", "battery_12v", "ecus",
     "harness",
 }  # fmt: skip
-INTERIOR = {"seats", "dashboard", "display", "steering_wheel", "console"}
+INTERIOR = {"seats", "seat_accents", "dashboard", "display", "steering_wheel", "console"}
 EXTERIOR = {"mirrors", "roof_rails", "spoiler", "tow_bar"}  # greenhouse options and spoiler
 DETAILS = {"grille", "side_vents", "lower_trim", "lamp_housings"}  # they follow the body
 

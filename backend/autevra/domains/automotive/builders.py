@@ -229,6 +229,7 @@ def body_profile(p: Inputs) -> list[tuple[float, float]]:
 
 
 PILLAR = 70.0  # pillar and roof-rail width left around the window openings, mm
+OPEN_PILLAR = 40.0  # an open car's slim windscreen surround (no roof load), mm
 GLASS_INSET = 8.0  # near-flush glazing: this far inside the greenhouse surface, mm
 
 
@@ -264,12 +265,13 @@ def _window_frame(p: Inputs, layout: BodyLayout) -> k.Shape:
     the pillars and the roof; the glazing component fills the openings from inside."""
     half_w = p["body_width"] / 2.0
     belt, top = p["beltline_height"], layout.roof_z
-    z = (belt + PILLAR * 0.6, top - PILLAR)
+    pillar = OPEN_PILLAR if layout.open else PILLAR
+    z = (belt + PILLAR * 0.6, top - pillar)
     roof_w = roof_half_width(p)
     (g0, g1), (r0, r1) = layout.glass, layout.roof
-    side = k.box((r0 + PILLAR, r1 - PILLAR), (-half_w - 10.0, half_w + 10.0), z)
+    side = k.box((r0 + pillar, r1 - pillar), (-half_w - 10.0, half_w + 10.0), z)
     screens = [
-        k.box(x, (-roof_w + PILLAR, roof_w - PILLAR), z)
+        k.box(x, (-roof_w + pillar, roof_w - pillar), z)
         for x in ((r1 - 1.0, g1 + 10.0), (g0 - 10.0, r0 + 1.0))  # windscreen, rear screen
         if x[1] - x[0] > 1.0
     ]
@@ -285,22 +287,22 @@ def _open_top(p: Inputs, layout: BodyLayout, shape: k.Shape) -> k.Shape:
     half_w = p["body_width"] / 2.0
     belt, top = p["beltline_height"], layout.roof_z
     (_, g1), (_, r1) = layout.glass, layout.roof
-    keep = k.box((r1 - PILLAR - 1.0, g1 + 20.0), (-half_w - 20.0, half_w + 20.0),
+    keep = k.box((r1 - OPEN_PILLAR - 1.0, g1 + 20.0), (-half_w - 20.0, half_w + 20.0),
                  (belt - 5.0, top + 5.0))  # fmt: skip
     # Behind the windscreen only the A-pillars and the header rail stay: the side wall
     # between them is open (the side windows are down with the roof).
     run, rise = g1 - r1, max(top - belt, 1.0)
-    back = 0.6 * PILLAR * math.hypot(run, rise) / rise  # a slim pillar, measured along x
+    back = OPEN_PILLAR * math.hypot(run, rise) / rise  # a slim pillar, measured along x
 
     def screen_x(z: float) -> float:
         return g1 - run * (z - belt) / rise
 
     # From above the cabin cut (which reaches 60 mm over the beltline), so the pillars stay
     # joined to the body through the cowl sides.
-    z0, z1 = belt + 100.0, top - PILLAR
+    z0, z1 = belt + 100.0, top - OPEN_PILLAR
     if z1 - z0 > 20.0:
-        air = k.prism_y([(r1 - PILLAR - 50.0, z0), (screen_x(z0) - back, z0),
-                         (screen_x(z1) - back, z1), (r1 - PILLAR - 50.0, z1)],
+        air = k.prism_y([(r1 - OPEN_PILLAR - 50.0, z0), (screen_x(z0) - back, z0),
+                         (screen_x(z1) - back, z1), (r1 - OPEN_PILLAR - 50.0, z1)],
                         (-half_w - 30.0, half_w + 30.0))  # fmt: skip
         keep = k.cut(keep, air)
     return k.intersect(shape, keep)

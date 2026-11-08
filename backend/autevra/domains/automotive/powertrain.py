@@ -107,7 +107,43 @@ def build_exhaust(p: Inputs) -> k.Shape | None:
     pipe = k.cylinder_x(32.0, (rear + 60.0, 200.0), y=y, z=z)
     muffler = k.box((rear + 180.0, rear + 680.0), (y - 160.0, y + 160.0), (gc + 10.0, gc + 150.0))
     catalyst = k.box((-350.0, 0.0), (y - 90.0, y + 90.0), (gc + 10.0, gc + 150.0))
-    return k.fuse(pipe, muffler, catalyst)
+    return k.fuse(pipe, muffler, catalyst, *_tailpipes(p, (y, gc)))
+
+
+EXHAUST_TIPS = ("hidden", "twin", "quad", "centre")
+
+
+def exhaust_tips(p: Inputs) -> str:
+    i = int(round(p.get("exhaust_tips", 0.0)))
+    return EXHAUST_TIPS[min(max(i, 0), len(EXHAUST_TIPS) - 1)]
+
+
+def _tailpipes(p: Inputs, muffler: tuple[float, float]) -> list[k.Shape]:
+    """Visible tailpipes through the rear valance, fed from the muffler by a cross pipe:
+    one each side (twin), a pair each side (quad) or a pair in the middle (centre). Hollow
+    tips stand 25 mm proud of the rear face, which slopes back from the tail's lower edge to
+    the floor (see ``builders.body_layout``)."""
+    style = exhaust_tips(p)
+    if style == "hidden":
+        return []
+    half, floor, belt = p["body_width"] / 2.0, p["body_floor"], p["beltline_height"]
+    rear = -(p["wheelbase"] + p["rear_overhang"])
+    length = p["wheelbase"] + p["front_overhang"] + p["rear_overhang"]
+    under, depth = min(0.06 * length, 220.0), belt - floor
+    r = 40.0 if style == "quad" else 45.0
+    z = floor + r + 30.0
+    share = min(max((z - floor) / (0.3 * depth), 0.0), 1.0)
+    face = rear + 0.6 * under * (1.0 - share)  # the rear face at the tips' height
+    ys = {"twin": (-0.55, 0.55), "quad": (-0.64, -0.5, 0.5, 0.64), "centre": (-0.07, 0.07)}
+    tips = [a * half for a in ys[style]]
+    feed_x = rear + 300.0
+    my, _ = muffler
+    out = [k.cylinder_y(28.0, (min(*tips, my), max(*tips, my)), x=feed_x, z=z)]
+    for ty in tips:
+        out.append(k.cylinder_x(30.0, (face + 40.0, feed_x + 28.0), y=ty, z=z))  # to its back
+        tip = k.cylinder_x(r, (face - 25.0, face + 80.0), y=ty, z=z)
+        out.append(k.cut(tip, k.cylinder_x(r - 5.0, (face - 26.0, face + 40.0), y=ty, z=z)))
+    return out
 
 
 def build_radiator(p: Inputs) -> k.Shape:

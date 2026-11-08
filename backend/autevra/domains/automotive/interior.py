@@ -80,13 +80,18 @@ def required_length(c: Cabin) -> float:
     return c.dash + c.pitch * c.rows
 
 
+CLOSED_BEHIND = ("sedan", "coupe", "supercar")  # styles with a bulkhead behind the seats
+
+
 def cavity(p: Inputs) -> tuple[tuple[float, float], ...]:
     """Box cut from the body for the passenger space (x, y, z extents)."""
     c = cabin(p)
     rear = c.rear
-    if b.body_layout(p).open:
-        # An open car's cockpit ends just behind the last row's reclined backrest; the deck
-        # behind it is a closed tonneau over the rear axle.
+    layout = b.body_layout(p)
+    if layout.open or layout.style in CLOSED_BEHIND:
+        # The cabin ends just behind the last row's reclined backrest: behind it is an open
+        # car's tonneau, a saloon's or coupe's boot, or a mid-engined car's engine bay (all
+        # over the rear axle and its dampers).
         last = min(x for x, _ in seat_positions(p)) - 500.0  # the last row's hinge line
         lean = math.sin(math.radians(c.recline)) * (c.belt + 60.0 - cushion_top(c))
         rear = max(rear, last - 110.0 - lean - 40.0)
@@ -112,9 +117,11 @@ def _soft(solid: k.Shape, radius: float) -> k.Shape:
         return solid
 
 
-def _seat(c: Cabin, x_front: float, y: float, level: str) -> k.Shape:
+def _seat(c: Cabin, x_front: float, y: float, level: str) -> tuple[k.Shape, k.Shape]:
     """Cushion on a base, and a backrest (with headrest on posts, or integrated for Premium)
-    reclined about the hinge at the rear of the cushion; one solid per seat."""
+    reclined about the hinge at the rear of the cushion. Returns the seat and its accent
+    panels (side bolsters, or the head rest on a plain seat) as separate solids, so a two-tone
+    seat can colour them apart; fused, they make one solid per seat."""
     width = 540.0 if level == "premium" else 500.0
     y0, y1 = y - width / 2, y + width / 2
     top = cushion_top(c)
@@ -137,22 +144,31 @@ def _seat(c: Cabin, x_front: float, y: float, level: str) -> k.Shape:
                              (shoulder - 80.0, top + back_h)), 45.0)]  # fmt: skip
     else:
         upper = [k.box((x0 - 110.0, x0), (y0, y1), (top - 40.0, top + back_h))]  # past the hinge
+    accent_up: list[k.Shape] = []  # accent panels on the backrest (reclined with it)
+    accent_low: list[k.Shape] = []
     if head:
         for post in (y - 70.0, y + 70.0):
             upper.append(k.box((x0 - 70.0, x0 - 50.0), (post - 8.0, post + 8.0),
                                (top + back_h - 10.0, top + back_h + 0.25 * head)))  # fmt: skip
-        upper.append(k.box((x0 - 100.0, x0 - 20.0), (y - 130.0, y + 130.0),
-                           (top + back_h + 0.2 * head, top + back_h + head)))  # fmt: skip
+        pad = k.box((x0 - 100.0, x0 - 20.0), (y - 130.0, y + 130.0),
+                    (top + back_h + 0.2 * head, top + back_h + head))  # fmt: skip
+        (upper if level == "comfort" else accent_up).append(pad)
     if level in ("comfort", "premium"):
         for edge in (y0, y1 - 60.0):  # side bolsters
             reach = 0.66 if level == "premium" else 0.8  # under the shoulders
-            upper.append(_soft(k.box((x0 - 140.0, x0), (edge, edge + 60.0),
-                                     (top, top + reach * back_h)), 25.0))  # fmt: skip
+            accent_up.append(_soft(k.box((x0 - 140.0, x0), (edge, edge + 60.0),
+                                         (top, top + reach * back_h)), 25.0))  # fmt: skip
             if level == "premium":
-                lower.append(_soft(k.box((x0 + 20.0, x_front - 40.0), (edge, edge + 60.0),
-                                         (top - 20.0, top + 50.0)), 25.0))  # fmt: skip
-    back = k.rotate_y(k.fuse(*upper), -c.recline, (x0, 0.0, top))
-    return k.fuse(*lower, back)
+                accent_low.append(_soft(k.box((x0 + 20.0, x_front - 40.0), (edge, edge + 60.0),
+                                              (top - 20.0, top + 50.0)), 25.0))  # fmt: skip
+
+    def recline(parts: list[k.Shape]) -> k.Shape:
+        return k.rotate_y(k.fuse(*parts) if len(parts) > 1 else parts[0], -c.recline,
+                          (x0, 0.0, top))  # fmt: skip
+
+    seat = k.fuse(*lower, recline(upper))
+    accents = [recline(accent_up), *accent_low] if accent_up else accent_low
+    return seat, (k.fuse(*accents) if len(accents) > 1 else accents[0])
 
 
 def _roof_over(p: Inputs, c: Cabin) -> Callable[[float], float]:
@@ -172,7 +188,27 @@ def build_seats(p: Inputs) -> k.Shape:
     # Each seat is sized for the roof above its backrest (a 2+2 under a fastback gets
     # lower rear backrests instead of passing through the roof).
     seats = [_seat(replace(c, roof=roof_at(x - 560.0)), x, y, level) for x, y in seat_positions(p)]
-    first, *rest = seats
+    parts = [seat for seat, _ in seats]
+    if not two_tone(p):  # single tone: the accent panels are part of each seat
+        parts += [accent for _, accent in seats]
+    first, *rest = parts
+    return k.fuse(first, *rest) if rest else first
+
+
+def two_tone(p: Inputs) -> bool:
+    return int(round(p.get("seat_accent", 0))) > 0
+
+
+def build_seat_accents(p: Inputs) -> k.Shape | None:
+    """The contrast panels of two-tone seats: the side bolsters (the head rest on a plain
+    seat), coloured apart from the seat."""
+    if not two_tone(p):
+        return None
+    c, level = cabin(p), trim(p)
+    roof_at = _roof_over(p, c)
+    accents = [_seat(replace(c, roof=roof_at(x - 560.0)), x, y, level)[1]
+               for x, y in seat_positions(p)]  # fmt: skip
+    first, *rest = accents
     return k.fuse(first, *rest) if rest else first
 
 

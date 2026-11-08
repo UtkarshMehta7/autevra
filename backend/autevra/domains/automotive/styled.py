@@ -226,9 +226,18 @@ def section_points(p: Inputs, g: Guides, x: float, inset: float = 0.0) -> list[t
     swell = sum(share * math.exp(-(((x - xa) / reach) ** 2))
                 for xa, share in ((0.0, 1.0), (-p["wheelbase"], 0.7)))  # fmt: skip
     lift = 0.5 * p.get("fender_rise", 0.0) * swell * (1.0 - cw)
+    # Wing crease: from the head lamp back into the front of the door the widest point
+    # rises into a sharp line (rising gently towards the door) and the flank below it is
+    # drawn in, so the line catches the light; the width stays the same.
+    crease = min(max(p.get("wing_crease", 0.0), 0.0), 100.0) / 100.0
+    crease *= _smoothstep(cowl - 1100.0, cowl - 550.0, x) * (1.0 - _smoothstep(
+        g.front - 380.0, g.front - 120.0, x)) * (1.0 - cw)  # fmt: skip
+    rise = 0.3 + 0.2 * _smoothstep(g.front - 400.0, cowl - 550.0, x)  # up towards the door
+    z_line = zs + 30.0 + crease * rise * max(zbelt - zs - 30.0, 0.0)
     half = [
         (0.0, zb), ((0.7 - 0.3 * rnd) * w_bot, zb), (w_bot, zb + 10.0 + 50.0 * rnd),
-        ((0.998 - 0.03 * rnd) * w, zs - 40.0), (w, zs + 30.0), ((0.99 - 0.035 * rnd) * w, zbelt),
+        ((0.998 - 0.03 * rnd - 0.035 * crease) * w, zs - 40.0 + 0.5 * crease * (z_line - zs)),
+        (w, z_line), ((0.99 - 0.035 * rnd) * w, max(zbelt, z_line + 20.0)),
         (wtop + (0.975 * w - wtop) * 0.45, zbelt + 0.55 * (zt - zbelt) + 0.3 * lift),
         (wtop, zt - 0.12 * (zt - zbelt) - 8.0 + 0.8 * lift),
         (0.6 * wtop, zt - 4.0 - 0.1 * dip + lift),  # the wing crown
@@ -419,6 +428,8 @@ def lamp_tools(p: Inputs, layout: b.BodyLayout, end: str) -> list[k.Shape]:
     round_head = end == "head" and styling.head_lamp_style(p) == "round"
     if end == "head" and styling.head_lamp_style(p) == "swept":  # slanted: their own outline
         return [k.prism_x(styling.swept_outline(p, layout, s), xr) for s in (1.0, -1.0)]
+    if end == "tail" and styling.tail_lamp_style(p) == "swept":
+        return [k.prism_x(styling.tail_swept_outline(p, layout, s), xr) for s in (1.0, -1.0)]
     groups: dict[str, list[tuple[float, float, float, float]]] = {}
     for solid in styling.lamp_solids(p, end, layout):
         (_, y0, z0), (_, y1, z1) = k.bounds(solid)
