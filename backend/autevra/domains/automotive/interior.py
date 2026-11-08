@@ -117,11 +117,12 @@ def _soft(solid: k.Shape, radius: float) -> k.Shape:
         return solid
 
 
-def _seat(c: Cabin, x_front: float, y: float, level: str) -> tuple[k.Shape, k.Shape]:
+def _seat(c: Cabin, x_front: float, y: float, level: str, split: bool = True
+          ) -> tuple[k.Shape, k.Shape | None]:  # fmt: skip
     """Cushion on a base, and a backrest (with headrest on posts, or integrated for Premium)
-    reclined about the hinge at the rear of the cushion. Returns the seat and its accent
-    panels (side bolsters, or the head rest on a plain seat) as separate solids, so a two-tone
-    seat can colour them apart; fused, they make one solid per seat."""
+    reclined about the hinge at the rear of the cushion. Split, returns the seat and its
+    accent panels (side bolsters, or the head rest on a plain seat) as separate solids, so a
+    two-tone seat can colour them apart; else the whole seat as one solid (and None)."""
     width = 540.0 if level == "premium" else 500.0
     y0, y1 = y - width / 2, y + width / 2
     top = cushion_top(c)
@@ -166,6 +167,8 @@ def _seat(c: Cabin, x_front: float, y: float, level: str) -> tuple[k.Shape, k.Sh
         return k.rotate_y(k.fuse(*parts) if len(parts) > 1 else parts[0], -c.recline,
                           (x0, 0.0, top))  # fmt: skip
 
+    if not split:  # the panels join the seat before it reclines (one clean boolean)
+        return k.fuse(*lower, *accent_low, recline(upper + accent_up)), None
     seat = k.fuse(*lower, recline(upper))
     accents = [recline(accent_up), *accent_low] if accent_up else accent_low
     return seat, (k.fuse(*accents) if len(accents) > 1 else accents[0])
@@ -190,10 +193,10 @@ def build_seats(p: Inputs) -> k.Shape:
     roof_at = _roof_over(p, c)
     # Each seat is sized for the roof above its backrest (a 2+2 under a fastback gets
     # lower rear backrests instead of passing through the roof).
-    seats = [_seat(replace(c, roof=roof_at(x - 560.0)), x, y, level) for x, y in seat_positions(p)]
+    split = two_tone(p)  # single tone: each seat's accent panels are part of it
+    seats = [_seat(replace(c, roof=roof_at(x - 560.0)), x, y, level, split)
+             for x, y in seat_positions(p)]  # fmt: skip
     parts = [seat for seat, _ in seats]
-    if not two_tone(p):  # single tone: the accent panels are part of each seat
-        parts += [accent for _, accent in seats]
     first, *rest = parts
     return k.fuse(first, *rest) if rest else first
 
@@ -209,8 +212,11 @@ def build_seat_accents(p: Inputs) -> k.Shape | None:
         return None
     c, level = cabin(p), trim(p)
     roof_at = _roof_over(p, c)
-    accents = [_seat(replace(c, roof=roof_at(x - 560.0)), x, y, level)[1]
-               for x, y in seat_positions(p)]  # fmt: skip
+    built = [_seat(replace(c, roof=roof_at(x - 560.0)), x, y, level)[1]
+             for x, y in seat_positions(p)]  # fmt: skip
+    accents = [a for a in built if a is not None]
+    if not accents:
+        return None
     first, *rest = accents
     return k.fuse(first, *rest) if rest else first
 

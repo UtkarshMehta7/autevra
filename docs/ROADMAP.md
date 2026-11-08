@@ -136,6 +136,21 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-11-09: realism controls for the grand tourer
+
+Continuing the open GT from the photo, the styled body gained the details that make a
+sports car read as real:
+
+- **Nose rake** and a **bonnet dome** between two creases; a gloss-black **lower trim** band round the foot of the body; **door shut lines** with flush handle recesses; **smoked head lamp housings**.
+- **Wing crease** (`wing_crease`): a sharp character line from the head lamp back into the front of the door, with the flank drawn in beneath it. The body width is unchanged.
+- **Two-tone seats** (`seat_accent`): contrasting bolsters, or the head rest on plain seats, built as a separate *Seat accents* part. Changing only the accent colour never rebuilds geometry. "Charcoal bolsters" or "make the seats two tone" set it from the command bar.
+- **Exhaust tips** (`exhaust_tips`): hidden, twin, quad or centre tailpipes through the rear valance. **Swept tail lamps** that rise towards the outer corners.
+- Open cars get a slimmer windscreen surround and **teardrop mirrors** on a slim stalk. Saloons, coupes and supercars close the passenger space behind the last row (boot or engine bay behind).
+- **Front face** (`front_face`): a broad, upright fascia down to a low chin for a large grille, instead of a bullet nose; the sport grille is now wider at the top, as on most grand tourers.
+- Open cars no longer squash the seats under the deck: backrests and head rests stand above the doors. **Taupe** upholstery; tyres are near black.
+- **Render** display mode (look development, as in a 3D suite's real-time preview): **Outdoor** (a sky dome with a low warm sun for the reflections, stone paving, haze to the horizon) or **Studio** (soft box, dark floor), with soft shadows, lamp bloom, filmic tone mapping and multisampling.
+- **Reference** panel: paste, drop or load a photo beside the 3D view to compare the model with it; the **Hero** view matches a low front three-quarter press photograph.
+
 ### 2026-11-06: an open grand tourer from a photo; resizable studio
 
 Rebuilding a photo of an open 2+2 grand tourer (matte green, black multi-spoke wheels,

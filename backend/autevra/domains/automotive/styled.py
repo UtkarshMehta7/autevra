@@ -283,8 +283,10 @@ def skin(p: Inputs, layout: b.BodyLayout, inset: float = 0.0) -> k.Shape:
     ends = {0: (0.45, 0.55), 1: (0.82, 0.85), 2: (0.95, 0.96)}
     face = min(max(p.get("front_face", 0.0), 0.0), 100.0) / 100.0
     full = {0: (0.86, 0.9), 1: (0.97, 0.98), 2: (0.995, 0.997)}
-    nose_ends = {i: (a + face * (fa - a), b_ + face * (fb - b_))
-                 for i, ((a, b_), (fa, fb)) in enumerate(zip(ends.values(), full.values()))}  # fmt: skip
+    nose_ends = {
+        i: (a + face * (full[i][0] - a), b_ + face * (full[i][1] - b_))
+        for i, (a, b_) in ends.items()
+    }
     wires = []
     for i, x in enumerate(xs):
         loop = section_points(p, g, x, inset)

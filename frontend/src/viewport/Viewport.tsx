@@ -13,7 +13,7 @@ import {
   type DisplayMode, type SectionAxis, type StandardView, VIEWS, curvatureColors, curvatureEstimate,
   edgesOf, featureEdges, framing, measure, sectionPlane,
 } from "./tools";
-import { type Studio, createStudio } from "./render";
+import { type Look, type Studio, createStudio } from "./render";
 
 interface Props {
   model: ModelPayload | null;
@@ -83,6 +83,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
   const restore = useRef(false);
   const markers = useRef<THREE.Group | null>(null);
   const [display, setDisplay] = useState<DisplayMode>("shaded");
+  const [look, setLook] = useState<Look>("outdoor");
   const [pull, setPull] = useState<string>("+z");
   const [minDraft, setMinDraft] = useState(1);
   const [ortho, setOrtho] = useState(false);
@@ -123,7 +124,8 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
     const controls = new OrbitControls(perspective, renderer.domElement);
     controls.enableDamping = true;
 
-    scene.add(new THREE.HemisphereLight(0xdde6f0, 0x2a2a2a, 0.9));
+    const sky = new THREE.HemisphereLight(0xdde6f0, 0x2a2a2a, 0.9);
+    scene.add(sky);
     const sun = new THREE.DirectionalLight(0xffffff, 2.0);
     sun.position.set(3000, -4000, 6000);
     scene.add(sun);
@@ -134,7 +136,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
 
     const root = new THREE.Group();
     scene.add(root);
-    const studio = createStudio(renderer, scene, [grid]);
+    const studio = createStudio(renderer, scene, [grid, sky, sun]); // the studio has its own lights
     const marks = new THREE.Group();
     scene.add(marks);
     markers.current = marks;
@@ -357,8 +359,8 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
           display === "wireframe" ? (id === selected ? 0x7fb2ff : 0xc9d4e0) : 0x0b0e12);
       }
     }
-    c.studio.set(display === "render", modelBox(c.root, c.meshes));
-  }, [model, selected, highlighted, xray, display, hidden, section.axis, pull, minDraft]);
+    c.studio.set(display === "render", modelBox(c.root, c.meshes), look);
+  }, [model, selected, highlighted, xray, display, hidden, section.axis, pull, minDraft, look]);
 
   // Section plane.
   useEffect(() => {
@@ -445,6 +447,16 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
             </button>
           ))}
         </div>
+        {display === "render" && (
+          <div className="seg" aria-label="Render look">
+            {(["outdoor", "studio"] as Look[]).map((l) => (
+              <button key={l} className={look === l ? "on" : ""} onClick={() => setLook(l)}
+                title={l === "outdoor" ? "Daylight: sky reflections, low warm sun, stone ground" : "Photo studio: soft box, dark floor"}>
+                {l === "outdoor" ? "Outdoor" : "Studio"}
+              </button>
+            ))}
+          </div>
+        )}
         {display === "draft" && (
           <div className="seg" aria-label="Draft analysis">
             <label title="Pull direction (mould opening)">pull

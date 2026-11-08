@@ -28,7 +28,7 @@ export function materialFor(finish: string | undefined, color: [number, number, 
         clearcoat: 1, emissive: new THREE.Color(0.03, 0.07, 0.13), emissiveIntensity: 0.7 });
     case "lamp":
       return new THREE.MeshStandardMaterial({ color: c, roughness: 0.2, metalness: 0,
-        emissive: c, emissiveIntensity: 0.55 });
+        emissive: c, emissiveIntensity: 3.2 }); // lit: well above 1 in HDR, so lamps bloom in Render
     case "rubber":
       return new THREE.MeshStandardMaterial({ color: c, roughness: 0.92, metalness: 0 });
     case "polished": // diamond-cut or polished alloy

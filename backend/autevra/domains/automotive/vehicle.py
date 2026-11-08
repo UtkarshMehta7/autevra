@@ -438,7 +438,7 @@ COMPONENTS: tuple[ComponentDef, ...] = (
         id="frame", name="Chassis frame", category="chassis", builder="frame",
         geometry=FRAME_GEOMETRY, inputs=lambda p: {k: p[k] for k in dict.fromkeys(FRAME_GEOMETRY)},
         frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
-        mate=Mate("vehicle", "origin", "origin"), color=_FRAME_COLOR, finish="metal",
+        mate=Mate("vehicle", "origin", "origin"), color=_FRAME_COLOR, finish="trim",
     ),
     _axle("front_axle", "Front suspension", "track_front", "front_axle_mount"),
     _axle("rear_axle", "Rear suspension", "track_rear", "rear_axle_mount"),
