@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
-import type { FeaCatalogue, FeaRequest, FeaResult, PartOut } from "../api/types";
+import type { FeaCatalogue, FeaMesh, FeaRequest, FeaResult, PartOut } from "../api/types";
 import { type FeaField, FeaView, rainbow } from "./FeaView";
 import { TopologyPanel } from "./TopologyPanel";
 
@@ -25,6 +25,7 @@ export function StructuresPanel({ projectId }: { projectId?: string }) {
     supports: ["x-min"], loads: [{ region: "x-max", force: [0, 0, -1000], pressure: 0 }],
   });
   const [result, setResult] = useState<FeaResult | null>(null);
+  const [preview, setPreview] = useState<FeaMesh | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [field, setField] = useState<FeaField>("von_mises");
@@ -37,21 +38,60 @@ export function StructuresPanel({ projectId }: { projectId?: string }) {
   }, [projectId]);
 
   const material = catalogue?.materials[req.material.name];
+  const target = () => {
+    const [kind, id] = source.split(":");
+    return kind === "part" && projectId ? { body: req, part: { project: projectId, part: id } } : { body: { ...req, demo: id } };
+  };
   const run = async () => {
     setBusy(true);
     setError(null);
     try {
-      const [kind, id] = source.split(":");
-      const out = kind === "part" && projectId
-        ? await api.runFea(req, { project: projectId, part: id })
-        : await api.runFea({ ...req, demo: id });
+      const { body, part } = target();
+      const out = await api.runFea(body, part);
       setResult(out);
+      setPreview(out.mesh);
       setScale(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
+  };
+  const meshOnly = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { body, part } = target();
+      setPreview((await api.feaMesh(body, part)).mesh);
+      setResult(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Face roles from the request: supports and the load region on the part's own faces.
+  const faceOf = (region: string) => (region.startsWith("face:") ? Number(region.slice(5)) : null);
+  const roles: Record<number, "support" | "load"> = {};
+  for (const r of req.supports) { const f = faceOf(r); if (f != null) roles[f] = "support"; }
+  { const f = faceOf(req.loads[0].region); if (f != null) roles[f] = "load"; }
+  // A click on a face cycles it: free -> support -> load -> free (one loaded face).
+  const pickFace = (face: number) => {
+    const region = `face:${face}`;
+    // the first face picked as a support replaces the bounding-box supports
+    const faces = req.supports.some((r) => r.startsWith("face:"));
+    const supports = req.supports.filter((r) => r !== region && (faces || roles[face] !== undefined || r.startsWith("face:")));
+    const loads = [...req.loads];
+    if (roles[face] === undefined) supports.push(region);
+    else if (roles[face] === "support") loads[0] = { ...loads[0], region };
+    else loads[0] = { ...loads[0], region: "x-max" }; // a load face goes back to free
+    setReq({ ...req, supports, loads });
+    setResult(null);
+  };
+  const faceLabel = (region: string) => {
+    const f = faceOf(region);
+    const face = f != null ? preview?.faces[f] : undefined;
+    return face ? `face ${f} (${face.type}, ${(face.area / 100).toFixed(1)} cm²)` : region;
   };
 
   const autoScale = useMemo(() => {
@@ -70,7 +110,8 @@ export function StructuresPanel({ projectId }: { projectId?: string }) {
   return (
     <div className="bench wide surfaces-lab structures">
       <div className="lab-view">
-        <FeaView result={result} field={field} scale={shown} edges={edges} />
+        <FeaView result={result} preview={preview} field={field} scale={shown} edges={edges}
+          roles={roles} onPick={pickFace} />
         <div className="lab-toolbar">
           {(Object.keys(FIELDS) as FeaField[]).map((f) => (
             <button key={f} className={field === f ? "on" : ""} onClick={() => setField(f)}>{FIELDS[f].label}</button>
@@ -91,7 +132,12 @@ export function StructuresPanel({ projectId }: { projectId?: string }) {
       </div>
       <div className="lab-side">
         <div className="row">
-          <select value={source} onChange={(e) => setSource(e.target.value)}>
+          <select value={source} onChange={(e) => {
+            setSource(e.target.value);
+            setPreview(null);
+            setResult(null);
+            setReq({ ...req, supports: ["x-min"], loads: [{ ...req.loads[0], region: "x-max" }] });
+          }}>
             {catalogue && Object.entries(catalogue.demos).map(([k, v]) => <option key={k} value={`demo:${k}`}>{v}</option>)}
             {parts.filter((p) => p.volume).map((p) => <option key={p.id} value={`part:${p.id}`}>Part: {p.document.name}</option>)}
           </select>
@@ -123,11 +169,16 @@ export function StructuresPanel({ projectId }: { projectId?: string }) {
             <label key={r}><input type="checkbox" checked={req.supports.includes(r)} onChange={(e) => setReq({
               ...req, supports: e.target.checked ? [...req.supports, r] : req.supports.filter((x) => x !== r) })} />{r}</label>
           ))}
+          {req.supports.filter((r) => r.startsWith("face:")).map((r) => (
+            <span key={r} className="chip support">{faceLabel(r)}
+              <button title="Remove" onClick={() => setReq({ ...req, supports: req.supports.filter((x) => x !== r) })}>×</button></span>
+          ))}
         </div>
         <div className="row">
           <strong>Load on</strong>
           <select value={load.region} onChange={(e) => setLoad({ region: e.target.value })}>
             {(catalogue?.regions ?? []).map((r) => <option key={r}>{r}</option>)}
+            {load.region.startsWith("face:") && <option value={load.region}>{faceLabel(load.region)}</option>}
           </select>
           {(["Fx", "Fy", "Fz"] as const).map((n, i) => (
             <label key={n}>{n} <input type="number" step={100} value={load.force[i]} style={{ width: 70 }} onChange={(e) => {
@@ -141,6 +192,7 @@ export function StructuresPanel({ projectId }: { projectId?: string }) {
             onChange={(e) => setLoad({ pressure: Number(e.target.value) })} /> MPa</label>
         </div>
         <div className="row">
+          <button disabled={busy} onClick={meshOnly} title="Mesh the part to pick faces: click a face for a support, again for the load, again to clear">Mesh (pick faces)</button>
           <button className="primary" disabled={busy || req.supports.length === 0} onClick={run}>{busy ? "Solving…" : "Mesh and solve"}</button>
           {error && <span className="error">{error}</span>}
         </div>

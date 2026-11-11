@@ -40,6 +40,10 @@ class Mesh:
     cad_volume: float
     stats: dict = field(default_factory=dict)
     boundary6: np.ndarray | None = None  # (F, 6) quadratic surface triangles (TET10 only)
+    # The B-rep face each boundary triangle lies on (index into ``faces``), so supports and
+    # loads can be put on the part's own faces; and a summary of those faces.
+    boundary_face: np.ndarray | None = None
+    faces: list[dict] = field(default_factory=list)
 
 
 def _classifier(shape: k.Shape):  # type: ignore[no-untyped-def]
@@ -250,7 +254,7 @@ def tet_mesh(shape: k.Shape, size: float) -> Mesh:
     cad = k.volume(shape)
     mesh_vol = float(tet_volumes(nodes, tets).sum())
     boundary = _boundary(tets, TET_FACES, nodes)
-    return Mesh("tet4", nodes, tets, boundary, cad, {
+    return label_faces(shape, Mesh("tet4", nodes, tets, boundary, cad, {
         "nodes": len(nodes), "elements": len(tets), "size": size,
         "volume_ratio": mesh_vol / cad if cad else 0.0,
         "quality_min": float(q.min()), "quality_mean": float(q.mean()),
@@ -258,10 +262,43 @@ def tet_mesh(shape: k.Shape, size: float) -> Mesh:
         "method": "Delaunay tetrahedralisation (Qhull) of the spaced surface samples and an "
         "interior BCC lattice; tetrahedra kept by centroid classification against the "
         "B-rep; fragments hinged to the body at a node or an edge dropped",
-    })  # fmt: skip
+    }))  # fmt: skip
 
 
 TET_FACES = [(0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3)]
+
+
+def label_faces(shape: k.Shape, mesh: Mesh) -> Mesh:
+    """Tag every boundary triangle with the nearest B-rep face (by its centroid against
+    samples of each face's tessellation) and list the faces (type, area, centre, normal)."""
+    from scipy.spatial import cKDTree
+
+    pts, owner, faces = [], [], []
+    spacing = max(0.25 * mesh.stats.get("size", 1.0), 0.2)
+    for i, face in enumerate(shape.Faces()):
+        tri = k.tessellate(face, tolerance=0.2, angular=0.3)
+        v = np.asarray(tri.vertices, dtype=float).reshape(-1, 3)
+        t = np.asarray(tri.indices, dtype=int).reshape(-1, 3)
+        # dense samples (flat faces tessellate into a few large triangles)
+        samples = _sample_surface(v, t, spacing) if len(t) else v
+        pts.append(samples)
+        owner.append(np.full(len(samples), i))
+        c = face.Center()
+        try:  # at the middle of the face's parameter range (a centroid may be off it)
+            n = face.normalAt()
+        except Exception:  # the kernel raises several types; no normal then
+            n = c * 0.0
+        faces.append({"id": i, "type": face.geomType().lower(), "area": face.Area(),
+                      "centre": [c.x, c.y, c.z], "normal": [n.x, n.y, n.z]})  # fmt: skip
+    if not pts:
+        return mesh
+    tree = cKDTree(np.concatenate(pts))
+    _, nearest = tree.query(mesh.nodes[mesh.boundary].mean(axis=1))
+    mesh.boundary_face = np.concatenate(owner)[nearest]
+    mesh.faces = faces
+    return mesh
+
+
 HEX_FACES = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
 
 
@@ -281,7 +318,8 @@ def hex_mesh(shape: k.Shape, size: float) -> Mesh:
     cells = ijk[_inside_many(shape, centres, closed)]
     if len(cells) == 0:
         raise MeshError("no voxels inside the part; try a smaller size")
-    return voxel_mesh(np.array([x0, y0, z0]), h, np.asarray(cells), k.volume(shape))
+    return label_faces(shape, voxel_mesh(np.array([x0, y0, z0]), h, np.asarray(cells),
+                                         k.volume(shape)))  # fmt: skip
 
 
 def voxel_mesh(origin: np.ndarray, h: np.ndarray, cells: np.ndarray, cad_volume: float) -> Mesh:
@@ -340,4 +378,14 @@ def to_tet10(mesh: Mesh) -> Mesh:
     method = mesh.stats["method"] + "; mid-edge nodes added for quadratic TET10"
     stats = {**mesh.stats, "nodes": len(nodes), "corner_nodes": len(mesh.nodes), "method": method}
     elements = np.hstack([mesh.elements, mid])
-    return Mesh("tet10", nodes, elements, mesh.boundary, mesh.cad_volume, stats, boundary6)
+    return Mesh(
+        "tet10",
+        nodes,
+        elements,
+        mesh.boundary,
+        mesh.cad_volume,
+        stats,
+        boundary6,
+        mesh.boundary_face,
+        mesh.faces,
+    )

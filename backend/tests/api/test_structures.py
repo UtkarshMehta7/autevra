@@ -36,3 +36,19 @@ def test_topology_optimisation_runs_and_reports_its_history(client: TestClient) 
     assert client.get("/api/structures/topology/catalogue").json()["cases"]["mbb"]
     too_big = client.post("/api/structures/topology", json={**body, "ny": 20, "nz": 30})
     assert too_big.status_code == 422
+
+
+def test_supports_and_loads_can_sit_on_the_parts_own_faces(client: TestClient) -> None:
+    preview = client.post("/api/structures/mesh", json={"demo": "bracket", "element": "tet4",
+                                                        "size": 8}).json()["mesh"]  # fmt: skip
+    faces = preview["faces"]
+    assert faces and len(preview["boundary_face"]) == len(preview["boundary"])
+    hole = next(f["id"] for f in faces if f["type"] == "cylinder")  # the bolt hole
+    top = max((f for f in faces if f["type"] == "plane"), key=lambda f: f["centre"][2])["id"]
+    body = {"demo": "bracket", "element": "tet4", "size": 8, "supports": [f"face:{hole}"],
+            "loads": [{"region": f"face:{top}", "force": [0, 0, -500]}]}  # fmt: skip
+    r = client.post("/api/structures/run", json=body)
+    assert r.status_code == 200, r.text
+    assert r.json()["stats"]["equilibrium_error"] < 1e-6
+    bad = client.post("/api/structures/run", json={**body, "supports": ["face:999"]})
+    assert bad.status_code == 422

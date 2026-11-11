@@ -683,11 +683,18 @@ export interface FeaRequest {
   loads: { region: string; force: [number, number, number]; pressure: number }[];
 }
 
+export interface FeaFace { id: number; type: string; area: number; centre: [number, number, number]; normal: [number, number, number] }
+
+export interface FeaMesh {
+  kind: "tet4" | "tet10" | "hex8"; nodes: [number, number, number][]; boundary: [number, number, number][];
+  boundary_face: number[]; faces: FeaFace[];
+  stats: { nodes: number; elements: number; size: number; volume_ratio: number; quality_min: number;
+    quality_mean: number; slivers: number; method: string };
+  cad_volume: number;
+}
+
 export interface FeaResult {
-  mesh: { kind: "tet4" | "tet10" | "hex8"; nodes: [number, number, number][]; boundary: [number, number, number][];
-    stats: { nodes: number; elements: number; size: number; volume_ratio: number; quality_min: number;
-      quality_mean: number; slivers: number; method: string };
-    cad_volume: number };
+  mesh: FeaMesh;
   fields: { displacement: [number, number, number][]; magnitude: number[]; von_mises: number[];
     principal_1: number[]; strain_eq: number[] };
   supports: number[];

@@ -464,3 +464,6 @@ textarea.json.bad { border-color: var(--bad); }
 .shortcuts dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
 .shortcuts dt { color: #ffc94a; font-family: ui-monospace, Menlo, monospace; }
 .shortcuts dd { margin: 0; }
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--line); }
+.chip.support { border-color: #4f86d6; color: #9cc0f0; }
+.chip button { border: 0; background: transparent; color: inherit; padding: 0 2px; }

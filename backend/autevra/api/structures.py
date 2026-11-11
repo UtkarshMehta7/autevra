@@ -55,7 +55,8 @@ class MaterialIn(BaseModel):
         )  # fmt: skip
 
 
-Region = Literal["x-min", "x-max", "y-min", "y-max", "z-min", "z-max"]
+# a side of the bounding box, or one of the part's own faces (``face:<index>``)
+Region = Annotated[str, Field(pattern=r"^([xyz]-(min|max)|face:\d{1,5})$")]
 
 
 class LoadIn(BaseModel):
@@ -97,6 +98,21 @@ def run_demo(body: RunIn) -> dict:
 @router.post("/projects/{project_id}/parts/{part_id}/structures")
 def run_part(project_id: str, part_id: str, body: RunIn, ws: WorkspaceDep) -> dict:
     """Analyse a Part Design part (in its own frame)."""
+    return _analyse(_part_shape(project_id, part_id, ws), body)
+
+
+@router.post("/structures/mesh")
+def mesh_demo(body: RunIn) -> dict:
+    """Mesh a demo geometry without solving (to pick faces for supports and loads)."""
+    return _mesh_only(_demo(body.demo), body)
+
+
+@router.post("/projects/{project_id}/parts/{part_id}/structures/mesh")
+def mesh_part(project_id: str, part_id: str, body: RunIn, ws: WorkspaceDep) -> dict:
+    return _mesh_only(_part_shape(project_id, part_id, ws), body)
+
+
+def _part_shape(project_id: str, part_id: str, ws: WorkspaceDep) -> k.Shape:
     from autevra.api import model_service
 
     doc = dict(ws._part_docs(project_id)).get(part_id)
@@ -105,18 +121,32 @@ def run_part(project_id: str, part_id: str, body: RunIn, ws: WorkspaceDep) -> di
     _, report = model_service.build_part(doc, ws.cache)
     if report.shape is None:
         raise HTTPException(status_code=422, detail="the part has no solid to analyse")
-    return _analyse(report.shape, body)
+    return report.shape
+
+
+def _mesh(shape: k.Shape, body: RunIn) -> fm.Mesh:
+    if body.element == "hex8":
+        return fm.hex_mesh(shape, body.size)
+    mesh = fm.tet_mesh(shape, body.size)
+    return fm.to_tet10(mesh) if body.element == "tet10" else mesh
+
+
+def _mesh_only(shape: k.Shape, body: RunIn) -> dict:
+    try:
+        mesh = _mesh(shape, body)
+    except fm.MeshError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    return {"mesh": {
+        "kind": mesh.kind, "nodes": _r(mesh.nodes, 3), "boundary": mesh.boundary.tolist(),
+        "boundary_face": [] if mesh.boundary_face is None else mesh.boundary_face.tolist(),
+        "faces": mesh.faces, "stats": mesh.stats, "cad_volume": mesh.cad_volume,
+    }}  # fmt: skip
 
 
 def _analyse(shape: k.Shape, body: RunIn) -> dict:
     """Mesh, assemble, solve and post-process; every number in the reply is computed."""
     try:
-        if body.element == "hex8":
-            mesh = fm.hex_mesh(shape, body.size)
-        else:
-            mesh = fm.tet_mesh(shape, body.size)
-            if body.element == "tet10":
-                mesh = fm.to_tet10(mesh)
+        mesh = _mesh(shape, body)
         material = body.material.material()
         loads = [fs.Load(load.region, load.force, load.pressure) for load in body.loads]
         result = fs.solve(mesh, material, list(body.supports), loads)
@@ -138,6 +168,8 @@ def _analyse(shape: k.Shape, body: RunIn) -> dict:
     return {
         "mesh": {
             "kind": mesh.kind, "nodes": _r(mesh.nodes, 3), "boundary": mesh.boundary.tolist(),
+            "boundary_face": [] if mesh.boundary_face is None else mesh.boundary_face.tolist(),
+            "faces": mesh.faces,
             "stats": mesh.stats, "cad_volume": mesh.cad_volume,
             "elements_preview": mesh.elements[: min(len(mesh.elements), 4000)].tolist(),
         },

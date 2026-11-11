@@ -127,14 +127,19 @@ function StudioView({ projectId, workspace, navigate }: {
   const queue = useRef<Promise<void>>(Promise.resolve());
   const pending = useRef(0);
 
+  // The project the studio is showing: a slow load of a project the user has since left
+  // must not overwrite the newer one when it finally arrives.
+  const current = useRef<string | null>(null);
   const refresh = useCallback(async (id: string) => {
+    current.current = id;
     const started = performance.now();
     const [state, hist, mdl, runList, status, studyList, loopList] = await Promise.all([
       api.project(id), api.history(id), api.model(id, geometryCache.keys()), api.runs(id),
       api.componentStatus(id), api.studies(id), api.loops(id),
     ]);
-    api.requirements(id).then(setRequirements).catch(() => setRequirements([]));
-    api.spec(id).then(setSpecState).catch(() => setSpecState(null));
+    if (current.current !== id) return; // superseded by another project
+    api.requirements(id).then((r) => current.current === id && setRequirements(r)).catch(() => setRequirements([]));
+    api.spec(id).then((s) => current.current === id && setSpecState(s)).catch(() => setSpecState(null));
     setStudies(studyList);
     setLoops(loopList);
     setProject(state);

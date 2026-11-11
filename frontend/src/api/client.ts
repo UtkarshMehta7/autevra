@@ -1,5 +1,5 @@
 import type {
-  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, TopologyRequest, TopologyResult } from "./types";
+  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -243,6 +243,8 @@ export const api = {
   topology: (body: TopologyRequest) => post<TopologyResult>("/structures/topology", body),
   topologyCases: () => request<{ cases: Record<string, string> }>("/structures/topology/catalogue"),
   feaCatalogue: () => request<FeaCatalogue>("/structures/catalogue"),
+  feaMesh: (body: FeaRequest, part?: { project: string; part: string }) =>
+    post<{ mesh: FeaMesh }>(part ? `/projects/${part.project}/parts/${part.part}/structures/mesh` : "/structures/mesh", body),
   runFea: (body: FeaRequest, part?: { project: string; part: string }) =>
     post<FeaResult>(part ? `/projects/${part.project}/parts/${part.part}/structures` : "/structures/run", body),
   surfaceContinuity: (a: NurbsSurface, b: NurbsSurface, combScale: number) =>

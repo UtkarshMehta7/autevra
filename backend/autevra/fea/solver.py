@@ -180,7 +180,10 @@ def region_nodes(mesh: Mesh, region: str, tol: float | None = None) -> np.ndarra
     """Nodes on a face of the part's bounding box (e.g. "x-min": the -X end).
 
     Nodes on that plane; when the part only touches the plane at a point or an edge (a
-    rounded end), the band widens to half an element so there is something to hold."""
+    rounded end), the band widens to half an element so there is something to hold. A
+    region ``face:<i>`` is the part's own B-rep face i (its boundary triangles' nodes)."""
+    if region.startswith("face:"):
+        return np.unique(_face_triangles(mesh, region))
     axis = "xyz".index(region[0])
     lo, hi = mesh.nodes[:, axis].min(), mesh.nodes[:, axis].max()
     target = lo if region.endswith("min") else hi
@@ -193,7 +196,16 @@ def region_nodes(mesh: Mesh, region: str, tol: float | None = None) -> np.ndarra
     return np.flatnonzero(gap <= 0.5 * mesh.stats.get("size", 0.02 * (hi - lo)))
 
 
+def _face_triangles(mesh: Mesh, region: str) -> np.ndarray:
+    face = int(region.split(":", 1)[1])
+    if mesh.boundary_face is None or not 0 <= face < len(mesh.faces):
+        raise ValueError(f"the part has no face {face}")
+    return mesh.boundary[mesh.boundary_face == face]
+
+
 def region_triangles(mesh: Mesh, region: str) -> np.ndarray:
+    if region.startswith("face:"):
+        return _face_triangles(mesh, region)
     on = np.zeros(len(mesh.nodes), dtype=bool)
     on[region_nodes(mesh, region)] = True
     return mesh.boundary[on[mesh.boundary].all(axis=1)]
