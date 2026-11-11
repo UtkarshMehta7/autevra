@@ -65,7 +65,14 @@ export function FunctionsPanel({ projectId, version }: { projectId: string; vers
   const [out, setOut] = useState<SystemsOut | null>(null);
   const [fn, setFn] = useState<string | null>(null);
   const [steps, setSteps] = useState<ChainStep[] | null>(null);
-  const [tab, setTab] = useState<"chain" | "icd" | "fmea">("chain");
+  const [tab, setTab] = useState<"chain" | "icd" | "fmea" | "fta">("chain");
+  const [fta, setFta] = useState<{ tree: { top_event: string; rate_per_h: number; gates: { block: string; name: string; rate_per_h: number; importance: number;
+    basics: { part: string; name: string; instances: number; rate_per_h: number }[] }[] };
+    target?: { severity: number; class: string; per_hour: number; met: boolean; scheme: string } } | null>(null);
+  useEffect(() => {
+    if (tab !== "fta" || !fn) return;
+    api.faultTree(projectId, fn).then((r) => setFta(r as never)).catch(() => setFta(null));
+  }, [tab, fn, projectId]);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => api.systems(projectId).then((r) => { setOut(r); setError(null); })
@@ -135,6 +142,7 @@ export function FunctionsPanel({ projectId, version }: { projectId: string; vers
           <button className={tab === "chain" ? "active" : ""} onClick={() => setTab("chain")}>Function chain</button>
           <button className={tab === "icd" ? "active" : ""} onClick={() => setTab("icd")}>Interfaces ({out.icd.length})</button>
           <button className={tab === "fmea" ? "active" : ""} onClick={() => setTab("fmea")}>Design FMEA ({out.failure_modes.length})</button>
+          <button className={tab === "fta" ? "active" : ""} onClick={() => setTab("fta")}>Fault tree</button>
           <span className="legend">
             {(Object.keys(KIND_LABEL) as FlowKind[]).map((k) => <span key={k}><i className={`flow-${k}`} />{KIND_LABEL[k]}</span>)}
           </span>
@@ -169,6 +177,27 @@ export function FunctionsPanel({ projectId, version }: { projectId: string; vers
                 <td className="muted">{Object.entries(r.attributes).map(([k, v]) => `${k}: ${v}`).join(" · ")}</td></tr>
             ))}</tbody>
           </table>
+        )}
+        {tab === "fta" && fta && (
+          <div className="fta">
+            <h3 className="fn-title">{fta.tree.top_event}: {fta.tree.rate_per_h.toExponential(2)} per hour</h3>
+            {fta.target && (
+              <div className={`check ${fta.target.met ? "pass" : "fail"}`}>
+                <span className="badge">{fta.target.met ? "meets" : "above"} target</span>
+                worst FMEA severity {fta.target.severity} → {fta.target.class}: target {fta.target.per_hour.toExponential(0)} per hour ({fta.target.scheme}).
+                {!fta.target.met && " Series model without redundancy credit: add redundancy or monitoring for the largest contributors."}
+              </div>
+            )}
+            <div className="muted small">OR gate over the blocks performing the function; each block an OR over its parts' instances; generic failure rates by process (indicative).</div>
+            {fta.tree.gates.map((g) => (
+              <div key={g.block} className="gate-row">
+                <span className="gname">{g.name}</span>
+                <span className="bar"><i style={{ width: `${g.importance * 100}%` }} /></span>
+                <span className="small">{g.rate_per_h.toExponential(2)}/h · {(g.importance * 100).toFixed(0)} %</span>
+                <div className="muted small basics">{g.basics.map((b) => `${b.name}${b.instances > 1 ? ` ×${b.instances}` : ""} (${b.rate_per_h.toExponential(1)})`).join(" · ")}</div>
+              </div>
+            ))}
+          </div>
         )}
         {tab === "fmea" && (
           <>

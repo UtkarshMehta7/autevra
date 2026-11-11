@@ -271,6 +271,8 @@ export const api = {
   productEnvelope: (id: string) => request<ProductEnvelope>(`/projects/${id}/product/envelope`),
   systems: (id: string) => request<SystemsOut>(`/projects/${id}/systems`),
   projectLoads: (id: string) => request<unknown>(`/projects/${id}/loads`),
+  faultTree: (id: string, fn: string, exposure = 1) =>
+    request<unknown>(`/projects/${id}/systems/fault-tree/${encodeURIComponent(fn)}?exposure=${exposure}`),
   materials: () => request<unknown[]>("/materials"),
   manufacturing: (id: string, takt?: number) => request<unknown>(`/projects/${id}/manufacturing${takt ? `?takt=${takt}` : ""}`),
   stackup: (stack: unknown) => post<unknown>("/quality/stackup", stack),

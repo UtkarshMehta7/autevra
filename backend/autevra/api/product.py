@@ -20,7 +20,7 @@ from autevra.api.marine import get_spec as vessel_spec
 from autevra.api.mechanical import values as mechanical_values
 from autevra.api.routes import WorkspaceDep
 from autevra.api.service import Workspace
-from autevra.product import templates
+from autevra.product import fault_tree, templates
 from autevra.product.breakdown import LEVELS, RolledNode, check_ids, configure, rollup
 from autevra.product.options import ApplicabilityError, OptionFamily, OptionRule
 from autevra.product.systems import (
@@ -399,3 +399,39 @@ def life_cycle(project_id: str, ws: WorkspaceDep,
     plan = manufacturing.plan(root, dict(module.stations), list(module.station_order), 60.0)
     use = _use_phase(module, module.configure(values, config), grid, life)
     return sustainability.assess(plan, use)
+
+
+# --- fault trees ---------------------------------------------------------------------
+
+
+@router.get("/projects/{project_id}/systems/fault-tree/{function_id}")
+def function_fault_tree(project_id: str, function_id: str, ws: WorkspaceDep,
+                        exposure: float = Query(1.0, gt=0, le=1e6)) -> dict:  # fmt: skip
+    """The fault tree of 'loss of <function>' quantified with generic rates, and the
+    target for the worst severity the design FMEA gives that function (when the module has
+    a stated target scheme)."""
+    module, values = _module(ws, project_id)
+    chosen = _chosen(module, values, "")
+    arch = _architecture(module, values, chosen, {})
+    try:
+        tree = fault_tree.fault_tree(arch, root_node(module, values, chosen), function_id,
+                                     exposure)  # fmt: skip
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from None
+    out: dict = {"tree": tree.model_dump()}
+    sub, grew = {function_id}, True  # the function and its sub-functions
+    while grew:
+        more = {f.id for f in arch.functions if f.parent in sub} - sub
+        grew = bool(more)
+        sub |= more
+    modes = [m for m in arch.failure_modes if m.function in sub]
+    scheme = fault_tree.TARGETS.get(module.id)
+    if modes and scheme:
+        worst = max(m.severity for m in modes)
+        cls = fault_tree.severity_class(worst)
+        target = scheme[cls]
+        out["target"] = {"severity": worst, "class": cls, "per_hour": target,
+                         "met": tree.rate_per_h <= target,
+                         "scheme": "CS-23 Class I (AC 23.1309-1E)" if module.id == "aircraft"
+                         else "ISO 26262 hardware metric (indicative)"}  # fmt: skip
+    return out
