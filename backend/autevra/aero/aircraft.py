@@ -357,15 +357,15 @@ def parts(spec: AircraftSpec) -> list[dict]:
         {"id": "blades", "name": "Blades", "type": "wing", "naca": "4412",
          "root_chord": 0.09 * radius * 2, "tip_chord": 0.045 * radius * 2,
          "span": radius, "sweep": 3, "dihedral": 0, "twist": -12, "both_sides": True,
-         "at": {"x": 90, "z": 0.04 * radius, "ry": 70, "rx": 15}},
+         "at": {"x": 200, "z": 0.04 * radius, "ry": 70, "rx": 15}},  # clear of the cowl
     ]}  # fmt: skip
     spinner = {"name": "Spinner", "color": [0.62, 0.07, 0.07], "finish": "paint",
                "features": [{"id": "spinner", "name": "Spinner", "type": "loft",
-                             "at": {"x": 140, "ry": -90},
+                             "at": {"x": 260, "ry": -90},
                              "sections": [{"z": 0, "width": 30, "height": 30, "radius": 14},
-                                          {"z": 120, "width": 2 * hub, "height": 2 * hub,
+                                          {"z": 150, "width": 2 * hub, "height": 2 * hub,
                                            "radius": hub - 1},
-                                          {"z": 230, "width": 2.2 * hub, "height": 2.2 * hub,
+                                          {"z": 290, "width": 2.2 * hub, "height": 2.2 * hub,
                                            "radius": 1.1 * hub - 1}]}]}  # fmt: skip
     gear_z = -hei / 2 - 0.45 * mm
     wheels_at = ([(-0.08 * length, 0.0, "nose")] if spec.tricycle else
