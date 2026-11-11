@@ -1,5 +1,5 @@
 import type {
-  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult } from "./types";
+  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult, AircraftSpec, AircraftAnalysis } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -240,6 +240,9 @@ export const api = {
     post<{ surface: Required<NurbsSurface>; max_shape_change: number }>("/surfaces/insert-knot", { surface, direction, t }),
   joinSurface: (surface: NurbsSurface, target: "G0" | "G1" | "G2", bend: number) =>
     post<{ surface: Required<NurbsSurface> }>("/surfaces/join", { surface, target, bend }),
+  aircraftSpec: () => request<{ defaults: AircraftSpec }>("/aero/spec"),
+  analyseAircraft: (spec: AircraftSpec) => post<AircraftAnalysis>("/aero/analyse", spec),
+  buildAircraft: (id: string, spec: AircraftSpec) => post<PartOut>(`/projects/${id}/aircraft`, spec),
   topology: (body: TopologyRequest) => post<TopologyResult>("/structures/topology", body),
   topologyCases: () => request<{ cases: Record<string, string> }>("/structures/topology/catalogue"),
   feaCatalogue: () => request<FeaCatalogue>("/structures/catalogue"),

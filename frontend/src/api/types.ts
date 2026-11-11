@@ -742,3 +742,30 @@ export interface PartGraph {
   edges: { from: string; to: string; kind: "expression" | "binding" | "body" | "repeats"; field?: string }[];
   levels: Record<string, number>;
 }
+
+/** Parametric aircraft (backend aero/aircraft.py). */
+export interface AircraftSpec {
+  name: string;
+  wing_span: number; wing_root_chord: number; wing_tip_chord: number; wing_sweep: number; wing_dihedral: number;
+  wing_twist: number; wing_naca: string; wing_x: number; high_wing: boolean; cl_max_section: number;
+  fuselage_length: number; fuselage_width: number; fuselage_height: number;
+  htail_span: number; htail_root_chord: number; htail_tip_chord: number; htail_x: number; t_tail: boolean;
+  fin_height: number; fin_root_chord: number; fin_tip_chord: number; fin_sweep: number; fin_x: number;
+  power_kw: number; prop_diameter: number; prop_efficiency: number; bsfc: number; mtow: number; fuel_mass: number;
+  x_cg: number; fixed_gear: boolean; tricycle: boolean; cruise_speed: number; cruise_altitude: number;
+}
+
+export interface AircraftAnalysis {
+  atmosphere: { T: number; p: number; rho: number; mu: number; a: number; sigma: number; altitude: number; mach: number; q: number };
+  geometry: { wing_area: number; aspect_ratio: number; taper: number; mac: number; mac_x: number; mac_y: number;
+    htail_area: number; fin_area: number; tail_arm: number; fin_arm: number; wetted_area: number };
+  aero: { wing_lift_slope: number; tail_lift_slope: number; downwash_gradient: number; oswald_e: number; span_efficiency: number;
+    cl_cruise: number; alpha_cruise: number; cd0: number; cd_cruise: number; l_over_d: number; ld_max: number; v_ld_max: number;
+    zero_lift_angle: number; gear_cd0: number; span_y: number[]; span_cl: number[]; polar: { cl: number; cd: number }[];
+    components: { name: string; re: number; cf: number; ff: number; q: number; s_wet: number; cd0: number }[] };
+  stability: { x_ac_wing: number; x_ac_tail: number; x_np: number; x_cg: number; static_margin: number; v_h: number; v_v: number; eta: number };
+  performance: { wing_loading: number; power_loading: number; drag: number; power_required: number; power_available: number;
+    v_stall: number; cl_max: number; range_km: number; endurance_h: number };
+  checks: { name: string; value: number; range: [number, number]; unit: string; status: "pass" | "warn" | "fail"; why: string }[];
+  assumptions: string[];
+}
