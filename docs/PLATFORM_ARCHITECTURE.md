@@ -440,7 +440,109 @@ Measured results imported later close the loop against the stack-ups.
 | Many engineers | per-node ownership in the breakdown; edits as commands on branches; merges replay commands with conflict detection; live presence and comments; access control per project, module and item |
 | Audit and reproducibility | an append-only event log of commands; any baseline regenerates bit-for-bit from its log and kernel version |
 
-## 14. Data model
+Performance targets (measured by a benchmark suite in CI, on a stated reference machine;
+a regression fails the build):
+
+| Interaction | Target |
+|---|---|
+| parameter edit → derived values, rules and budgets updated | < 100 ms |
+| parameter edit → affected geometry rebuilt and displayed (cached neighbours) | < 1 s for a part, < 3 s for a vehicle |
+| open a 5,000-instance product at L0/L1 with display LODs | < 5 s |
+| clash check, 5,000 instances | < 10 s |
+| configuration switch (re-filter breakdown, BOM, roll-ups) | < 500 ms |
+| merge of two branches of 1,000 commands each | < 2 s |
+| linear static FEA, 100k DOF | < 30 s, as a background job |
+
+
+## 14. Data exchange and supplier collaboration
+
+| Need | Approach |
+|---|---|
+| Neutral CAD exchange | STEP AP242 export and import with product structure and semantic PMI; AP214 and IGES read; STL/3MF and glTF for visualisation and printing |
+| Lightweight visualisation | glTF (and JT where a partner requires it) with display LODs |
+| Drawings | SVG and PDF (today: SVG), DXF for flat patterns and profiles |
+| Requirements | ReqIF import/export (exists today) |
+| Behaviour models | FMI 2.0/3.0 FMUs, import and export |
+| Supplier packages | an **interface-only item**: envelope, interfaces, mass properties, performance maps and keep-out zones, with no internal geometry or parameters; suppliers return full or simplified items that are checked against the same interfaces |
+| Round trip | an imported supplier part keeps its provenance and version; a newer delivery shows its impact before replacing the old one |
+
+Exchange is tested by round trips: export, re-import, compare geometry (volume, area,
+centroid within tolerance) and structure.
+
+## 15. Security, intellectual property and export control
+
+- **Classification labels** on projects, items, versions and files: e.g. public,
+  internal, confidential, export-controlled (with the jurisdiction and classification,
+  such as ITAR or EAR categories, entered by the customer's export officer).
+- **Access rules** combine role, project membership, organisation and labels; an
+  export-controlled item is visible only to users whose attributes (nationality or
+  licence, location) the organisation has cleared. Rules are enforced in the service
+  layer and in every export path (files, API, AI context).
+- **IP protection** for suppliers and partners: interface-only items (section 14),
+  watermarked exports, revocable shares with expiry.
+- **Audit**: every read of a labelled item, export, share and permission change is
+  recorded in the append-only log.
+- **AI and data**: labelled content never leaves the deployment to an external model;
+  the local model path (exists today) is the default for restricted projects.
+- Autevra provides the mechanisms; compliance with export law remains the customer's
+  responsibility.
+
+## 16. Lifecycle after release
+
+The design is one view of the product; after release the platform tracks the others.
+
+| View | Contents | Example |
+|---|---|---|
+| **As designed** | baselines and configurations (sections 7, 11) | aircraft type design, configuration B |
+| **As planned** | MBOM and process plan per plant (section 12) | build plan for line 2 |
+| **As built** | per serial number: the configuration, actual part serials and lots, deviations and concessions, measured inspection results | aircraft serial 0042 |
+| **As maintained** | per serial: maintenance programme tasks (from the design: inspection intervals derived from fatigue and damage-tolerance analyses), repairs, modifications embodied, life-limited part tracking | landing gear leg at 6,200 of 10,000 cycles |
+| **Digital twin** | as-maintained state plus operating data (loads, cycles, temperatures) re-running the design's own analyses to update remaining life | fatigue life consumed by the measured load spectrum |
+
+A design change (ECO) states its retrofit applicability to serials in service, so the
+fleet impact is part of the change's impact analysis.
+
+## 17. Test data and model correlation
+
+- **Test plans** are generated from requirements whose verification method is test.
+- **Test results** (measured channels, test conditions, the test article's as-built
+  configuration) are imported and linked to the analyses that predicted them.
+- **Correlation** reports prediction vs. measurement per quantity (stiffness, frequency,
+  strain, drag, range) with error metrics; persistent bias is fed back as model
+  calibration factors, each with its source.
+- An analysis's credibility level (section 21) rises from "checked against reference
+  cases" to "validated" only through correlated test data.
+
+## 18. Sustainability
+
+- **Life-cycle assessment** per product and configuration, following the ISO 14040/14044
+  structure: materials (from the materials database), manufacturing (from the process
+  plan's energy and scrap), use phase (from behaviour simulation: drive cycles, missions,
+  duty cycles), and end of life (recyclability by material and joint type).
+- CO2e and other impact categories are **budgets** like mass and cost (section 4), with
+  estimates at L0 and computed values from L2.
+- Design for disassembly: joints record whether they are reversible, and a disassembly
+  score is computed per sub-assembly.
+- Datasets for emission factors are cited with source and version; users may load licensed
+  databases.
+
+## 19. AI: roles and guardrails
+
+AI accelerates engineering; it never signs it off.
+
+| AI may | AI may not |
+|---|---|
+| translate natural language into typed commands (exists today), always previewed and validated before applying | apply a command without the same validation as a manual edit |
+| draft requirements, function decompositions, breakdowns, FMEA rows and test plans for review | approve a review gate, a release, a baseline or a change order |
+| suggest templates, materials, inventory items and parameter values, with the reason | change safety ratings, allowables or regulation mappings without a named human owner |
+| explain any result: method, inputs, assumptions and limits | present an estimate as a validated result |
+| search the inventory and the project history | read or send labelled content outside the permitted deployment (section 15) |
+
+Every AI-originated change is marked as such in the history, with the prompt and the
+model used, and is reviewable and reversible like any command. The rule-based parser
+remains the fallback when no model is available (exists today).
+
+## 20. Data model
 
 ```
 Organisation
@@ -466,7 +568,7 @@ Organisation
 Rules: a project belongs to exactly one module; released item versions and baselines are
 immutable; geometry is never the source of truth.
 
-## 15. Technical architecture
+## 21. Technical architecture
 
 | Layer | Today | Target |
 |---|---|---|
@@ -482,7 +584,7 @@ module; modules import no other module; a project's API calls reach only its own
 every template passes its reference cases; every analysis declares its credibility level
 (estimate, concept method, checked against reference cases, validated against test data).
 
-## 16. Delivery strategy
+## 22. Delivery strategy
 
 The catalogue is about a thousand templates; the order matters more than the count.
 
@@ -498,14 +600,26 @@ The catalogue is about a thousand templates; the order matters more than the cou
 5. **Foundations before features.** Module registries, configurations and the systems
    layer come first (M1–M2) because retrofitting them later is the expensive mistake.
 
-## 17. Milestones
+**Build, integrate or leave out.** A small team cannot write every solver; the platform
+owns the model, the workflow and the glass-box methods, and integrates the rest.
+
+| Build (our core) | Integrate (behind our interfaces) | Not doing (for now) |
+|---|---|---|
+| product models, breakdowns, templates, configurations, systems layer, inventory, workflow, reviews, change | geometry kernel (OCCT), meshing, explicit crash and CFD solvers (OpenRadioss, OpenFOAM class) as background jobs, FMI simulation runtimes, CAM post-processors | certification-grade solver qualification, enterprise ERP/MES, class-A surfacing parity with dedicated studio tools, plant layout and robotics offline programming |
+| concept and sizing methods with reference cases (cycles, lifting line, hydrostatics, beam and plate sizing, linear FEA, SIMP) | material and emission-factor datasets (licensed by the user) | |
+
+**Scope per milestone.** Each milestone is sized for a few weeks of focused work by a small
+team: one vertical slice, its reference cases, its studio views, and its performance
+targets measured. A milestone that grows beyond that is split, not stretched.
+
+## 23. Milestones
 
 | # | Milestone | Delivers | Proof |
 |---|---|---|---|
 | M0 | **Modules kept apart** (done) | module switcher; aircraft projects without a car | tests: no mixing |
-| M1 | **Foundations** | `autevra.modules.<id>`, module-keyed registries; template contract; breakdown at L0 for land vehicles and aircraft; options, rules and configurations on the breakdown; maturity heat map | every product complete at L0 per configuration; roll-ups match the product model |
+| M1 | **Foundations** | `autevra.modules.<id>`, module-keyed registries; template contract; breakdown at L0 for land vehicles and aircraft; options, rules and configurations on the breakdown; maturity heat map; AI changes marked in history (section 19) | every product complete at L0 per configuration; roll-ups match the product model |
 | M2 | **Systems layer** | functions, logical blocks, typed flows, ICDs, allocation and trace checks, budgets beyond mass; design FMEA rows on functions | a braking and a pitch-control chain traced end to end |
-| M3 | **Inventory, standard parts, scale base** | items, versions, interfaces, where-used; fasteners, bearings, profiles; content-addressed geometry store and job queue | install round trip; ISO 281 and bolt checks against hand calculation |
+| M3 | **Inventory, standard parts, scale base** | items, versions, interfaces, where-used; fasteners, bearings, profiles; content-addressed geometry store and job queue; performance benchmark suite in CI | install round trip; ISO 281 and bolt checks against hand calculation; section 13 targets measured |
 | M4 | **Piston engines** | Mechanical module; full engine breakdown; key parts L1–L2 against firing and inertia load cases | cycle and balance checks; known engines within stated error |
 | M5 | **Install across modules + behaviour** | engines in vehicles and aircraft; drive-cycle and mission simulation from installed maps | performance follows the engine version |
 | M6 | **Loads, regulations, materials** | load-case libraries (road cases, V-n and gust, landing); clause references and compliance matrix; allowables database | load cases against worked textbook examples |
@@ -515,7 +629,8 @@ The catalogue is about a thousand templates; the order matters more than the cou
 | M10 | **Marine module** | hull form, hydrostatics, GZ, Holtrop, scantlings, shaft line | hydrostatic tables against hand calculation |
 | M11 | **Electric machines and gas turbines** | motor and turbine breakdowns and maps | textbook cycle examples |
 | M12 | **DMU, routing, safety depth** | mechanisms, swept envelopes, harness and pipe routing, fault trees, process FMEA | mechanism, clearance and fault-tree reference cases |
-| M13 | **Composites, tooling, STEP, manufacturing depth** | plies and laminate theory, mould splits, STEP import, toolpaths and cost | laminate examples; STEP round trip |
+| M13 | **Composites, tooling, exchange, sustainability** | plies and laminate theory, mould splits; STEP AP242 import/export with PMI, glTF, supplier interface-only items; life-cycle assessment | laminate examples; STEP round trip within tolerance; LCA of a reference product |
+| M14 | **Lifecycle, test correlation, security** | as-built and as-maintained views per serial, life-limited parts, digital-twin life update; test import and correlation; classification labels and export-control access rules | correlation reports on a reference test; access-rule tests on every export path |
 
 Each milestone ends green (tests, lint, live check in the studio) and is committed
 locally; pushes happen at milestone boundaries.
