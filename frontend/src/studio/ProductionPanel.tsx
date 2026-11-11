@@ -55,6 +55,10 @@ export function ProductionPanel({ projectId, version }: { projectId: string; ver
   const [out, setOut] = useState<{ plan: Plan; stackups: { stack: StackT; result: Result }[] } | null>(null);
   const [takt, setTakt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [grid, setGrid] = useState(0.3);
+  const [lca, setLca] = useState<{ production_kg: number; use_kg: number; end_of_life_kg: number; total_kg: number;
+    use: { unit: string; energy_per_unit_kwh: number; carrier: string; co2_per_unit_kg: number; life_units: number; basis: string } | null } | null>(null);
+  useEffect(() => { api.lca(projectId, grid).then((r) => setLca(r as never)).catch(() => setLca(null)); }, [projectId, version, grid]);
   useEffect(() => {
     api.manufacturing(projectId, takt ?? undefined).then((r) => { setOut(r as never); setError(null); })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
@@ -72,6 +76,23 @@ export function ProductionPanel({ projectId, version }: { projectId: string; ver
         <div className={p.reconciliation.length ? "check fail" : "check pass"}>{p.reconciliation.length ? p.reconciliation.join("; ") : "MBOM reconciled: every design part used exactly once"}</div>
       </div>
       <p className="muted small">Indicative concept rates and times (stated per process in the backend); a real plan uses the plant's own.</p>
+      {lca && (
+        <div className="lca">
+          <h4>Life cycle (kg CO₂e)</h4>
+          <div className="lca-bar">
+            {[["production", lca.production_kg], ["use", lca.use_kg]].map(([k, v]) => (
+              <span key={k as string} className={`seg ${k}`} style={{ flex: Math.max(Number(v), 0.0001) }} title={`${k}: ${Number(v).toFixed(0)} kg`} />
+            ))}
+          </div>
+          <div className="small">
+            production <b>{lca.production_kg.toFixed(0)}</b> · use <b>{lca.use_kg.toFixed(0)}</b>
+            {lca.use && <> ({(lca.use.co2_per_unit_kg * (lca.use.unit === "km" ? 1000 : 1)).toFixed(lca.use.unit === "km" ? 0 : 1)} {lca.use.unit === "km" ? "g/km" : `kg per ${lca.use.unit}`} over {lca.use.life_units.toLocaleString()} {lca.use.unit}{lca.use.unit === "km" ? "" : "s"}, {lca.use.carrier})</>}
+            · end-of-life credit <b>{lca.end_of_life_kg.toFixed(0)}</b> · total <b>{lca.total_kg.toFixed(0)}</b>
+            {lca.use?.carrier === "electricity" && <label> · grid <input type="number" step={0.05} min={0} value={grid} onChange={(e) => setGrid(Number(e.target.value))} /> kg/kWh</label>}
+          </div>
+          {lca.use && <div className="muted small">Use phase: {lca.use.basis}. Indicative factors; a certified LCA uses licensed datasets.</div>}
+        </div>
+      )}
       <div className="prod-grid">
         <section>
           <h4>Stations (assembly work content vs takt)</h4>

@@ -672,3 +672,6 @@ textarea.json.bad { border-color: var(--bad); }
 .machine .muted { color: var(--muted); } .machine .small { font-size: 11px; }
 .effmap { display: grid; gap: 1px; width: 100%; max-width: 420px; aspect-ratio: 1.6; }
 .effmap i { display: block; min-height: 6px; border-radius: 1px; }
+.lca-bar { display: flex; height: 12px; border-radius: 3px; overflow: hidden; max-width: 520px; margin: 4px 0; }
+.lca-bar .seg.production { background: #b0832e; } .lca-bar .seg.use { background: #e0703a; }
+.lca input { width: 60px; }

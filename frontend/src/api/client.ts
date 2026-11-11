@@ -274,6 +274,7 @@ export const api = {
   materials: () => request<unknown[]>("/materials"),
   manufacturing: (id: string, takt?: number) => request<unknown>(`/projects/${id}/manufacturing${takt ? `?takt=${takt}` : ""}`),
   stackup: (stack: unknown) => post<unknown>("/quality/stackup", stack),
+  lca: (id: string, grid: number) => request<unknown>(`/projects/${id}/lca?grid=${grid}`),
   reviews: (id: string) => request<unknown[]>(`/projects/${id}/reviews`),
   baselines: (id: string) => request<unknown[]>(`/projects/${id}/baselines`),
   takeBaseline: (id: string, name: string, gate: string) => post<unknown>(`/projects/${id}/baselines`, { name, gate }),

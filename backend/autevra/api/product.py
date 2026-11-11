@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from autevra import manufacturing, materials, modules, quality
+from autevra import manufacturing, materials, modules, quality, sustainability
 from autevra.api import access
 from autevra.api.aerospace import get_spec
 from autevra.api.installs import engine_values
@@ -329,3 +329,69 @@ def manufacturing_plan(project_id: str, ws: WorkspaceDep,
 @router.post("/quality/stackup")
 def stackup(stack: quality.Stack) -> dict:
     return quality.analyse(stack)
+
+
+# --- sustainability ------------------------------------------------------------------
+
+
+def _use_phase(module: modules.ModuleDef, values: dict, grid: float, life: float | None
+               ) -> sustainability.UsePhase | None:  # fmt: skip
+    """Energy per unit of service from the module's own physics (stated assumptions)."""
+    if module.id == "land":
+        from autevra.domains.automotive import tests as vt
+        from autevra.domains.automotive.sim import longitudinal as lon
+
+        p = vt.longitudinal_params({k: v for k, v in values.items() if isinstance(v, int | float)})
+        v = 80 / 3.6  # mixed driving as a steady 80 km/h plus 20 % for accelerations
+        wheel_kwh_per_km = lon.resistance(p, v) * 1000 * 1.2 / 3.6e6
+        bev = int(round(values.get("powertrain_type", 0))) == 2
+        if bev:
+            kwh = wheel_kwh_per_km / 0.85
+            return sustainability.UsePhase(unit="km", energy_per_unit_kwh=kwh,
+                                           carrier="electricity", co2_per_unit_kg=kwh * grid,
+                                           life_units=life or 200_000,
+                                           basis="road load at 80 km/h + 20 %, drivetrain "
+                                           "0.85, grid intensity")  # fmt: skip
+        kwh = wheel_kwh_per_km / 0.25  # tank to wheel
+        litres = kwh * 3.6 / 32.0
+        return sustainability.UsePhase(unit="km", energy_per_unit_kwh=kwh, carrier="petrol",
+                                       co2_per_unit_kg=litres * 2.31, life_units=life or 200_000,
+                                       basis="road load at 80 km/h + 20 %, tank-to-wheel "
+                                       "0.25, petrol 32 MJ/L and 2.31 kg CO2e/L")  # fmt: skip
+    if module.id == "aircraft":
+        from autevra.aero import aircraft as ac
+
+        spec = ac.AircraftSpec.model_validate({k: v for k, v in values.items()
+                                               if k in ac.AircraftSpec.model_fields})  # fmt: skip
+        perf = ac.analyse(spec)["performance"]
+        kw = float(perf["power_required"])  # shaft kW at cruise (D V / eta_prop)
+        fuel = kw * spec.bsfc / 1000  # kg per hour
+        return sustainability.UsePhase(unit="flight hour", energy_per_unit_kwh=kw,
+                                       carrier="avgas", co2_per_unit_kg=fuel * 3.1,
+                                       life_units=life or 10_000,
+                                       basis="cruise shaft power x BSFC, avgas 3.1 kg/kg")  # fmt: skip
+    if module.id == "marine":
+        from autevra.marine import hull as hk
+
+        spec = hk.HullSpec.model_validate({k: v for k, v in values.items()
+                                           if k in hk.HullSpec.model_fields})  # fmt: skip
+        kw = hk.resistance(spec)["delivered_power_kw_lower_bound"]
+        return sustainability.UsePhase(unit="running hour", energy_per_unit_kwh=kw,
+                                       carrier="diesel", co2_per_unit_kg=kw * 0.22 * 3.2,
+                                       life_units=life or 20_000,
+                                       basis="viscous delivered power (a lower bound) x 220 "
+                                       "g/kWh, diesel 3.2 kg/kg")  # fmt: skip
+    return None  # an engine on its own: the consumer accounts for the use phase
+
+
+@router.get("/projects/{project_id}/lca", response_model=sustainability.Assessment)
+def life_cycle(project_id: str, ws: WorkspaceDep,
+               grid: float = Query(0.30, ge=0.0, le=1.5),
+               life: float | None = Query(None, gt=0)) -> sustainability.Assessment:  # fmt: skip
+    """Life-cycle climate impact: production, use and end of life."""
+    module, values = _module(ws, project_id)
+    config = module.options(values).resolve(module.current(values))
+    root = root_node(module, values, config)
+    plan = manufacturing.plan(root, dict(module.stations), list(module.station_order), 60.0)
+    use = _use_phase(module, module.configure(values, config), grid, life)
+    return sustainability.assess(plan, use)
