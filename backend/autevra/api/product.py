@@ -290,8 +290,10 @@ def project_loads(project_id: str, ws: WorkspaceDep) -> dict:
                  if module.compliance else []}  # fmt: skip
     if module.id == "aircraft":
         from autevra.modules.aircraft.loads import envelope
+        from autevra.modules.aircraft.structure import size_wing
 
         out["envelope"] = envelope(values)
+        out["structure"] = size_wing(values)
     return out
 
 

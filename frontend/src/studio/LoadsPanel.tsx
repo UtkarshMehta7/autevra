@@ -49,7 +49,7 @@ function VnDiagram({ e }: { e: Envelope }) {
 }
 
 export function LoadsPanel({ projectId, version }: { projectId: string; version?: number }) {
-  const [out, setOut] = useState<{ module: string; cases: Case[]; compliance: Row[]; envelope?: Envelope } | null>(null);
+  const [out, setOut] = useState<{ module: string; cases: Case[]; compliance: Row[]; envelope?: Envelope; structure?: Record<string, unknown> } | null>(null);
   const [mats, setMats] = useState<Material[]>([]);
   const [tab, setTab] = useState<"cases" | "compliance" | "materials">("cases");
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +69,26 @@ export function LoadsPanel({ projectId, version }: { projectId: string; version?
       </div>
       {tab === "cases" && (
         <div className="loads-grid">
-          {out.envelope && <section><h4>Flight envelope (V-n)</h4><VnDiagram e={out.envelope} /></section>}
+          {out.envelope && (
+            <section><h4>Flight envelope (V-n)</h4><VnDiagram e={out.envelope} />
+              {out.structure && (() => {
+                const st = out.structure as Record<string, number> & { masses_kg: Record<string, number>; governing_case: string; material: string; basis: string };
+                return (
+                  <div className="case">
+                    <h4>Wing box sized (level 2)</h4>
+                    <div className="small">governing case <b>{st.governing_case}</b> · {st.material} ({st.basis}) · factor 1.5</div>
+                    <table><tbody>
+                      <tr><td>spar depth</td><td className="num">{st.spar_depth_mm.toFixed(0)} mm</td><td>spar cap (each, beyond the skin)</td><td className="num">{st.cap_area_mm2.toFixed(0)} mm²</td></tr>
+                      <tr><td>spar web</td><td className="num">{st.web_mm.toFixed(2)} mm</td><td>skins (post-buckled)</td><td className="num">{st.skin_mm.toFixed(1)} mm</td></tr>
+                      <tr><td>skin buckles at</td><td className="num">{st.skin_buckling_mpa.toFixed(1)} MPa</td><td>effective width each side</td><td className="num">{st.effective_width_mm.toFixed(0)} mm</td></tr>
+                    </tbody></table>
+                    <div className="small">{Object.entries(st.masses_kg).map(([k, v]) => <span key={k} className="res">{k.replace("_", " ")} <b>{v.toFixed(1)} kg</b></span>)}
+                      <span className="res">total <b>{st.total_kg.toFixed(0)} kg</b> (sized parts move to L2 in the Breakdown)</span></div>
+                  </div>
+                );
+              })()}
+            </section>
+          )}
           <section>
             {out.cases.map((c) => (
               <div key={c.id} className="case">

@@ -637,6 +637,7 @@ def breakdown(values: Values) -> Node:
             functions=("protect occupants", "carry payload"),
         ),
     ]
+    _engineer_wing(values, structure)  # level 2: spars, ribs and skins sized by the loads
     empty_children = [*structure, gear, power, *systems]
     opts = options(values)
     own = configure_tree(
@@ -685,3 +686,27 @@ def checks(values: Values, root: RolledNode) -> list[Check]:
                      "part positions are level-0 estimates; the stability analysis uses "
                      "the specification's value"))  # fmt: skip
     return out
+
+
+def _engineer_wing(values: Values, structure: list[Node]) -> None:
+    """Replace the allocated masses of the spars, ribs and skins with the masses sized from
+    the governing load case (``structure.size_wing``) and raise them to level 2."""
+    from autevra.modules.aircraft.structure import size_wing  # local: structure needs loads
+
+    try:
+        sized = size_wing(values)
+    except (ValueError, ZeroDivisionError):
+        return
+    m = sized["masses_kg"]
+    basis = (f"sized for {sized['governing_case']} ({sized['material']}, "
+             f"{sized['basis']}, factor 1.5)")  # fmt: skip
+    wing = next(c for c in structure if c.id == "ata57")
+    computed = {"spar_front": 0.75 * (m["spar_caps"] + m["spar_web"]),
+                "spar_rear": 0.25 * (m["spar_caps"] + m["spar_web"]),
+                "rib": m["ribs"], "wing_skin": m["wing_skin"]}  # fmt: skip
+    for part in wing.children:
+        if part.id in computed:
+            part.mass = computed[part.id]
+            part.mass_source = "computed"
+            part.basis = basis
+            part.maturity = 2
