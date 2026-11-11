@@ -233,7 +233,7 @@ def body_profile(p: Inputs) -> list[tuple[float, float]]:
 
 
 PILLAR = 70.0  # pillar and roof-rail width left around the window openings, mm
-OPEN_PILLAR = 40.0  # an open car's slim windscreen surround (no roof load), mm
+OPEN_PILLAR = 60.0  # an open car's windscreen surround (A-pillars and header, no roof load), mm
 GLASS_INSET = 8.0  # near-flush glazing: this far inside the greenhouse surface, mm
 
 
@@ -457,7 +457,9 @@ def build_frame(p: Inputs) -> k.Shape:
     front = p["front_overhang"] - max(150.0, min(0.06 * length, 220.0) + 30.0)  # behind the chin
     rear = -(p["wheelbase"] + p["rear_overhang"] - 150.0)
     half_rail = p["rail_spacing"] / 2.0
-    sill = p["body_width"] / 2.0 - 110.0
+    # the sill rails stay 15 mm inside the body's lower edge, which a sill tuck draws in
+    tuck = p.get("sill_tuck", 60.0)
+    sill = p["body_width"] / 2.0 - max(110.0, tuck + 15.0 + w / 2.0)
     if kind == "unibody":
         z = (gc, gc + d.UNIBODY_FLOOR)
         sills = [k.rect_tube_x((-p["wheelbase"] + 250.0, -250.0), (y - w / 2, y + w / 2), z, t)

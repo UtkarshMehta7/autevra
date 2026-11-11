@@ -168,7 +168,7 @@ def _body_inputs(p: Values) -> dict[str, float]:
 
 FRAME_GEOMETRY = (
     "wheelbase", "front_overhang", "rear_overhang", "rail_spacing", "rail_width",
-    "rail_height", "rail_wall", "ground_clearance", *d.CHASSIS_INPUTS,
+    "rail_height", "rail_wall", "ground_clearance", "sill_tuck", *d.CHASSIS_INPUTS,
 )  # fmt: skip
 
 
