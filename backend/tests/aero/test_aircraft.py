@@ -65,4 +65,5 @@ def test_aircraft_live_in_their_own_projects(client: TestClient) -> None:
     assert again.json()["id"] == first.json()["id"]  # updated in place
     assert client.get(f"/api/projects/{pid}/aircraft/spec").json()["wing_span"] == 12  # kept
     model = client.get(f"/api/projects/{pid}/model").json()
-    assert [p["category"] for p in model["parts"]] == ["custom"]  # the aircraft, no vehicle
+    # the aircraft's own parts (airframe, canopy, propeller, spinner, gear, wheels), no vehicle
+    assert [p["category"] for p in model["parts"]] == ["custom"] * 6

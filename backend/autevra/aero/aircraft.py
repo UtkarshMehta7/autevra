@@ -288,23 +288,28 @@ def _checks(spec: AircraftSpec, margin: float, v_h: float, v_v: float, v_stall: 
 
 
 def geometry(spec: AircraftSpec) -> dict:
-    """The aircraft as a Part Design document (mm): fuselage loft, wing, tails, propeller
-    disc and spinner, and the landing gear."""
+    """The airframe as a Part Design document (mm): a smooth eight-station fuselage loft,
+    the NACA wing and tails. ``parts`` adds the canopy, propeller, spinner and gear as
+    separate coloured parts."""
     mm = 1000.0
-    length, wid, hei = (
-        spec.fuselage_length * mm,
-        spec.fuselage_width * mm,
-        spec.fuselage_height * mm,
+    length, wid, hei = (spec.fuselage_length * mm, spec.fuselage_width * mm,
+                        spec.fuselage_height * mm)  # fmt: skip
+    # (station / length, width / max width, height / max height): a rounded nose, a full
+    # cabin and a tapering tail cone; each section nearly elliptical
+    stations = (
+        (0.0, 0.30, 0.34),
+        (0.05, 0.64, 0.66),
+        (0.13, 0.92, 0.88),
+        (0.25, 1.0, 0.98),
+        (0.45, 1.0, 1.0),
+        (0.62, 0.80, 0.80),
+        (0.80, 0.48, 0.58),
+        (1.0, 0.13, 0.34),
     )
-    r = min(wid, hei) / 2 - 1
-    sections = [
-        {"z": 0, "width": 0.3 * wid, "height": 0.3 * hei, "radius": 0.15 * min(wid, hei) - 1},
-        {"z": 0.16 * length, "width": wid, "height": 0.9 * hei, "radius": 0.9 * r},
-        {"z": 0.45 * length, "width": wid, "height": hei, "radius": r},
-        {"z": length, "width": 0.12 * wid, "height": 0.35 * hei, "radius": 0.05 * min(wid, hei)},
-    ]  # fmt: skip
+    sections = [{"z": t * length, "width": w * wid, "height": h * hei,
+                 "radius": 0.47 * min(w * wid, h * hei)} for t, w, h in stations]  # fmt: skip
     wing_z = (0.42 if spec.high_wing else -0.38) * hei
-    tail_z = 0.1 * hei + (spec.fin_height * mm * 0.95 if spec.t_tail else 0.0)
+    tail_z = 0.06 * hei + (spec.fin_height * mm * 0.95 if spec.t_tail else 0.0)
     features: list[dict] = [
         {"id": "fuselage", "name": "Fuselage", "type": "loft", "at": {"ry": -90},
          "sections": sections},
@@ -320,30 +325,70 @@ def geometry(spec: AircraftSpec) -> dict:
         {"id": "fin", "name": "Fin", "type": "wing", "naca": "0012",
          "root_chord": spec.fin_root_chord * mm, "tip_chord": spec.fin_tip_chord * mm,
          "span": spec.fin_height * mm, "sweep": spec.fin_sweep, "dihedral": 0, "twist": 0,
-         "both_sides": False, "at": {"x": -spec.fin_x * mm, "z": 0.2 * hei, "rx": 90}},
-        {"id": "spinner", "name": "Spinner", "type": "sphere", "radius": 0.14 * min(wid, hei),
-         "at": {"x": 40}},
-        {"id": "propeller", "name": "Propeller (two blades)", "type": "box",
-         "size": [35, spec.prop_diameter * mm, 130], "at": {"x": 70, "rx": 15}},
+         "both_sides": False, "at": {"x": -spec.fin_x * mm, "z": 0.02 * hei, "rx": 90}},
     ]  # fmt: skip
+    return {"name": spec.name, "color": [0.93, 0.94, 0.95], "finish": "paint",
+            "features": features}  # fmt: skip
+
+
+def parts(spec: AircraftSpec) -> list[dict]:
+    """Every part of the aircraft as Part Design documents (mm), each with its own colour
+    and finish: airframe, canopy, propeller, spinner, gear legs and wheels."""
+    mm = 1000.0
+    length, wid, hei = (spec.fuselage_length * mm, spec.fuselage_width * mm,
+                        spec.fuselage_height * mm)  # fmt: skip
+    # canopy: a glass blister along the cabin roof, from the windscreen base aft
+    x0 = max(spec.wing_x - 1.05, 0.12 * spec.fuselage_length) * mm
+    canopy = {"name": "Canopy", "color": [0.06, 0.09, 0.13], "finish": "glass", "features": [
+        {"id": "canopy", "name": "Canopy", "type": "loft", "at": {"x": -x0, "z": 0.30 * hei,
+                                                                   "ry": -90},
+         "sections": [{"z": 0, "width": 0.50 * wid, "height": 0.06 * hei, "radius": 10},
+                      {"z": 550, "width": 0.84 * wid, "height": 0.50 * hei,
+                       "radius": 0.2 * wid},
+                      {"z": 1350, "width": 0.88 * wid, "height": 0.52 * hei,
+                       "radius": 0.2 * wid},
+                      {"z": 1950, "width": 0.62 * wid, "height": 0.16 * hei, "radius": 40}]},
+    ]}  # fmt: skip
+    radius = spec.prop_diameter / 2 * mm
+    hub = 0.12 * min(wid, hei)
+    propeller = {"name": "Propeller", "color": [0.08, 0.08, 0.09], "finish": "paint_matte",
+                 "features": [
+        # two twisted aerofoil blades in the disc plane, chord along Z, at 20° pitch
+        {"id": "blades", "name": "Blades", "type": "wing", "naca": "4412",
+         "root_chord": 0.09 * radius * 2, "tip_chord": 0.045 * radius * 2,
+         "span": radius, "sweep": 3, "dihedral": 0, "twist": -12, "both_sides": True,
+         "at": {"x": 90, "z": 0.04 * radius, "ry": 70, "rx": 15}},
+    ]}  # fmt: skip
+    spinner = {"name": "Spinner", "color": [0.62, 0.07, 0.07], "finish": "paint",
+               "features": [{"id": "spinner", "name": "Spinner", "type": "loft",
+                             "at": {"x": 140, "ry": -90},
+                             "sections": [{"z": 0, "width": 30, "height": 30, "radius": 14},
+                                          {"z": 120, "width": 2 * hub, "height": 2 * hub,
+                                           "radius": hub - 1},
+                                          {"z": 230, "width": 2.2 * hub, "height": 2.2 * hub,
+                                           "radius": 1.1 * hub - 1}]}]}  # fmt: skip
     gear_z = -hei / 2 - 0.45 * mm
-    wheels = ([(-0.08 * length, 0.0, "nose")] if spec.tricycle else
-              [(-0.92 * length, 0.0, "tail")])  # fmt: skip
+    wheels_at = ([(-0.08 * length, 0.0, "nose")] if spec.tricycle else
+                 [(-0.92 * length, 0.0, "tail")])  # fmt: skip
     main_x = -(spec.x_cg + (0.35 if spec.tricycle else -0.45)) * mm
-    wheels += [(main_x, 1.1 * wid, "left main"), (main_x, -1.1 * wid, "right main")]
-    for i, (x, y, label) in enumerate(wheels):
+    wheels_at += [(main_x, 1.1 * wid, "left main"), (main_x, -1.1 * wid, "right main")]
+    legs, wheels = [], []
+    for i, (x, y, label) in enumerate(wheels_at):
         small = label == "tail"
         rad = 120 if small else 200
         z = gear_z + (0.25 * mm if small else 0.0)
-        features.append({"id": f"wheel{i}", "name": f"{label.title()} wheel", "type": "cylinder",
-                         "radius": rad, "height": 120, "axis": "y",
-                         "at": {"x": x, "y": y, "z": z}})  # fmt: skip
-        # a slim sprung leg from the fuselage belly to the wheel hub
-        y0, z0 = 0.0, -hei / 2 + 60
+        wheels.append({"id": f"wheel{i}", "name": f"{label.title()} wheel", "type": "revolve",
+                       "points": [[0.35 * rad, -55], [0.8 * rad, -60], [rad, -40],
+                                  [rad, 40], [0.8 * rad, 60], [0.35 * rad, 55]],
+                       "at": {"x": x, "y": y, "z": z, "rx": 90}})  # fmt: skip
+        # a slim sprung leg from inside the fuselage belly to the wheel hub
+        y0, z0 = 0.0, -0.25 * hei
         dy, dz = y - y0, z - z0
         leg = math.hypot(dy, dz)
-        features.append({"id": f"leg{i}", "name": f"{label.title()} leg", "type": "box",
-                         "size": [70, leg, 35],
-                         "at": {"x": x, "y": (y + y0) / 2, "z": (z + z0) / 2,
-                                "rx": math.degrees(math.atan2(dz, dy))}})  # fmt: skip
-    return {"name": spec.name, "color": [0.9, 0.91, 0.93], "finish": "paint", "features": features}
+        legs.append({"id": f"leg{i}", "name": f"{label.title()} leg", "type": "box",
+                     "size": [70, leg, 32],
+                     "at": {"x": x, "y": (y + y0) / 2, "z": (z + z0) / 2,
+                            "rx": math.degrees(math.atan2(dz, dy))}})  # fmt: skip
+    gear = {"name": "Landing gear", "color": [0.55, 0.57, 0.6], "finish": "metal", "features": legs}
+    tyres = {"name": "Wheels", "color": [0.03, 0.03, 0.035], "finish": "rubber", "features": wheels}
+    return [geometry(spec), canopy, propeller, spinner, gear, tyres]

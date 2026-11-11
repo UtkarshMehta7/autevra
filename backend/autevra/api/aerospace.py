@@ -65,16 +65,25 @@ def put_spec(project_id: str, spec: ac.AircraftSpec, ws: WorkspaceDep) -> ac.Air
 
 @router.post("/projects/{project_id}/aircraft", response_model=schemas.PartOut)
 def build(project_id: str, spec: ac.AircraftSpec, ws: WorkspaceDep) -> schemas.PartOut:
-    """Save the specification and create (or update) the aircraft part of the project."""
+    """Save the specification and create (or update) the aircraft's parts: the airframe
+    (returned) plus canopy, propeller, spinner, gear and wheels, each in its own colour."""
     put_spec(project_id, spec, ws)
-    doc = PartDoc.model_validate(ac.geometry(spec))
+    docs = [PartDoc.model_validate(d) for d in ac.parts(spec)]
     try:
         parts = ws._part_docs(project_id)
-        existing = next((pid for pid, d in parts if d.name == doc.name), None)
-        if existing is None and parts:  # renamed: the project's aircraft is its first part
-            existing = parts[0][0]
-        if existing is not None:
-            return ws.update_part(project_id, existing, doc)
-        return ws.create_part(project_id, doc)
+        by_name = {d.name: pid for pid, d in parts}
+        known = {d.name for d in docs[1:]}
+        airframe_id = by_name.get(docs[0].name)
+        if airframe_id is None:  # renamed: the airframe is the project's first other part
+            airframe_id = next((pid for pid, d in parts if d.name not in known), None)
+        out = (ws.update_part(project_id, airframe_id, docs[0]) if airframe_id
+               else ws.create_part(project_id, docs[0]))  # fmt: skip
+        for doc in docs[1:]:
+            pid = by_name.get(doc.name)
+            if pid:
+                ws.update_part(project_id, pid, doc)
+            else:
+                ws.create_part(project_id, doc)
+        return out
     except CommandError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
