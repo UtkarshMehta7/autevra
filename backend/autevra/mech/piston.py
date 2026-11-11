@@ -200,6 +200,7 @@ def analyse(spec: EngineSpec) -> dict:
     pts = curve(spec, 60)
     peak_t = max(pts, key=lambda p: p["torque_nm"])
     peak_p = max(pts, key=lambda p: p["power_kw"])
+    flat = [p["rpm"] for p in pts if p["torque_nm"] >= 0.995 * peak_t["torque_nm"]]
     r = spec.compression_ratio
     ideal = diesel_efficiency(r) if spec.fuel == "diesel" else otto_efficiency(r)
     fuel_air = (diesel_efficiency(r, gamma=1.3) if spec.fuel == "diesel"
@@ -259,6 +260,7 @@ def analyse(spec: EngineSpec) -> dict:
     return {
         "displacement_l": vd, "firing_order": FIRING.get((spec.layout, spec.cylinders), "even"),
         "peak_torque_nm": peak_t["torque_nm"], "peak_torque_rpm": peak_t["rpm"],
+        "torque_band_rpm": [min(flat), max(flat)],  # within 0.5 % of the peak
         "peak_power_kw": peak_p["power_kw"], "peak_power_rpm": peak_p["rpm"],
         "specific_power_kw_per_l": peak_p["power_kw"] / vd,
         "mean_piston_speed_ms": piston_speed,

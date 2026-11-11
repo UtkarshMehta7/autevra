@@ -82,7 +82,7 @@ def parts(spec: pk.EngineSpec) -> list[dict]:
             }
         )
         # exhaust: one primary pipe per cylinder on the outer side, into a collector
-        side = -1.0 if (spec.layout == "inline" or angle < 0) else 1.0
+        side = -1.0 if (spec.layout == "inline" or angle > 0) else 1.0  # outboard of the bank
         for i in range(per_bank):
             x = stagger + (i - (per_bank - 1) / 2) * pitch
             exhaust.append({"id": f"primary{tag}_{i}", "name": "Primary pipe", "type": "cylinder",

@@ -120,7 +120,9 @@ export function EnginePanel({ projectId, onModelChanged }: { projectId: string; 
             <div className="figures">
               <div><b>{out.displacement_l.toFixed(2)} L</b><span>displacement</span></div>
               <div><b>{out.peak_power_kw.toFixed(0)} kW</b><span>at {out.peak_power_rpm.toFixed(0)} rpm ({(out.peak_power_kw * 1.341).toFixed(0)} hp)</span></div>
-              <div><b>{out.peak_torque_nm.toFixed(0)} N·m</b><span>at {out.peak_torque_rpm.toFixed(0)} rpm</span></div>
+              <div><b>{out.peak_torque_nm.toFixed(0)} N·m</b><span>{out.torque_band_rpm[1] - out.torque_band_rpm[0] > 200
+                ? `${out.torque_band_rpm[0].toFixed(0)}–${out.torque_band_rpm[1].toFixed(0)} rpm`
+                : `at ${out.peak_torque_rpm.toFixed(0)} rpm`}</span></div>
               <div><b>{out.specific_power_kw_per_l.toFixed(0)} kW/L</b><span>specific power</span></div>
               <div><b>{out.mass_kg.toFixed(0)} kg</b><span>dry (estimate)</span></div>
               <div><b>{out.firing_order}</b><span>firing order</span></div>

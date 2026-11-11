@@ -305,7 +305,11 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       const box = new THREE.Box3().setFromObject(c.root);
       const centre = box.getCenter(new THREE.Vector3());
       c.controls.target.copy(centre);
-      c.camera.position.set(centre.x + 4200, centre.y - 6000, centre.z + 3000);
+      // stand back in proportion to the model (an engine, a car and an aircraft all fill
+      // the view), on the same three-quarter direction as before
+      const size = box.getSize(new THREE.Vector3()).length() || 5100; // a car: about 5.1 m
+      const k = Math.min(Math.max(size / 5100, 0.12), 3);
+      c.camera.position.set(centre.x + 4200 * k, centre.y - 6000 * k, centre.z + 3000 * k);
       c.framed = true;
     }
   }, [model]);

@@ -53,3 +53,20 @@ def test_energy_chain_end_to_end() -> None:
     order = [s.block for s in chain(arch, "convert", root)]
     assert order.index("intake") < order.index("chambers") < order.index("cranktrain")
     assert order.index("cranktrain") < order.index("flywheel") < order.index("consumer")
+
+
+@pytest.mark.cad
+@pytest.mark.parametrize("kw", [{"layout": "V", "cylinders": 8}, {"layout": "boxer", "cylinders": 4},
+                                {"cylinders": 6}])  # fmt: skip
+def test_concept_geometry_builds_with_the_exhaust_outboard(kw: dict) -> None:
+    from autevra.modules.mechanical.geometry import parts
+    from autevra.part.build import build_part
+    from autevra.part.features import PartDoc
+
+    built = {d["name"].split(": ")[1]: build_part(PartDoc.model_validate(d))
+             for d in parts(pk.EngineSpec(**kw))}  # fmt: skip
+    assert all(not b.errors for b in built.values())
+    heads = built["cylinder heads"].shape.BoundingBox()
+    exhaust = built["exhaust"].shape.BoundingBox()
+    if kw.get("layout") == "V":  # primaries outside the banks, not in the vee
+        assert exhaust.ymax > heads.ymax and exhaust.ymin < heads.ymin

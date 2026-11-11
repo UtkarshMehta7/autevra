@@ -829,7 +829,7 @@ export interface EngineSpec {
   rpm_max: number; rpm_idle: number;
 }
 export interface EngineAnalysis {
-  displacement_l: number; firing_order: string; peak_torque_nm: number; peak_torque_rpm: number;
+  displacement_l: number; firing_order: string; peak_torque_nm: number; peak_torque_rpm: number; torque_band_rpm: [number, number];
   peak_power_kw: number; peak_power_rpm: number; specific_power_kw_per_l: number;
   mean_piston_speed_ms: number; efficiency: { air_standard: number; fuel_air_approx: number };
   kinematics: Record<string, number>; balance: Record<string, number>; balance_n: Record<string, number>;
