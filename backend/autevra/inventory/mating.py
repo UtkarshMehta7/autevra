@@ -20,8 +20,12 @@ import numpy as np
 
 from autevra.inventory.model import Port
 
-PAIRS = {frozenset({"mechanical.thread"}), frozenset({"mechanical.thread", "mechanical.bore"}),
-         frozenset({"mechanical.shaft", "mechanical.bore"}), frozenset({"mechanical.end"})}  # fmt: skip
+PAIRS = {
+    frozenset({"mechanical.thread"}),
+    frozenset({"mechanical.thread", "mechanical.bore"}),
+    frozenset({"mechanical.shaft", "mechanical.bore"}),
+    frozenset({"mechanical.end"}),
+}
 
 
 def _num(port: Port, key: str) -> float | None:

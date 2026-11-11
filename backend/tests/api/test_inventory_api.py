@@ -36,8 +36,8 @@ def test_publish_a_part_as_an_item(client: TestClient, project: str) -> None:
 
 
 def test_install_by_mating_ports(client: TestClient, project: str) -> None:
-    bolt = client.post(f"/api/projects/{project}/inventory/install",
-                       json={"item": "iso4017-m10x40", "at": {"x": 50, "z": 300}}).json()  # fmt: skip
+    body = {"item": "iso4017-m10x40", "at": {"x": 50, "z": 300}}
+    bolt = client.post(f"/api/projects/{project}/inventory/install", json=body).json()
     nut = client.post(f"/api/projects/{project}/inventory/install", json={
         "item": "iso4032-m10",
         "mate": {"part": bolt["id"], "port": "thread", "own_port": "thread"}})  # fmt: skip
