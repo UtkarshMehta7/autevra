@@ -678,3 +678,4 @@ textarea.json.bad { border-color: var(--bad); }
 .fta .gate-row { display: grid; grid-template-columns: 220px 1fr 160px; gap: 8px; align-items: center; margin: 4px 0; font-size: 12px; }
 .fta .gate-row .basics { grid-column: 1 / -1; padding-left: 12px; }
 .fta .bar { height: 10px; background: var(--line); border-radius: 3px; overflow: hidden; } .fta .bar i { display: block; height: 100%; background: var(--bad); }
+.routing textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; }

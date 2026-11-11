@@ -1,5 +1,5 @@
 export type WorkspaceId =
-  | "design" | "engine" | "vessel" | "breakdown" | "functions" | "loads" | "production" | "reviews" | "inventory" | "styling" | "part-design" | "surfaces" | "structures" | "aircraft" | "package" | "assembly" | "simulation" | "ai-engineering" | "optimization" | "requirements"
+  | "design" | "engine" | "vessel" | "breakdown" | "functions" | "loads" | "production" | "reviews" | "inventory" | "routing" | "styling" | "part-design" | "surfaces" | "structures" | "aircraft" | "package" | "assembly" | "simulation" | "ai-engineering" | "optimization" | "requirements"
   | "systems" | "manufacturing" | "digital-engineering";
 
 export const WORKSPACES: { id: WorkspaceId; label: string; description: string }[] = [
@@ -12,6 +12,7 @@ export const WORKSPACES: { id: WorkspaceId; label: string; description: string }
   { id: "production", label: "Production", description: "MBOM by station, process plan, takt and operators, unit cost and CO2, reconciliation, tolerance stack-ups" },
   { id: "reviews", label: "Reviews", description: "Review gates computed from the model, baselines and comparisons, engineering change requests with impact before approval" },
   { id: "inventory", label: "Inventory", description: "Shared library: ISO fasteners, bearings, hollow sections and published parts, with their ports and performance; add to the project" },
+  { id: "routing", label: "Routing", description: "Wiring harnesses and pipes along waypoints: bundle size, voltage drop, pressure drop and bend checks; added as parts" },
   { id: "styling", label: "Styling", description: "Draw the body: silhouette, underbody and plan curves of the styled skin" },
   { id: "part-design", label: "Part Design", description: "Your own parts from a feature tree: sketches, revolves, lofts, sweeps, shells, patterns" },
   { id: "surfaces", label: "Surfaces", description: "NURBS surface lab: control points, weights, knots and basis functions; curvature; G0–G3 continuity" },
@@ -32,7 +33,7 @@ export const WORKSPACES: { id: WorkspaceId; label: string; description: string }
  * module's workspaces (domains are kept apart; shared tools act on the module's parts). */
 export interface ModuleDef { id: string; label: string; noun: string; workspaces: WorkspaceId[]; planned?: boolean; description: string }
 
-const SHARED: WorkspaceId[] = ["part-design", "inventory", "surfaces", "structures"];
+const SHARED: WorkspaceId[] = ["part-design", "inventory", "routing", "surfaces", "structures"];
 
 export const MODULES: ModuleDef[] = [
   { id: "automotive", label: "Land vehicles", noun: "Vehicle", description: "Cars, SUVs, pickups and trucks",

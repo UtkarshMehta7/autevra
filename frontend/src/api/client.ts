@@ -302,6 +302,9 @@ export const api = {
   importStep: (id: string, file: File) =>
     request<PartOut>(`/projects/${id}/import-step?name=${encodeURIComponent(file.name.replace(/\.(step|stp)$/i, "").slice(0, 80) || "Imported part")}`,
       { method: "POST", body: file, headers: { "content-type": "application/octet-stream" } }),
+  routeHarness: (body: unknown) => post<unknown>("/routing/harness", body),
+  routePipe: (body: unknown) => post<unknown>("/routing/pipe", body),
+  addRoute: (id: string, body: unknown) => post<PartOut>(`/projects/${id}/routes`, body),
   addPort: (itemId: string, port: unknown) => post<InventoryItem>(`/inventory/items/${encodeURIComponent(itemId)}/ports`, port),
   installEngine: (id: string, item: string) =>
     post<{ item: string; version: string; name: string; checks: { id: string; label: string; status: string; message: string }[] }>(`/projects/${id}/install-engine`, { item }),

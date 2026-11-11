@@ -34,6 +34,7 @@ import { VesselPanel } from "./VesselPanel";
 import { LoadsPanel } from "./LoadsPanel";
 import { ProductionPanel } from "./ProductionPanel";
 import { ReviewsPanel } from "./ReviewsPanel";
+import { RoutingPanel } from "./RoutingPanel";
 import { StructuresWorkspace } from "./StructuresPanel";
 import { SurfacesPanel } from "./SurfacesPanel";
 import { SystemsPanel } from "./SystemsPanel";
@@ -590,6 +591,9 @@ function StudioView({ projectId, workspace, navigate }: {
         )}
         {project && !collapsed && workspace === "vessel" && (
           <VesselPanel key={project.id} projectId={project.id} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "routing" && (
+          <RoutingPanel key={project.id} projectId={project.id} onModelChanged={() => refresh(project.id)} />
         )}
         {project && !collapsed && workspace === "part-design" && (
           <PartDesignPanel projectId={project.id} onModelChanged={() => refresh(project.id)} />
