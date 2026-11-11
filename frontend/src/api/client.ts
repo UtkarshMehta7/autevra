@@ -1,5 +1,5 @@
 import type {
-  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult, AircraftSpec, AircraftAnalysis, ProductEnvelope, ProductOut } from "./types";
+  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult, AircraftSpec, AircraftAnalysis, ProductEnvelope, ProductOut, SystemsOut, ChainStep } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -247,6 +247,10 @@ export const api = {
     request<ProductOut>(`/projects/${id}/product${config && Object.keys(config).length
       ? `?config=${encodeURIComponent(JSON.stringify(config))}` : ""}`),
   productEnvelope: (id: string) => request<ProductEnvelope>(`/projects/${id}/product/envelope`),
+  systems: (id: string) => request<SystemsOut>(`/projects/${id}/systems`),
+  systemChain: (id: string, fn: string) => request<ChainStep[]>(`/projects/${id}/systems/chain/${encodeURIComponent(fn)}`),
+  allocate: (id: string, requirement: string, fn: string) =>
+    request<Record<string, string>>(`/projects/${id}/systems/allocations`, { method: "PUT", body: JSON.stringify({ requirement, function: fn }) }),
   saveAircraftSpec: (id: string, spec: AircraftSpec) =>
     request<AircraftSpec>(`/projects/${id}/aircraft/spec`, { method: "PUT", body: JSON.stringify(spec) }),
   buildAircraft: (id: string, spec: AircraftSpec) => post<PartOut>(`/projects/${id}/aircraft`, spec),

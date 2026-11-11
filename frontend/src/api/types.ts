@@ -797,3 +797,18 @@ export interface ProductEnvelope {
   configurations: number; mass_min: number; mass_max: number;
   lightest: Record<string, string>; heaviest: Record<string, string>; cg_x_min: number; cg_x_max: number;
 }
+
+/** Systems layer (backend product/systems.py): functions → logical blocks → parts. */
+export type FlowKind = "mechanical" | "electrical_power" | "signal" | "fluid" | "thermal";
+export interface SysFunction { id: string; name: string; parent: string; requirements: string[] }
+export interface SysBlock { id: string; name: string; functions: string[]; templates: string[]; applicability: string; external: boolean }
+export interface SysFlow { id: string; kind: FlowKind; source: string; target: string; item: string; attributes: Record<string, string>; applicability: string }
+export interface IcdRow { flow: string; kind: FlowKind; source: string; target: string; item: string; attributes: Record<string, string> }
+export interface FailureRow { id: string; function: string; block: string; mode: string; effect: string; severity: number; occurrence: number; detection: number; rpn: number; priority: "high" | "medium" | "low"; action: string }
+export interface TraceIssue { kind: string; subject: string; message: string; severity: "fail" | "warn" }
+export interface SystemsOut {
+  module: string; configuration: Record<string, string>; functions: SysFunction[]; blocks: SysBlock[];
+  flows: SysFlow[]; icd: IcdRow[]; failure_modes: FailureRow[]; issues: TraceIssue[];
+  requirements: { key: string; text: string; function: string }[]; allocations: Record<string, string>;
+}
+export interface ChainStep { block: string; name: string; external: boolean; parts: { id: string; name: string; mass: number; maturity: number; instances: number }[]; flows_out: SysFlow[] }

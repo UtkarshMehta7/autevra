@@ -1,10 +1,11 @@
 export type WorkspaceId =
-  | "design" | "breakdown" | "styling" | "part-design" | "surfaces" | "structures" | "aircraft" | "package" | "assembly" | "simulation" | "ai-engineering" | "optimization" | "requirements"
+  | "design" | "breakdown" | "functions" | "styling" | "part-design" | "surfaces" | "structures" | "aircraft" | "package" | "assembly" | "simulation" | "ai-engineering" | "optimization" | "requirements"
   | "systems" | "manufacturing" | "digital-engineering";
 
 export const WORKSPACES: { id: WorkspaceId; label: string; description: string }[] = [
   { id: "design", label: "Design", description: "Specification, parameters and the 3D model" },
   { id: "breakdown", label: "Breakdown", description: "The whole product as systems and parts: every part from day one, mass and CG roll-ups, maturity heat map, configurations" },
+  { id: "functions", label: "Functions", description: "Requirements → functions → logical blocks → parts: function chains, typed flows, interfaces, design FMEA and trace gaps" },
   { id: "styling", label: "Styling", description: "Draw the body: silhouette, underbody and plan curves of the styled skin" },
   { id: "part-design", label: "Part Design", description: "Your own parts from a feature tree: sketches, revolves, lofts, sweeps, shells, patterns" },
   { id: "surfaces", label: "Surfaces", description: "NURBS surface lab: control points, weights, knots and basis functions; curvature; G0–G3 continuity" },
@@ -29,10 +30,10 @@ const SHARED: WorkspaceId[] = ["part-design", "surfaces", "structures"];
 
 export const MODULES: ModuleDef[] = [
   { id: "automotive", label: "Land vehicles", noun: "Vehicle", description: "Cars, SUVs, pickups and trucks",
-    workspaces: ["design", "breakdown", "styling", ...SHARED, "package", "assembly", "simulation", "ai-engineering",
+    workspaces: ["design", "breakdown", "functions", "styling", ...SHARED, "package", "assembly", "simulation", "ai-engineering",
       "optimization", "requirements", "systems", "manufacturing", "digital-engineering"] },
   { id: "aerospace", label: "Aircraft", noun: "Aircraft", description: "Fixed-wing aircraft",
-    workspaces: ["aircraft", "breakdown", ...SHARED] },
+    workspaces: ["aircraft", "breakdown", "functions", ...SHARED] },
   { id: "marine", label: "Marine", noun: "Vessel", description: "Hulls and marine propulsion (planned)", workspaces: [], planned: true },
   { id: "machinery", label: "Mechanical", noun: "Machine", description: "Engines, machinery and mechanisms (planned)", workspaces: [], planned: true },
 ];
