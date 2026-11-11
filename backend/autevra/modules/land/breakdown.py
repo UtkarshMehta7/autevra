@@ -135,6 +135,8 @@ _T = (
      "steering_wheel"),
     ("brake_disc", "Brake disc", "chassis.brakes", "casting", (F_STOP,), "rotor_fl"),
     ("caliper", "Brake caliper", "chassis.brakes", "casting", (F_STOP,), "caliper_fl"),
+    ("brake_pedal", "Brake pedal box", "chassis.brakes", "sheet metal", (F_STOP, F_HMI), ""),
+    ("wheel_speed_sensor", "Wheel speed sensor", "chassis.brakes", "inventory", (F_STOP,), ""),
     ("brake_hydraulics", "Brake hydraulics and ESC", "chassis.brakes", "assembly", (F_STOP,),
      ""),
     ("rim", "Rim", "chassis.wheels", "casting", (F_RIDE,), "rim_fl"),
@@ -614,6 +616,14 @@ def breakdown(values: Values) -> Node:
                         instances=2,
                         name="Rear caliper",
                     ),
+                    _n("brake_pedal", 2.5, "pedal box 2.5 kg", (0.3 * wb, 0, gc + 0.35)),
+                    _n(
+                        "wheel_speed_sensor",
+                        0.2,
+                        "four sensors 0.05 kg each",
+                        (x_mid, 0, z_hub),
+                        instances=4,
+                    ),  # fmt: skip
                     _n(
                         "brake_hydraulics",
                         6.0,

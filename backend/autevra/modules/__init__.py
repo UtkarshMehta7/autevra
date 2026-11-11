@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from autevra.product.breakdown import Node, RolledNode
 from autevra.product.options import Configuration, Options
+from autevra.product.systems import Architecture
 
 Values = Mapping[str, Any]
 
@@ -39,6 +40,7 @@ class ModuleDef:
     configure: Callable[[Values, Configuration], dict[str, Any]]  # values of a config
     breakdown: Callable[[Values], Node]  # the 150 % breakdown from (configured) values
     checks: Callable[[Values, RolledNode], list[Check]]
+    architecture: Callable[[Values], Architecture] | None = None  # functions, blocks, flows
 
 
 _MODULES: dict[str, ModuleDef] = {}

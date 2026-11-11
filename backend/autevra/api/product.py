@@ -6,6 +6,7 @@ The module comes from the project's domain, so a project only ever sees its own 
 options, templates and breakdown."""
 
 import json
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -19,6 +20,18 @@ from autevra.api.service import Workspace
 from autevra.product import templates
 from autevra.product.breakdown import LEVELS, RolledNode, check_ids, configure, rollup
 from autevra.product.options import ApplicabilityError, OptionFamily, OptionRule
+from autevra.product.systems import (
+    Architecture,
+    Block,
+    ChainStep,
+    Flow,
+    Function,
+    IcdRow,
+    TraceIssue,
+    chain,
+    icd,
+    trace,
+)
 
 router = APIRouter(tags=["product"], dependencies=[Depends(access.guard_project)])
 
@@ -71,6 +84,18 @@ def _rolled(module: modules.ModuleDef, values: dict[str, Any],
     return rollup(shown), vals
 
 
+def _chosen(module: modules.ModuleDef, values: dict[str, Any], config: str) -> dict[str, str]:
+    """The configuration to show: the design's own, with ``config`` (JSON) on top."""
+    opts = module.options(values)
+    try:
+        override = json.loads(config) if config else {}
+        if not isinstance(override, dict):
+            raise ValueError("config must be a JSON object")
+        return opts.resolve({**module.current(values), **override})
+    except (ValueError, ApplicabilityError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 @router.get("/projects/{project_id}/product", response_model=ProductOut)
 def product(project_id: str, ws: WorkspaceDep,
             config: str = Query("", max_length=2000)) -> ProductOut:  # fmt: skip
@@ -79,13 +104,7 @@ def product(project_id: str, ws: WorkspaceDep,
     module, values = _module(ws, project_id)
     opts = module.options(values)
     own = module.current(values)
-    try:
-        override = json.loads(config) if config else {}
-        if not isinstance(override, dict):
-            raise ValueError("config must be a JSON object")
-        chosen = opts.resolve({**own, **override})
-    except (ValueError, ApplicabilityError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from None
+    chosen = _chosen(module, values, config)
     root, vals = _rolled(module, values, chosen)
     return ProductOut(
         module=module.id, module_name=module.name, frame=module.frame, levels=list(LEVELS),
@@ -114,3 +133,131 @@ def envelope(project_id: str, ws: WorkspaceDep) -> Envelope:
     return Envelope(configurations=len(rows), mass_min=light[0], mass_max=heavy[0],
                     lightest=light[2], heaviest=heavy[2],
                     cg_x_min=min(r[1] for r in rows), cg_x_max=max(r[1] for r in rows))  # fmt: skip
+
+
+# --- systems layer: functions, logical blocks, flows, interfaces, FMEA, trace -----------
+
+
+class FailureRow(BaseModel):
+    id: str
+    function: str
+    block: str
+    mode: str
+    effect: str
+    severity: int
+    occurrence: int
+    detection: int
+    rpn: int
+    priority: str
+    action: str
+
+
+class SystemsOut(BaseModel):
+    module: str
+    configuration: dict[str, str]
+    functions: list[Function]
+    blocks: list[Block]
+    flows: list[Flow]
+    icd: list[IcdRow]
+    failure_modes: list[FailureRow]
+    issues: list[TraceIssue]
+    requirements: list[dict[str, str]]  # {key, text, function}
+    allocations: dict[str, str]  # requirement key -> function id
+
+
+def _allocations_path(ws: Workspace, project_id: str) -> Path:
+    path = Path(ws.data_dir) / "allocations" / f"{project_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _allocations(ws: Workspace, project_id: str) -> dict[str, str]:
+    path = _allocations_path(ws, project_id)
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+def _architecture(module: modules.ModuleDef, values: dict[str, Any], config: dict[str, str],
+                  allocations: dict[str, str]) -> Architecture:  # fmt: skip
+    if module.architecture is None:
+        raise HTTPException(status_code=422, detail=f"no architecture for '{module.name}'")
+    arch = module.architecture(values).configured(config, module.options(values).names())
+    by_function: dict[str, list[str]] = {}
+    for req, fid in allocations.items():
+        by_function.setdefault(fid, []).append(req)
+    functions = [f.model_copy(update={"requirements": [*f.requirements,
+                                                      *by_function.get(f.id, [])]})
+                 for f in arch.functions]  # fmt: skip
+    return arch.model_copy(update={"functions": functions})
+
+
+def _requirements(ws: Workspace, project_id: str) -> list[dict[str, str]]:
+    rows = ws.requirements(project_id)
+    return [{"key": r.requirement.key, "text": r.requirement.text} for r in rows]
+
+
+@router.get("/projects/{project_id}/systems", response_model=SystemsOut)
+def systems(project_id: str, ws: WorkspaceDep,
+            config: str = Query("", max_length=2000)) -> SystemsOut:  # fmt: skip
+    """The product's functions, logical blocks and typed flows in one configuration, its
+    interface rows and design FMEA, and the allocation gaps between the layers."""
+    module, values = _module(ws, project_id)
+    chosen = _chosen(module, values, config)
+    allocations = _allocations(ws, project_id)
+    arch = _architecture(module, values, chosen, allocations)
+    reqs = _requirements(ws, project_id)
+    for r in reqs:
+        r["function"] = allocations.get(r["key"], "")
+    issues = trace(arch, root_node(module, values, chosen), [r["key"] for r in reqs])
+    return SystemsOut(
+        module=module.id, configuration=chosen, functions=arch.functions, blocks=arch.blocks,
+        flows=arch.flows, icd=icd(arch),
+        failure_modes=[FailureRow(**m.model_dump(), rpn=m.rpn, priority=m.priority)
+                       for m in arch.failure_modes],
+        issues=issues, requirements=reqs, allocations=allocations,
+    )  # fmt: skip
+
+
+def root_node(module: modules.ModuleDef, values: dict[str, Any], config: dict[str, str]):  # type: ignore[no-untyped-def]
+    """The configured (not rolled-up) breakdown."""
+    opts = module.options(values)
+    shown = configure(module.breakdown(module.configure(values, config)), config, opts.names())
+    assert shown is not None
+    return shown
+
+
+@router.get("/projects/{project_id}/systems/chain/{function_id}", response_model=list[ChainStep])
+def function_chain(project_id: str, function_id: str, ws: WorkspaceDep,
+                   config: str = Query("", max_length=2000)) -> list[ChainStep]:  # fmt: skip
+    """The blocks performing a function, ordered along their flows, with their parts."""
+    module, values = _module(ws, project_id)
+    chosen = _chosen(module, values, config)
+    arch = _architecture(module, values, chosen, {})
+    if function_id not in {f.id for f in arch.functions}:
+        raise HTTPException(status_code=404, detail=f"no function '{function_id}'")
+    return chain(arch, function_id, root_node(module, values, chosen))
+
+
+class AllocationIn(BaseModel):
+    requirement: str
+    function: str  # "" removes the allocation
+
+
+@router.put("/projects/{project_id}/systems/allocations", response_model=dict[str, str])
+def allocate(project_id: str, body: AllocationIn, ws: WorkspaceDep) -> dict[str, str]:
+    """Allocate a requirement of the project to a function (traced in the systems view)."""
+    module, values = _module(ws, project_id)
+    keys = {r["key"] for r in _requirements(ws, project_id)}
+    if body.requirement not in keys:
+        raise HTTPException(status_code=404, detail=f"no requirement '{body.requirement}'")
+    if module.architecture is None:
+        raise HTTPException(status_code=422, detail=f"no architecture for '{module.name}'")
+    fids = {f.id for f in module.architecture(values).functions}
+    if body.function and body.function not in fids:
+        raise HTTPException(status_code=422, detail=f"no function '{body.function}'")
+    allocations = _allocations(ws, project_id)
+    if body.function:
+        allocations[body.requirement] = body.function
+    else:
+        allocations.pop(body.requirement, None)
+    _allocations_path(ws, project_id).write_text(json.dumps(allocations, indent=1))
+    return allocations
