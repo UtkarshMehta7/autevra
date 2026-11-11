@@ -274,6 +274,9 @@ export const api = {
   faultTree: (id: string, fn: string, exposure = 1) =>
     request<unknown>(`/projects/${id}/systems/fault-tree/${encodeURIComponent(fn)}?exposure=${exposure}`),
   materials: () => request<unknown[]>("/materials"),
+  laminate: (angles: number[], thickness: number) =>
+    post<{ thickness_mm: number; symmetric: boolean; ex_gpa: number; ey_gpa: number; gxy_gpa: number; nuxy: number }>(
+      "/composites/laminate", { plies: angles.map((angle) => ({ angle, thickness_mm: thickness })) }),
   manufacturing: (id: string, takt?: number) => request<unknown>(`/projects/${id}/manufacturing${takt ? `?takt=${takt}` : ""}`),
   stackup: (stack: unknown) => post<unknown>("/quality/stackup", stack),
   lca: (id: string, grid: number) => request<unknown>(`/projects/${id}/lca?grid=${grid}`),

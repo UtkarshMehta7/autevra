@@ -48,6 +48,30 @@ function VnDiagram({ e }: { e: Envelope }) {
   );
 }
 
+function LaminateCalc() {
+  const [layup, setLayup] = useState("0, 45, -45, 90s");
+  const [t, setT] = useState(0.125);
+  const [res, setRes] = useState<Awaited<ReturnType<typeof api.laminate>> | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    const sym = /s\s*$/i.test(layup);
+    const base = layup.replace(/s\s*$/i, "").split(",").map((v) => Number(v.trim())).filter((v) => Number.isFinite(v));
+    const angles = sym ? [...base, ...[...base].reverse()] : base;
+    if (!angles.length) return;
+    api.laminate(angles, t).then((r) => { setRes(r); setErr(null); }).catch((e) => setErr(String(e.message ?? e)));
+  }, [layup, t]);
+  return (
+    <div className="case">
+      <h4>Laminate (classical laminate theory)</h4>
+      <label>layup (degrees; end with s for symmetric) <input value={layup} onChange={(e) => setLayup(e.target.value)} /></label>
+      <label> ply <input type="number" step={0.025} value={t} onChange={(e) => setT(Number(e.target.value))} /> mm</label>
+      {res && <div className="small">h {res.thickness_mm.toFixed(2)} mm · Ex <b>{res.ex_gpa.toFixed(1)}</b> · Ey <b>{res.ey_gpa.toFixed(1)}</b> · Gxy <b>{res.gxy_gpa.toFixed(1)}</b> GPa · νxy {res.nuxy.toFixed(3)} {res.symmetric ? "· symmetric" : "· unsymmetric: bending–extension coupling"}</div>}
+      {err && <div className="error">{err}</div>}
+      <div className="muted small">Carbon/epoxy (T300-class) ply: E1 181, E2 10.3, G12 7.17 GPa, ν12 0.28. Strength (first-ply failure) not computed here.</div>
+    </div>
+  );
+}
+
 export function LoadsPanel({ projectId, version }: { projectId: string; version?: number }) {
   const [out, setOut] = useState<{ module: string; cases: Case[]; compliance: Row[]; envelope?: Envelope; structure?: Record<string, unknown> } | null>(null);
   const [mats, setMats] = useState<Material[]>([]);
@@ -119,6 +143,7 @@ export function LoadsPanel({ projectId, version }: { projectId: string; version?
             ))}</tbody></table>
         </>
       )}
+      {tab === "materials" && <LaminateCalc />}
       {tab === "materials" && (
         <table className="bd-table"><thead><tr><th>Material</th><th className="num">ρ kg/m³</th><th className="num">E GPa</th><th className="num">Rp0.2 MPa</th><th className="num">Rm MPa</th><th className="num">fatigue MPa</th><th>Basis</th><th>Source</th></tr></thead>
           <tbody>{mats.map((m) => (

@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from autevra import manufacturing, materials, modules, quality, sustainability
+from autevra import composites, manufacturing, materials, modules, quality, sustainability
 from autevra.api import access
 from autevra.api.aerospace import get_spec
 from autevra.api.installs import engine_values
@@ -435,3 +435,9 @@ def function_fault_tree(project_id: str, function_id: str, ws: WorkspaceDep,
                          "scheme": "CS-23 Class I (AC 23.1309-1E)" if module.id == "aircraft"
                          else "ISO 26262 hardware metric (indicative)"}  # fmt: skip
     return out
+
+
+@router.post("/composites/laminate")
+def laminate(lam: composites.Laminate) -> dict:
+    """Classical laminate theory: A, B, D and the effective in-plane constants."""
+    return composites.analyse(lam)
