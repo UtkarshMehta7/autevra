@@ -1,5 +1,5 @@
 import type {
-  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult, AircraftSpec, AircraftAnalysis, ProductEnvelope, ProductOut, SystemsOut, ChainStep } from "./types";
+  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult, AircraftSpec, AircraftAnalysis, ProductEnvelope, ProductOut, SystemsOut, ChainStep, ItemSummary, InventoryItem } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -248,6 +248,15 @@ export const api = {
       ? `?config=${encodeURIComponent(JSON.stringify(config))}` : ""}`),
   productEnvelope: (id: string) => request<ProductEnvelope>(`/projects/${id}/product/envelope`),
   systems: (id: string) => request<SystemsOut>(`/projects/${id}/systems`),
+  inventory: (q: string, category: string) =>
+    request<ItemSummary[]>(`/inventory?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`),
+  inventoryItem: (itemId: string) => request<InventoryItem>(`/inventory/items/${encodeURIComponent(itemId)}`),
+  itemUsage: (itemId: string) => request<{ item: string; version: string; project: string; part: string }[]>(`/inventory/items/${encodeURIComponent(itemId)}/usage`),
+  bearingLife: (itemId: string, load_kN: number, rpm: number) =>
+    post<{ L10_Mrev: number; L10_hours: number; exponent: number }>(`/inventory/items/${encodeURIComponent(itemId)}/bearing-life`, { load_kN, rpm }),
+  installItem: (id: string, item: string, at: { x: number; y: number; z: number }) =>
+    post<PartOut>(`/projects/${id}/inventory/install`, { item, at }),
+  publishPart: (id: string, partId: string) => post<InventoryItem>(`/projects/${id}/parts/${partId}/publish`, {}),
   systemChain: (id: string, fn: string) => request<ChainStep[]>(`/projects/${id}/systems/chain/${encodeURIComponent(fn)}`),
   allocate: (id: string, requirement: string, fn: string) =>
     request<Record<string, string>>(`/projects/${id}/systems/allocations`, { method: "PUT", body: JSON.stringify({ requirement, function: fn }) }),

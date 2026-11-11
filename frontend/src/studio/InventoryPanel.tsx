@@ -1,0 +1,133 @@
+import { useEffect, useState } from "react";
+import { api } from "../api/client";
+import type { InventoryItem, ItemSummary } from "../api/types";
+
+/** Inventory workspace (shared by every module): browse the standard-parts library and
+ * published items, read their dimensions, ports and performance, size a bearing by its
+ * ISO 281 life, and add an item to the current project as a part (backend inventory/). */
+
+const CATEGORIES = ["", "Fasteners", "Bearings", "Profiles", "Published"];
+
+function fmt(v: number | string): string {
+  if (typeof v !== "number") return v;
+  return Math.abs(v) >= 1000 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toPrecision(3);
+}
+
+function label(key: string): string {
+  return key.replace(/_/g, " ").replace(/\b(mm2|mm3|mm4|kN|Nm|kg)\b/g, (u) =>
+    ({ mm2: "(mm²)", mm3: "(mm³)", mm4: "(mm⁴)", kN: "(kN)", Nm: "(N·m)", kg: "(kg)" })[u] ?? u);
+}
+
+export function InventoryPanel({ projectId, onModelChanged }: { projectId: string; onModelChanged: () => void }) {
+  const [q, setQ] = useState("");
+  const [category, setCategory] = useState("");
+  const [rows, setRows] = useState<ItemSummary[]>([]);
+  const [item, setItem] = useState<InventoryItem | null>(null);
+  const [usage, setUsage] = useState<{ project: string; part: string; version: string }[]>([]);
+  const [at, setAt] = useState({ x: 0, y: 0, z: 500 });
+  const [load, setLoad] = useState(2);
+  const [rpm, setRpm] = useState(1500);
+  const [life, setLife] = useState<{ L10_Mrev: number; L10_hours: number } | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      api.inventory(q, category).then(setRows).catch((e) => setMessage(String(e.message ?? e)));
+    }, 150);
+    return () => window.clearTimeout(t);
+  }, [q, category]);
+
+  const open = (id: string) => {
+    setLife(null); setMessage(null);
+    api.inventoryItem(id).then(setItem).catch((e) => setMessage(String(e.message ?? e)));
+    api.itemUsage(id).then(setUsage).catch(() => setUsage([]));
+  };
+  useEffect(() => {
+    if (!item || item.performance.C_kN === undefined) return;
+    api.bearingLife(item.id, load, rpm).then(setLife).catch(() => setLife(null));
+  }, [item, load, rpm]);
+
+  const install = async () => {
+    if (!item) return;
+    try {
+      const part = await api.installItem(projectId, item.id, at);
+      setMessage(`Added “${part.document.name}” to the project (linked to ${item.id} v${item.version}).`);
+      onModelChanged();
+      api.itemUsage(item.id).then(setUsage).catch(() => undefined);
+    } catch (e) { setMessage(e instanceof Error ? e.message : String(e)); }
+  };
+
+  return (
+    <div className="bench wide inventory">
+      <div className="bench-side">
+        <input type="search" placeholder="Search: M10 4762, 6205, SHS 40…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="chips">
+          {CATEGORIES.map((c) => (
+            <button key={c || "all"} className={category === c ? "active" : ""} onClick={() => setCategory(c)}>{c || "All"}</button>
+          ))}
+        </div>
+        <div className="inv-list">
+          {rows.map((r) => (
+            <button key={r.id} className={`inv-row${item?.id === r.id ? " active" : ""}`} onClick={() => open(r.id)}>
+              <span>{r.name}</span>
+              <span className="muted small">{r.family}{r.mass_kg !== null ? ` · ${fmt(r.mass_kg)} kg` : ""}</span>
+            </button>
+          ))}
+          {rows.length === 0 && <p className="muted small">Nothing matches.</p>}
+        </div>
+        <p className="muted small">{rows.length} items · standard library plus parts published from projects</p>
+      </div>
+      <div className="bench-detail">
+        {!item && <p className="muted">Pick an item to see its dimensions, ports and performance, and add it to this project.</p>}
+        {item && (
+          <div className="inv-item">
+            <h3>{item.name} <span className="muted small">v{item.version} · {item.status}</span></h3>
+            <p className="muted small">{item.family} · {item.standard || item.kind} · {item.provenance}</p>
+            <div className="inv-grid">
+              <section>
+                <h4>Parameters</h4>
+                <table><tbody>{Object.entries(item.parameters).map(([k, v]) => <tr key={k}><td>{label(k)}</td><td className="num">{fmt(v)}</td></tr>)}</tbody></table>
+                <h4>Properties</h4>
+                <table><tbody>{Object.entries(item.properties).map(([k, v]) => <tr key={k}><td>{label(k)}</td><td className="num">{fmt(v)}</td></tr>)}</tbody></table>
+              </section>
+              <section>
+                <h4>Performance</h4>
+                {Object.keys(item.performance).length === 0 && <p className="muted small">—</p>}
+                <table><tbody>{Object.entries(item.performance).map(([k, v]) => <tr key={k}><td>{label(k)}</td><td className="num">{fmt(v)}</td></tr>)}</tbody></table>
+                {item.performance.C_kN !== undefined && (
+                  <div className="calc">
+                    <h4>Rating life (ISO 281)</h4>
+                    <label>Equivalent load P <input type="number" value={load} min={0.01} step={0.1} onChange={(e) => setLoad(Number(e.target.value))} /> kN</label>
+                    <label>Speed <input type="number" value={rpm} min={1} step={100} onChange={(e) => setRpm(Number(e.target.value))} /> rpm</label>
+                    {life && <p><b>L10 = {fmt(life.L10_Mrev)} million revolutions = {fmt(life.L10_hours)} h</b><br />
+                      <span className="muted small">L10 = (C/P)³ at 90 % reliability; P = Fr for pure radial load</span></p>}
+                  </div>
+                )}
+              </section>
+              <section>
+                <h4>Ports (interfaces)</h4>
+                <table><tbody>{item.ports.map((p) => (
+                  <tr key={p.name}><td>{p.name}</td><td className="muted">{p.kind}</td>
+                    <td className="muted small">{Object.entries(p.attributes).map(([k, v]) => `${k} ${fmt(v)}`).join(", ")}</td></tr>
+                ))}</tbody></table>
+                <h4>Add to this project</h4>
+                <div className="place">
+                  {(["x", "y", "z"] as const).map((k) => (
+                    <label key={k}>{k} <input type="number" value={at[k]} step={10} onChange={(e) => setAt({ ...at, [k]: Number(e.target.value) })} /> mm</label>
+                  ))}
+                </div>
+                <button className="primary" onClick={install}>Add to project</button>
+                <h4>Where used</h4>
+                {usage.length === 0 ? <p className="muted small">Not installed anywhere yet.</p> : (
+                  <ul className="small">{usage.map((u, i) => <li key={i}>project {u.project.slice(0, 8)} · part {u.part.slice(0, 8)} · v{u.version}</li>)}</ul>
+                )}
+              </section>
+            </div>
+            {item.notes.length > 0 && <p className="muted small">Notes: {item.notes.join("; ")}</p>}
+          </div>
+        )}
+        {message && <p className="small">{message}</p>}
+      </div>
+    </div>
+  );
+}

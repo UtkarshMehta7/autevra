@@ -812,3 +812,11 @@ export interface SystemsOut {
   requirements: { key: string; text: string; function: string }[]; allocations: Record<string, string>;
 }
 export interface ChainStep { block: string; name: string; external: boolean; parts: { id: string; name: string; mass: number; maturity: number; instances: number }[]; flows_out: SysFlow[] }
+
+/** Shared inventory (backend inventory/). */
+export interface ItemSummary { id: string; version: string; kind: string; family: string; category: string; name: string; standard: string; mass_kg: number | null }
+export interface ItemPort { name: string; kind: string; at: Record<string, number>; attributes: Record<string, number | string> }
+export interface InventoryItem extends ItemSummary {
+  status: string; parameters: Record<string, number | string>; properties: Record<string, number | string>;
+  performance: Record<string, number>; ports: ItemPort[]; notes: string[]; provenance: string;
+}

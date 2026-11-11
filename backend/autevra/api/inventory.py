@@ -1,0 +1,119 @@
+"""Inventory API: browse the shared library (standard parts and published items), size a
+standard part (bearing life, bolt preload), install an item in any module's project as a
+part, publish a project's part as an item, and see where an item is used."""
+
+import re
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from autevra.api import access, schemas
+from autevra.api.routes import WorkspaceDep
+from autevra.api.service import Workspace
+from autevra.core.commands import CommandError
+from autevra.inventory import calc
+from autevra.inventory.model import Item, ItemSummary, summary
+from autevra.inventory.store import Inventory, InventoryError
+from autevra.part.features import PartDoc, Placement
+
+router = APIRouter(tags=["inventory"], dependencies=[Depends(access.guard_project)])
+
+
+def _inventory(ws: Workspace) -> Inventory:
+    return Inventory(ws.data_dir)
+
+
+def _item(ws: Workspace, item_id: str) -> Item:
+    try:
+        return _inventory(ws).get(item_id)
+    except InventoryError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from None
+
+
+@router.get("/inventory", response_model=list[ItemSummary])
+def browse(ws: WorkspaceDep, q: str = Query("", max_length=100),
+           category: str = Query("", max_length=40),
+           limit: int = Query(300, ge=1, le=1000)) -> list[ItemSummary]:  # fmt: skip
+    words = q.lower().split()
+    out = []
+    for item in _inventory(ws).all():
+        text = f"{item.name} {item.family} {item.standard} {item.id}".lower()
+        if category and item.category != category:
+            continue
+        if all(w in text for w in words):
+            out.append(summary(item))
+        if len(out) >= limit:
+            break
+    return out
+
+
+@router.get("/inventory/items/{item_id}", response_model=Item)
+def get_item(item_id: str, ws: WorkspaceDep) -> Item:
+    return _item(ws, item_id)
+
+
+@router.get("/inventory/items/{item_id}/usage")
+def usage(item_id: str, ws: WorkspaceDep) -> list[dict[str, str]]:
+    _item(ws, item_id)
+    return _inventory(ws).usage(item_id)
+
+
+class LifeIn(BaseModel):
+    load_kN: float = Field(gt=0, le=10_000)  # noqa: N815 (engineering unit in the name)
+    rpm: float = Field(gt=0, le=200_000)
+
+
+@router.post("/inventory/items/{item_id}/bearing-life")
+def bearing_life(item_id: str, body: LifeIn, ws: WorkspaceDep) -> dict[str, float]:
+    """ISO 281 basic rating life of a bearing item at an equivalent dynamic load."""
+    item = _item(ws, item_id)
+    c = item.performance.get("C_kN")
+    if c is None:
+        raise HTTPException(status_code=422, detail=f"'{item.name}' is not a rolling bearing")
+    return calc.bearing_life(c, body.load_kN, body.rpm)
+
+
+class InstallIn(BaseModel):
+    item: str
+    at: Placement = Placement()
+
+
+@router.post("/projects/{project_id}/inventory/install", response_model=schemas.PartOut)
+def install(project_id: str, body: InstallIn, ws: WorkspaceDep) -> schemas.PartOut:
+    """Install an inventory item in a project of any module, as a part linked to the item
+    version (recorded in where-used)."""
+    item = _item(ws, body.item)
+    if not item.definition:
+        raise HTTPException(status_code=422, detail=f"'{item.name}' has no geometry")
+    doc = PartDoc.model_validate({**item.definition, "name": item.name[:80],
+                                  "at": body.at.model_dump()})  # fmt: skip
+    try:
+        part = ws.create_part(project_id, doc)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    _inventory(ws).record(item, project_id, part.id)
+    return part
+
+
+@router.post("/projects/{project_id}/parts/{part_id}/publish", response_model=Item)
+def publish(project_id: str, part_id: str, ws: WorkspaceDep) -> Item:
+    """Release a project's part as a new version of an inventory item (steel assumed for
+    the mass until materials are assigned)."""
+    parts = dict(ws._part_docs(project_id))
+    doc = parts.get(part_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"no part '{part_id}'")
+    slug = re.sub(r"[^a-z0-9]+", "-", doc.name.lower()).strip("-")[:40] or "part"
+    built = ws._part_out(project_id, part_id)  # the built part (cached), for its volume
+    volume = next(reversed(built.topology.values()), {}).get("volume", 0.0) if built.topology \
+        else 0.0  # fmt: skip
+    item = Item(id=f"part-{project_id[:8]}-{slug}", kind="part", family="Published part",
+                category="Published", name=doc.name, standard="",
+                status="working", properties={"mass_kg": round(volume * calc.STEEL * 1e-9, 4),
+                                              "material": "steel (assumed)"},
+                definition=doc.model_dump(mode="json"),
+                provenance=f"project {project_id}, part {part_id}")  # fmt: skip
+    try:
+        return _inventory(ws).publish(item)
+    except InventoryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None

@@ -559,3 +559,19 @@ textarea.json.bad { border-color: var(--bad); }
 .prio { font-size: 10px; padding: 1px 5px; border-radius: 3px; text-transform: uppercase; }
 .prio.high { background: rgba(224,106,90,0.25); color: var(--bad); } .prio.medium { background: rgba(224,163,58,0.2); color: var(--warn); } .prio.low { color: var(--muted); }
 .functions .bd-table td { white-space: normal; vertical-align: top; }
+
+/* Inventory workspace */
+.inventory input[type="search"] { width: 100%; margin-bottom: 6px; }
+.inventory .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.inventory .chips button.active, .inventory button.primary { border-color: var(--accent); color: var(--accent); }
+.inv-list { display: grid; gap: 1px; max-height: 60vh; overflow-y: auto; }
+.inv-row { display: grid; text-align: left; background: none; border: 0; color: var(--text); padding: 4px 6px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+.inv-row:hover { background: rgba(255,255,255,0.04); } .inv-row.active { background: rgba(79,143,230,0.18); }
+.inventory .muted { color: var(--muted); } .inventory .small { font-size: 11px; }
+.inv-item h3 { margin: 2px 0; } .inv-item h4 { margin: 10px 0 3px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.inv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.inv-item table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.inv-item td { padding: 2px 4px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.inv-item td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.inventory .calc label, .inventory .place label { display: block; font-size: 12px; margin: 3px 0; }
+.inventory .calc input, .inventory .place input { width: 80px; }

@@ -69,8 +69,9 @@ def test_parser_alone_knows_no_vehicle_vocabulary() -> None:
                                   "undo"]  # fmt: skip
 
 
-def test_product_core_knows_no_module_or_domain() -> None:
-    for f in (PACKAGE / "product").rglob("*.py"):
+@pytest.mark.parametrize("package", ["product", "inventory"])
+def test_platform_services_know_no_module_or_domain(package: str) -> None:
+    for f in (PACKAGE / package).rglob("*.py"):
         bad = [i for i in _imports(f) if i.startswith(("autevra.modules", "autevra.domains",
                                                        "autevra.aero"))]  # fmt: skip
         assert bad == [], f

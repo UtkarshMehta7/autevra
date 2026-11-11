@@ -1,11 +1,12 @@
 export type WorkspaceId =
-  | "design" | "breakdown" | "functions" | "styling" | "part-design" | "surfaces" | "structures" | "aircraft" | "package" | "assembly" | "simulation" | "ai-engineering" | "optimization" | "requirements"
+  | "design" | "breakdown" | "functions" | "inventory" | "styling" | "part-design" | "surfaces" | "structures" | "aircraft" | "package" | "assembly" | "simulation" | "ai-engineering" | "optimization" | "requirements"
   | "systems" | "manufacturing" | "digital-engineering";
 
 export const WORKSPACES: { id: WorkspaceId; label: string; description: string }[] = [
   { id: "design", label: "Design", description: "Specification, parameters and the 3D model" },
   { id: "breakdown", label: "Breakdown", description: "The whole product as systems and parts: every part from day one, mass and CG roll-ups, maturity heat map, configurations" },
   { id: "functions", label: "Functions", description: "Requirements → functions → logical blocks → parts: function chains, typed flows, interfaces, design FMEA and trace gaps" },
+  { id: "inventory", label: "Inventory", description: "Shared library: ISO fasteners, bearings, hollow sections and published parts, with their ports and performance; add to the project" },
   { id: "styling", label: "Styling", description: "Draw the body: silhouette, underbody and plan curves of the styled skin" },
   { id: "part-design", label: "Part Design", description: "Your own parts from a feature tree: sketches, revolves, lofts, sweeps, shells, patterns" },
   { id: "surfaces", label: "Surfaces", description: "NURBS surface lab: control points, weights, knots and basis functions; curvature; G0–G3 continuity" },
@@ -26,7 +27,7 @@ export const WORKSPACES: { id: WorkspaceId; label: string; description: string }
  * module's workspaces (domains are kept apart; shared tools act on the module's parts). */
 export interface ModuleDef { id: string; label: string; noun: string; workspaces: WorkspaceId[]; planned?: boolean; description: string }
 
-const SHARED: WorkspaceId[] = ["part-design", "surfaces", "structures"];
+const SHARED: WorkspaceId[] = ["part-design", "inventory", "surfaces", "structures"];
 
 export const MODULES: ModuleDef[] = [
   { id: "automotive", label: "Land vehicles", noun: "Vehicle", description: "Cars, SUVs, pickups and trucks",
