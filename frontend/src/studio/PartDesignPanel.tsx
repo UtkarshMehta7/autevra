@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import type { DesignTable, FeatureTemplate, PartDoc, PartFeature, PartOut, Placement, Sketch } from "../api/types";
 import { DownloadLink } from "../DownloadLink";
 import { ConstraintSketcher } from "./ConstraintSketcher";
+import { DependencyGraph } from "./DependencyGraph";
 import { TopologyInspector } from "./TopologyInspector";
 import { Sketcher } from "./Sketcher";
 
@@ -426,11 +427,12 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
     save({ ...doc, features: list });
   };
   const move = (index: number, by: number) => {
-    if (!doc) return;
-    const list = [...features];
-    const [f] = list.splice(index, 1);
-    list.splice(Math.min(Math.max(index + by, 0), list.length), 0, f);
-    save({ ...doc, features: list });
+    if (!doc || !part) return;
+    const order = features.map((f) => f.id);
+    const [id] = order.splice(index, 1);
+    order.splice(Math.min(Math.max(index + by, 0), order.length), 0, id);
+    // the backend refuses a move that puts a feature before something it reads
+    run(() => api.reorderPart(projectId, part.id, order));
   };
   const addFeature = (type: string) => {
     if (!doc || !type) return;
@@ -496,6 +498,14 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
             <span className="hint">Part placement in the vehicle frame</span>
             <PlacementFields at={doc.at} onCommit={(at) => save({ ...doc, at })} />
             <strong>Feature tree</strong>
+            {part.built.length > 0 && (
+              <div className="hint rebuild">
+                Last build: {part.built.length - (part.reused?.length ?? 0)} of {part.built.length} features rebuilt,
+                {" "}{part.reused?.length ?? 0} reused from the cache
+                {Object.keys(part.feature_ms ?? {}).length > 0 && ` (${Object.entries(part.feature_ms ?? {})
+                  .map(([id, ms]) => `${id} ${ms.toFixed(0)} ms`).join(", ")})`}
+              </div>
+            )}
             <ol className="feature-tree">
               {features.map((f, i) => (
                 <li key={f.id} className={`${f.id === feature ? "open" : ""} ${f.suppressed ? "suppressed" : ""} ${f.id === failed ? "failed" : ""}`}>
@@ -532,6 +542,12 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
                 </li>
               ))}
             </ol>
+            {part.graph && (
+              <details className="inspect" open>
+                <summary>Dependencies (feature graph)</summary>
+                <DependencyGraph graph={part.graph} selected={feature} onSelect={(id) => setFeature(id === feature ? null : id)} />
+              </details>
+            )}
             <strong>Templates (power copies)</strong>
             <Templates projectId={projectId} part={part} picked={picked} busy={busy} run={run}
               onInserted={() => setPicked([])} />

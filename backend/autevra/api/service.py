@@ -35,6 +35,7 @@ from autevra.engineering import optimize as opt
 from autevra.engineering import requirements as rqm
 from autevra.engineering import testing as tst
 from autevra.engineering import trace as tracing
+from autevra.part import graph as part_graph
 from autevra.part.features import PartDoc
 from autevra.storage.database import Database
 from autevra.storage.parts import PartRepository
@@ -1478,7 +1479,8 @@ class Workspace:
         return schemas.PartOut(
             id=part_id, document=doc, can_undo=can_undo, can_redo=can_redo,
             built=report.built, info=report.info, topology=report.topology,
-            sections=report.sections,
+            sections=report.sections, reused=report.reused, feature_ms=report.feature_ms,
+            graph=part_graph.dependency_graph(doc),
             errors=[schemas.FeatureErrorOut(feature=e.feature, message=e.message)
                     for e in report.errors],
             volume=kernel.volume(shape) if shape is not None else None,
@@ -1504,6 +1506,18 @@ class Workspace:
         with self.db.session() as s:
             PartRepository(s).update(project_id, part_id, doc.model_dump_json())
         return self._part_out(project_id, part_id)
+
+    def reorder_part(self, project_id: str, part_id: str, order: list[str]) -> schemas.PartOut:
+        """Rebuild the features in a new order, unless a feature would then come before
+        something it reads (see ``autevra.part.graph``)."""
+        with self.db.session() as s:
+            doc_json, _, _ = PartRepository(s).get(project_id, part_id)
+        doc = PartDoc.model_validate_json(doc_json)
+        if (problem := part_graph.reorder_problem(doc, order)) is not None:
+            raise CommandError(problem)
+        by_id = {feat.id: feat for feat in doc.features}
+        moved = doc.model_copy(update={"features": [by_id[i] for i in order]})
+        return self.update_part(project_id, part_id, moved)
 
     def step_part(self, project_id: str, part_id: str, back: bool) -> schemas.PartOut:
         with self.db.session() as s:

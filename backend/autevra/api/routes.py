@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from autevra import domains
 from autevra.api import access, schemas
@@ -683,6 +683,20 @@ def redo_part(project_id: str, part_id: str, ws: WorkspaceDep) -> schemas.PartOu
         return ws.step_part(project_id, part_id, back=False)
     except CommandError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+class ReorderIn(BaseModel):
+    order: list[str] = Field(min_length=1, max_length=200)
+
+
+@router.post("/projects/{project_id}/parts/{part_id}/reorder", response_model=schemas.PartOut)
+def reorder_part(project_id: str, part_id: str, body: ReorderIn,
+                 ws: WorkspaceDep) -> schemas.PartOut:  # fmt: skip
+    """Move features, refused when one would come before something it reads."""
+    try:
+        return ws.reorder_part(project_id, part_id, body.order)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 @router.get("/projects/{project_id}/parts/{part_id}/design-table.csv")

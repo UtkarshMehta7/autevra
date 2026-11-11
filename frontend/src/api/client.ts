@@ -251,6 +251,8 @@ export const api = {
   createPart: (id: string, doc: PartDoc) => post<PartOut>(`/projects/${id}/parts`, doc),
   updatePart: (id: string, part: string, doc: PartDoc) =>
     request<PartOut>(`/projects/${id}/parts/${part}`, { method: "PUT", body: JSON.stringify(doc) }),
+  reorderPart: (id: string, part: string, order: string[]) =>
+    post<PartOut>(`/projects/${id}/parts/${part}/reorder`, { order }),
   undoPart: (id: string, part: string) => post<PartOut>(`/projects/${id}/parts/${part}/undo`),
   redoPart: (id: string, part: string) => post<PartOut>(`/projects/${id}/parts/${part}/redo`),
   partTableUrl: (id: string, part: string) => `${API}/projects/${id}/parts/${part}/design-table.csv`,

@@ -613,6 +613,9 @@ export interface PartOut {
   info?: Record<string, Record<string, number>>;
   topology?: Record<string, Topology | { error: string }>; // per feature, after it
   sections?: Record<string, BooleanSection>; // per boolean feature on an existing body
+  reused?: string[]; // features taken from the prefix cache in the last build
+  feature_ms?: Record<string, number>; // ms per rebuilt feature
+  graph?: PartGraph;
   volume: number | null;
   bounds: [[number, number, number], [number, number, number]] | null;
 }
@@ -724,4 +727,11 @@ export interface TopologyResult {
     volume_fraction: number; grey_fraction: number; filter_neighbours: number; time_solve: number;
     time_total: number; solver: string };
   equations: string[];
+}
+
+/** A part's dependency graph (backend part/graph.py). */
+export interface PartGraph {
+  nodes: { id: string; kind: "parameter" | "feature"; label: string; type?: string; suppressed?: boolean; value?: number | string }[];
+  edges: { from: string; to: string; kind: "expression" | "binding" | "body" | "repeats"; field?: string }[];
+  levels: Record<string, number>;
 }

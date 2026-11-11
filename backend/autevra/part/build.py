@@ -6,6 +6,7 @@ earlier work and the user sees which feature to fix.
 """
 
 import math
+import time
 from dataclasses import dataclass, field
 
 import cadquery as cq
@@ -36,6 +37,30 @@ class BuildResult:
     # curves along which the kernel joined, cut or intersected the tool (inspection).
     topology: dict[str, dict] = field(default_factory=dict)
     sections: dict[str, dict] = field(default_factory=dict)
+    # Incremental rebuild: features whose result came from the prefix cache, and the
+    # milliseconds each rebuilt feature took.
+    reused: list[str] = field(default_factory=list)
+    feature_ms: dict[str, float] = field(default_factory=dict)
+
+
+# Prefix cache: the body after each feature, keyed by the tree up to and including that
+# feature and the values of the parameters those features read. An edit to feature i
+# changes the keys from i on, so the features before it are reused and only the
+# downstream ones rebuild.
+_PREFIX: dict[str, tuple] = {}
+_PREFIX_LIMIT = 256
+
+
+def _prefix_key(values: dict[str, float], features: list[f.Feature]) -> str:
+    import hashlib
+    import json
+
+    # only the parameters these features read (resolved values, so a parameter computed from
+    # others changes the key exactly when its value changes)
+    read = set().union(*(ex.names(e) for x in features for e in x.bindings.values()))
+    used = {name: v for name, v in values.items() if name in read}
+    blob = json.dumps([used, [x.model_dump(mode="json") for x in features]], sort_keys=True)
+    return hashlib.sha1(blob.encode()).hexdigest()
 
 
 def placement_matrix(at: f.Placement) -> Matrix:
@@ -397,9 +422,22 @@ def build_part(doc: f.PartDoc) -> BuildResult:
     except ex.ExpressionError as exc:
         out.errors.append(FeatureError("parameters", str(exc)))
         return out
-    for feat in doc.features:
+    for index, feat in enumerate(doc.features):
         if feat.suppressed:
             continue
+        key = _prefix_key(values, doc.features[: index + 1])
+        if (hit := _PREFIX.get(key)) is not None:
+            result, last, info, topology, section = hit
+            if info is not None:
+                out.info[feat.id] = info
+            if section is not None:
+                out.sections[feat.id] = section
+            out.built.append(feat.id)
+            out.reused.append(feat.id)
+            out.shape = result
+            out.topology[feat.id] = topology
+            continue
+        started = time.perf_counter()
         try:
             feat = _bind(feat, values)
             if isinstance(feat, f.SheetMetal):
@@ -430,4 +468,9 @@ def build_part(doc: f.PartDoc) -> BuildResult:
         out.built.append(feat.id)
         out.shape = result
         out.topology[feat.id] = _topology(result)
+        out.feature_ms[feat.id] = 1000.0 * (time.perf_counter() - started)
+        _PREFIX[key] = (result, last, out.info.get(feat.id), out.topology[feat.id],
+                        out.sections.get(feat.id))  # fmt: skip
+        while len(_PREFIX) > _PREFIX_LIMIT:
+            _PREFIX.pop(next(iter(_PREFIX)))
     return out

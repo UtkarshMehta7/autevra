@@ -34,7 +34,7 @@ import { Splitter } from "./Splitter";
 import { ReferencePanel } from "./Reference";
 
 import { remember } from "./lastProject";
-import { DownloadLink } from "../DownloadLink";
+import { downloadAction, MenuBar } from "./MenuBar";
 
 // Startup runs once per page load (React StrictMode runs effects twice in development).
 let startup: Promise<{
@@ -72,6 +72,7 @@ function StudioView({ projectId, workspace, navigate }: {
   const [selected, setSelected] = useState<string | null>(null);
   const [highlighted, setHighlighted] = useState<string[]>([]);
   const [xray, setXray] = useState(false);
+  const [help, setHelp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Connecting…");
@@ -390,19 +391,41 @@ function StudioView({ projectId, workspace, navigate }: {
     }}>
       <header>
         <Link to="/" className="brand" title="AUTEVRA website">Autevra</Link>
-        <Link to="/app" className="button subtle" title="Projects, models and runs">Workspace</Link>
+        <MenuBar menus={[
+          { label: "File", items: [
+            { label: "New project", action: newProject },
+            { label: "Projects, models and runs…", action: () => navigate("/app") },
+            { label: "", separator: true },
+            ...projects.slice(0, 12).map((p) => ({ label: `Open: ${p.name}`, checked: p.id === project?.id,
+              action: () => navigate(`/studio/${p.id}/${workspace}`) })),
+            { label: "", separator: true },
+            { label: "Export STEP (B-rep assembly)", disabled: !project, action: project ? downloadAction(api.stepUrl(project.id)) : undefined },
+            { label: "Export bill of materials (CSV)", disabled: !project, action: project ? downloadAction(api.bomUrl(project.id)) : undefined },
+            { label: "Export package drawing (SVG)", disabled: !project, action: project ? downloadAction(api.packageSvgUrl(project.id)) : undefined },
+            { label: "Export requirements (ReqIF)", disabled: !project, action: project ? downloadAction(api.reqifUrl(project.id)) : undefined },
+          ] },
+          { label: "Edit", items: [
+            { label: "Undo", shortcut: "⌘Z", disabled: !project?.can_undo || busy, action: undo },
+            { label: "Redo", shortcut: "⇧⌘Z", disabled: !project?.can_redo || busy, action: redo },
+          ] },
+          { label: "View", items: [
+            { label: "Component tree", checked: layout.left > 0 && !layout.focus, disabled: layout.focus, action: () => toggleSide("left") },
+            { label: "Workspace tabs", checked: !collapsed && !layout.focus, disabled: layout.focus, action: () => setCollapsed(!collapsed) },
+            { label: "Parameters", checked: layout.right > 0 && !layout.focus, disabled: layout.focus, action: () => toggleSide("right") },
+            { label: "Reference photo", checked: reference, action: () => showReference(!reference) },
+            { label: "", separator: true },
+            { label: "Focus view", shortcut: "F", checked: layout.focus, action: () => setLayout({ focus: !layout.focus }) },
+            { label: "X-ray body", checked: xray, action: () => setXray(!xray) },
+          ] },
+          { label: "Workspace", items: WORKSPACES.map((w) => ({ label: w.label, checked: w.id === workspace, action: () => go(w.id) })) },
+          { label: "Help", items: [{ label: "Keyboard shortcuts", action: () => setHelp(true) }] },
+        ]} />
         <select value={project?.id ?? ""} onChange={(e) => navigate(`/studio/${e.target.value}/${workspace}`)}>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        <button onClick={newProject}>New</button>
         <CommandBar turns={turns} busy={busy} llm={llm} onSend={send} onDecide={decide} />
         <button onClick={undo} disabled={!project?.can_undo || busy} title="Undo (⌘Z)">Undo</button>
         <button onClick={redo} disabled={!project?.can_redo || busy} title="Redo (⇧⌘Z)">Redo</button>
-        <label className="toggle">
-          <input type="checkbox" checked={xray} onChange={(e) => setXray(e.target.checked)} />
-          X-ray body
-        </label>
-        {project && <DownloadLink className="button" href={api.stepUrl(project.id)}>Export STEP</DownloadLink>}
         <span className="layout-buttons" role="group" aria-label="Panels">
           <button className={layout.left > 0 && !layout.focus ? "on" : ""} onClick={() => toggleSide("left")}
             disabled={layout.focus} title="Show or hide the component tree">Tree</button>
@@ -416,6 +439,19 @@ function StudioView({ projectId, workspace, navigate }: {
             title="Give the 3D view the whole window (F; Esc to leave)">Focus view</button>
         </span>
       </header>
+      {help && (
+        <div className="shortcuts" role="dialog" aria-label="Keyboard shortcuts">
+          <strong>Keyboard shortcuts</strong>
+          <dl>
+            <dt>⌘Z / ⇧⌘Z</dt><dd>Undo / redo the last design change</dd>
+            <dt>F</dt><dd>Focus view (the 3D view takes the window)</dd>
+            <dt>Esc</dt><dd>Leave focus view, close a menu</dd>
+            <dt>⌘V</dt><dd>Paste a reference photo (Reference panel open)</dd>
+            <dt>Drag / right-drag / wheel</dt><dd>Orbit / pan / zoom the 3D view</dd>
+          </dl>
+          <button onClick={() => setHelp(false)}>Close</button>
+        </div>
+      )}
       <Splitter orientation="vertical" area="lsplit" label="Component tree width" onStart={beginDrag}
         onDrag={(dx) => setLayout({ left: clampSide(dragStart.current.left + dx, "left") })}
         onReset={() => setLayout({ left: DEFAULT_LAYOUT.left })} />

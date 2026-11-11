@@ -404,5 +404,10 @@ class PartOut(BaseModel):
     # section curves the kernel computed the boolean along.
     topology: dict[str, dict[str, Any]] = {}
     sections: dict[str, dict[str, Any]] = {}
+    # Incremental rebuild: features taken from the prefix cache, and ms per rebuilt one;
+    # the dependency graph (parameters and features, with what each reads).
+    reused: list[str] = []
+    feature_ms: dict[str, float] = {}
+    graph: dict[str, Any] = {}
     volume: float | None  # mm^3, of the built solid
     bounds: tuple[tuple[float, float, float], tuple[float, float, float]] | None  # part frame

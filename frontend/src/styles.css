@@ -429,3 +429,38 @@ textarea.json.bad { border-color: var(--bad); }
 .chart.basis { height: auto; }
 .basis-row { display: flex; gap: 8px; align-items: flex-start; }
 .basis-col { display: grid; gap: 4px; flex: 1; min-width: 0; }
+
+/* Part Design: dependency graph */
+.dag { overflow-x: auto; padding: 4px 0; }
+.dag-node rect { fill: #1d2532; stroke: #3a4757; }
+.dag-node.parameter rect { fill: #251f38; stroke: #5d4f99; }
+.dag-node text { fill: #d9e1ea; font-size: 10px; }
+.dag-node.focus rect { stroke: #fff; stroke-width: 2; }
+.dag-node.up rect { stroke: #ffc94a; stroke-width: 1.5; }
+.dag-node.down rect { stroke: #58c08a; stroke-width: 1.5; }
+.dag-node.dim { opacity: 0.4; }
+.dag-node.suppressed text { text-decoration: line-through; fill: var(--muted); }
+.dag-legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+.dag-legend i { display: inline-block; width: 10px; height: 3px; margin-right: 4px; vertical-align: middle; }
+.hint.rebuild { margin: 2px 0 4px; }
+
+/* Menu bar */
+.menubar { display: flex; gap: 0; }
+.menubar .menu { position: relative; }
+.menubar .menu > button { background: transparent; border: 0; color: var(--text, #d9e1ea); padding: 4px 9px; font-size: 13px; border-radius: 4px; }
+.menubar .menu > button.on, .menubar .menu > button:hover { background: rgba(255,255,255,0.08); }
+.menubar ul { position: absolute; top: 100%; left: 0; z-index: 50; min-width: 250px; margin: 2px 0 0; padding: 4px; list-style: none;
+  background: #1a2029; border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+.menubar li button { display: flex; width: 100%; align-items: center; gap: 6px; background: transparent; border: 0; padding: 5px 8px;
+  color: #d9e1ea; font-size: 12.5px; text-align: left; border-radius: 4px; }
+.menubar li button:hover:not(:disabled) { background: #24406a; }
+.menubar li button:disabled { color: var(--muted); }
+.menubar .check { width: 12px; color: #6fa8ff; }
+.menubar .label { flex: 1; }
+.menubar .shortcut { color: var(--muted); font-size: 11px; }
+.menubar .sep { height: 1px; margin: 4px 2px; background: var(--line); }
+.shortcuts { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 60; background: #1a2029; border: 1px solid var(--line);
+  border-radius: 8px; padding: 14px 18px; box-shadow: 0 12px 32px rgba(0,0,0,0.5); display: grid; gap: 8px; font-size: 13px; }
+.shortcuts dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
+.shortcuts dt { color: #ffc94a; font-family: ui-monospace, Menlo, monospace; }
+.shortcuts dd { margin: 0; }
