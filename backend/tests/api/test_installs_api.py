@@ -73,3 +73,18 @@ def test_install_in_an_aircraft_checks_the_propeller_tip(client: TestClient) -> 
 def test_only_engines_install_as_powertrains(client: TestClient, project: str) -> None:
     r = client.post(f"/api/projects/{project}/install-engine", json={"item": "bearing-6205"})
     assert r.status_code == 422
+
+
+def test_performance_follows_the_engine(client: TestClient, project: str) -> None:
+    item, eng = _publish(client, {"name": "I4", "cylinders": 4, "bore": 86, "stroke": 86})
+    client.post(f"/api/projects/{project}/install-engine", json={"item": item})
+    slow = client.get(f"/api/projects/{project}/installed-engine/performance").json()
+    assert len(slow["gears"]) == 6 and slow["zero_to_100_s"] > 0
+    assert slow["zero_to_100_s"] >= slow["cvt_zero_to_100_s"] * 0.95  # gears cannot beat a CVT
+    client.put(f"/api/projects/{eng}/engine/spec",
+               json={"name": "I4", "cylinders": 4, "bore": 86, "stroke": 86, "turbo": True,
+                     "bmep_max": 20, "rpm_peak_torque": 3000})  # fmt: skip
+    client.post(f"/api/projects/{eng}/engine/publish")
+    client.post(f"/api/projects/{project}/installed-engine/upgrade")
+    fast = client.get(f"/api/projects/{project}/installed-engine/performance").json()
+    assert fast["zero_to_100_s"] < slow["zero_to_100_s"]  # the turbo version is quicker

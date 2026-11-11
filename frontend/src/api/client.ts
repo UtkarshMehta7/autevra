@@ -271,6 +271,10 @@ export const api = {
   installedEngine: (id: string) =>
     request<{ item: string; name: string; version: string; latest: string; upgrade_available: boolean; impact: Record<string, number> } | null>(`/projects/${id}/installed-engine`),
   upgradeEngine: (id: string) => post<{ version: string }>(`/projects/${id}/installed-engine/upgrade`, {}),
+  enginePerformance: (id: string) => request<{
+    engine: string; gears: number[]; top_speed_kmh: number; zero_to_100_s: number | null;
+    zero_to_200_s: number | null; cvt_zero_to_100_s: number | null; assumptions: string[];
+    trace: { t: number[]; v: number[]; gear: number[]; rpm: number[] } }>(`/projects/${id}/installed-engine/performance`),
   systemChain: (id: string, fn: string) => request<ChainStep[]>(`/projects/${id}/systems/chain/${encodeURIComponent(fn)}`),
   allocate: (id: string, requirement: string, fn: string) =>
     request<Record<string, string>>(`/projects/${id}/systems/allocations`, { method: "PUT", body: JSON.stringify({ requirement, function: fn }) }),

@@ -211,3 +211,32 @@ def upgrade(project_id: str, ws: WorkspaceDep) -> dict:
     if not link:
         raise HTTPException(status_code=404, detail="no engine installed")
     return install_engine(project_id, InstallEngineIn(item=link["item"]), ws)
+
+
+@router.get("/projects/{project_id}/installed-engine/performance")
+def performance(project_id: str, ws: WorkspaceDep) -> dict:
+    """Full-throttle acceleration of a land vehicle through a stepped gearbox driven by the
+    installed engine's own torque curve, next to the ideal constant-power (CVT) result: the
+    vehicle's performance follows the engine version."""
+    from autevra.domains.automotive import derived as d
+    from autevra.domains.automotive import tests as vt
+    from autevra.domains.automotive.sim import geared as gd
+    from autevra.domains.automotive.sim import longitudinal as lon
+
+    if ws.project(project_id).domain != "automotive":
+        raise HTTPException(status_code=422, detail="acceleration runs for land vehicles")
+    link = installed(ws, project_id)
+    if not link:
+        raise HTTPException(status_code=404, detail="no engine installed")
+    item = Inventory(ws.data_dir).get(link["item"], link["version"])
+    curve = item.maps.get("torque_curve", [])
+    if len(curve) < 3:
+        raise HTTPException(status_code=422, detail="the engine publishes no torque curve")
+    values = dict(ws.project(project_id).values)
+    params = vt.longitudinal_params(values)
+    eng = gd.Engine(tuple(p["rpm"] for p in curve), tuple(p["torque_nm"] for p in curve))
+    radius = d.tyre_radius(values) / 1000.0 * 0.97  # dynamic radius about 3 % under free
+    geared = gd.performance(params, eng, radius)
+    cvt = lon.simulate(params, lon.Manoeuvre(kind="accelerate"))
+    return {"engine": f"{item.name} v{item.version}", **geared,
+            "cvt_zero_to_100_s": cvt.metrics.get("accel_time")}  # fmt: skip

@@ -51,6 +51,9 @@ export function InventoryPanel({ projectId, onModelChanged }: { projectId: strin
       loadEngine(); onModelChanged();
     } catch (e) { setMessage(e instanceof Error ? e.message : String(e)); }
   };
+  const [perf, setPerf] = useState<Awaited<ReturnType<typeof api.enginePerformance>> | null>(null);
+  const runPerformance = () => api.enginePerformance(projectId).then(setPerf)
+    .catch((e) => setMessage(e instanceof Error ? e.message : String(e)));
   const loadInstalled = () => api.installedItems(projectId).then(setInstalled).catch(() => setInstalled([]));
   useEffect(() => { loadInstalled(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -112,6 +115,19 @@ export function InventoryPanel({ projectId, onModelChanged }: { projectId: strin
                 torque {engine.impact.peak_torque_nm >= 0 ? "+" : ""}{engine.impact.peak_torque_nm} N·m,
                 mass {engine.impact.mass_kg >= 0 ? "+" : ""}{engine.impact.mass_kg} kg <button onClick={upgradeEngine}>Upgrade</button></>
             ) : <span className="muted"> · up to date</span>}
+            <button onClick={runPerformance}>Acceleration with this engine</button>
+            {perf && (
+              <div className="perf">
+                <span><b>{perf.zero_to_100_s?.toFixed(1) ?? "—"} s</b> 0–100 km/h</span>
+                <span><b>{perf.zero_to_200_s?.toFixed(1) ?? "—"} s</b> 0–200 km/h</span>
+                <span><b>{perf.top_speed_kmh.toFixed(0)} km/h</b> top speed</span>
+                <span className="muted">{perf.gears.length}-speed, overall ratios {perf.gears.map((g) => g.toFixed(2)).join(" / ")}</span>
+                <span className="muted">ideal CVT 0–100: {perf.cvt_zero_to_100_s?.toFixed(1) ?? "—"} s</span>
+                <svg viewBox="0 0 300 70" className="perf-trace" role="img" aria-label="Speed against time">
+                  <polyline fill="none" points={perf.trace.t.map((t, i) => `${(t / perf.trace.t[perf.trace.t.length - 1]) * 296 + 2},${68 - (perf.trace.v[i] / Math.max(...perf.trace.v)) * 64}`).join(" ")} />
+                </svg>
+              </div>
+            )}
           </div>
         )}
         {!item && <p className="muted">Pick an item to see its dimensions, ports and performance, and add it to this project.</p>}
