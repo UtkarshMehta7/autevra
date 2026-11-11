@@ -51,6 +51,9 @@ class SetParameters(BaseModel):
     changes: tuple[Change, ...] = Field(min_length=1)
     source: Source = Source.API
     instruction: str | None = None
+    # The language model that proposed the change (source llm), recorded in the history so
+    # every AI-originated change names its prompt and model (architecture, section 19).
+    model: str | None = Field(None, max_length=120)
 
 
 class CommandError(ValueError):

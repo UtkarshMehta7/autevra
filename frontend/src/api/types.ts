@@ -54,8 +54,9 @@ export interface Change {
 export interface Command {
   type?: "set_parameters";
   changes: Change[];
-  source?: "ui" | "api" | "rules" | "llm";
+  source?: "ui" | "api" | "rules" | "llm" | "optimizer" | "spec";
   instruction?: string | null;
+  model?: string | null; // the language model behind an AI-originated change
 }
 
 export interface HistoryEntry {

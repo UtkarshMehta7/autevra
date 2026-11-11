@@ -527,3 +527,4 @@ textarea.json.bad { border-color: var(--bad); }
 .bd-source { font-size: 11px; }
 .bd-detail { border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; background: rgba(255,255,255,0.02); }
 .breakdown button.link { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: 11px; text-transform: none; padding: 0 4px; }
+.source.ai { color: #c9a2ff; border-color: #7d5bb5; }

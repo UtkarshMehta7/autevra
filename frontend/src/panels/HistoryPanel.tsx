@@ -15,7 +15,11 @@ export function HistoryPanel({ entries, cursor }: Props) {
         {entries.map((e, i) => (
           <li key={e.id} className={`${i + 1 === cursor ? "current" : ""}${
             i + 1 > cursor ? " undone" : ""}`}>
-            <span className="source">{e.command.source}</span> {describeChange(e)}
+            {e.command.source === "llm" ? (
+              <span className="source ai" title={`Proposed by the AI${e.command.model ? ` (${e.command.model})` : ""} from: “${e.command.instruction ?? ""}”, then validated and applied like any edit`}>
+                AI{e.command.model ? ` · ${e.command.model}` : ""}
+              </span>
+            ) : <span className="source">{e.command.source}</span>} {describeChange(e)}
           </li>
         ))}
       </ol>
