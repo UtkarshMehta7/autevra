@@ -1,8 +1,29 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { DesignTable, PartDoc, PartFeature, PartOut, Placement } from "../api/types";
+import type { DesignTable, FeatureTemplate, PartDoc, PartFeature, PartOut, Placement, Sketch } from "../api/types";
 import { DownloadLink } from "../DownloadLink";
+import { ConstraintSketcher } from "./ConstraintSketcher";
+import { TopologyInspector } from "./TopologyInspector";
 import { Sketcher } from "./Sketcher";
+
+const NO_BINDINGS: Record<string, string> = {};
+
+/** A fully constrained w x h rectangle sketch anchored on the sketch origin (its left
+ * side lies on the vertical axis, which is the revolve axis of a shaft). */
+function rectSketch(w: number, h: number) {
+  return {
+    points: [{ id: "o", x: 0, y: 0, fixed: true }, { id: "p1", x: w, y: 0 }, { id: "p2", x: w, y: h }, { id: "p3", x: 0, y: h }],
+    entities: [
+      { type: "line", id: "l1", a: "o", b: "p1" }, { type: "line", id: "l2", a: "p1", b: "p2" },
+      { type: "line", id: "l3", a: "p2", b: "p3" }, { type: "line", id: "l4", a: "p3", b: "o" },
+    ],
+    constraints: [
+      { kind: "horizontal", refs: ["l1"] }, { kind: "vertical", refs: ["l2"] },
+      { kind: "horizontal", refs: ["l3"] }, { kind: "vertical", refs: ["l4"] },
+      { kind: "length", refs: ["l1"], value: w }, { kind: "length", refs: ["l2"], value: h },
+    ],
+  };
+}
 
 /** Defaults for a new feature of each type (mm, degrees). */
 const FEATURE_DEFAULTS: Record<string, Omit<PartFeature, "id" | "type">> = {
@@ -11,6 +32,8 @@ const FEATURE_DEFAULTS: Record<string, Omit<PartFeature, "id" | "type">> = {
   sphere: { radius: 50 },
   extrude: { plane: "xy", points: [[0, 0], [100, 0], [100, 60], [0, 60]], depth: 20, symmetric: false },
   revolve: { points: [[0, 0], [40, 0], [40, 100], [0, 100]], angle: 360 },
+  pad: { plane: "xy", sketch: rectSketch(100, 60), depth: 20, symmetric: false },
+  shaft: { plane: "xz", sketch: rectSketch(40, 100), angle: 360 },
   loft: { sections: [{ z: 0, width: 100, height: 100, radius: 20 }, { z: 200, width: 60, height: 60, radius: 20 }], ruled: false },
   sweep: { path: [[0, 0, 0], [300, 0, 0], [300, 200, 0]], radius: 15, wall: 2, bend_radius: 40 },
   sheet_metal: { points: [[0, 50], [0, 0], [120, 0], [120, 50]], thickness: 2, bend_radius: 2, width: 200, k_factor: 0.44 },
@@ -22,10 +45,11 @@ const FEATURE_DEFAULTS: Record<string, Omit<PartFeature, "id" | "type">> = {
   linear_pattern: { count: 3, step: [150, 0, 0] },
   circular_pattern: { count: 6, axis: "z", angle: 360 },
 };
-const SOLIDS = ["box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep", "wing", "sheet_metal"];
+const SOLIDS = ["box", "cylinder", "sphere", "extrude", "revolve", "pad", "shaft", "loft", "sweep", "wing", "sheet_metal"];
 const LABELS: Record<string, string> = {
   box: "Box", cylinder: "Cylinder", sphere: "Sphere", extrude: "Extrude sketch",
-  revolve: "Revolve profile", loft: "Loft sections", sweep: "Sweep tube",
+  revolve: "Revolve profile", pad: "Pad / pocket (constrained sketch)",
+  shaft: "Shaft / groove (constrained sketch)", loft: "Loft sections", sweep: "Sweep tube",
   wing: "Wing (NACA aerofoil)", sheet_metal: "Sheet metal", shell: "Shell",
   fillet: "Fillet edges", chamfer: "Chamfer edges", mirror: "Mirror", linear_pattern: "Linear pattern",
   circular_pattern: "Circular pattern",
@@ -196,6 +220,73 @@ function DesignTableEditor({ table, params, onChange, csvUrl, onImport }: {
   );
 }
 
+/** Power copies: save chosen features as a template; insert a template into this part. */
+function Templates({ projectId, part, picked, onInserted, busy, run }: {
+  projectId: string; part: PartOut; picked: string[]; onInserted: () => void; busy: boolean;
+  run: (action: () => Promise<PartOut | void>) => Promise<void>;
+}) {
+  const [library, setLibrary] = useState<FeatureTemplate[]>([]);
+  const [name, setName] = useState("");
+  const [chosen, setChosen] = useState("");
+  const [prefix, setPrefix] = useState("t1");
+  const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [offset, setOffset] = useState<[number, number, number]>([0, 0, 0]);
+  const [message, setMessage] = useState<string | null>(null);
+  const reload = () => api.featureTemplates().then(setLibrary).catch(() => setLibrary([]));
+  useEffect(() => { reload(); }, []);
+  const template = library.find((t) => t.id === chosen);
+  useEffect(() => {
+    setInputs(Object.fromEntries(Object.entries(template?.parameters ?? {}).map(([k, v]) => [k, String(v)])));
+  }, [chosen, library]); // eslint-disable-line react-hooks/exhaustive-deps
+  const parse = (v: string): number | string => (v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : v);
+  return (
+    <div className="bindings templates">
+      <div className="binding">
+        <input placeholder="template name" value={name} onChange={(ev) => setName(ev.target.value)} />
+        <button disabled={busy || !name.trim() || picked.length === 0} onClick={async () => {
+          try {
+            await api.saveFeatureTemplate({ project_id: projectId, part_id: part.id, name: name.trim(), feature_ids: picked });
+            setName(""); setMessage(`Saved “${name.trim()}” (${picked.length} feature(s)).`); reload();
+          } catch (e) { setMessage(e instanceof Error ? e.message : String(e)); }
+        }}>Save ticked features as template</button>
+      </div>
+      <div className="binding">
+        <select value={chosen} onChange={(ev) => setChosen(ev.target.value)}>
+          <option value="">insert a template…</option>
+          {library.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.features.length})</option>)}
+        </select>
+        {template && <>
+          <label>prefix<input size={5} value={prefix} onChange={(ev) => setPrefix(ev.target.value.replace(/[^A-Za-z0-9_]/g, ""))} /></label>
+          {(["x", "y", "z"] as const).map((axis, i) => (
+            <label key={axis}>{axis}<Num value={offset[i]} onCommit={(v) => setOffset((o) => o.map((x, j) => (j === i ? v : x)) as [number, number, number])} /></label>
+          ))}
+          <button disabled={busy} onClick={() => run(async () => {
+            // Send only the inputs changed from the template's defaults: an input is read as an
+            // expression of this part's parameters, a default keeps the template's own meaning.
+            const changed = Object.entries(inputs).filter(([k, v]) => v !== String(template.parameters[k]));
+            const out = await api.insertFeatureTemplate(projectId, part.id, { template: template.id, prefix,
+              inputs: Object.fromEntries(changed.map(([k, v]) => [k, parse(v)])), offset });
+            onInserted();
+            return out;
+          })}>Insert</button>
+          <button disabled={busy} title="Delete this template from the library" onClick={async () => {
+            await api.deleteFeatureTemplate(template.id); setChosen(""); reload();
+          }}>✕</button>
+        </>}
+      </div>
+      {template && Object.keys(inputs).length > 0 && (
+        <div className="binding">
+          <span className="hint">Inputs (a value, or an expression of this part's parameters):</span>
+          {Object.entries(inputs).map(([k, v]) => (
+            <label key={k}><code>{k}</code><input size={10} value={v} onChange={(ev) => setInputs((all) => ({ ...all, [k]: ev.target.value }))} /></label>
+          ))}
+        </div>
+      )}
+      {message && <span className="hint">{message}</span>}
+    </div>
+  );
+}
+
 function PlacementFields({ at, onCommit }: { at: Placement | undefined; onCommit: (p: Placement) => void }) {
   const p = at ?? {};
   return (
@@ -211,7 +302,7 @@ function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: 
   const set = (key: string, value: unknown) => onChange({ ...feature, [key]: value });
   const keys = Object.keys({ ...FEATURE_DEFAULTS[feature.type], ...feature })
     .filter((k) => !["id", "type", "suppressed", "op", "at", "name", "bindings"].includes(k));
-  const bound = feature.bindings ?? {};
+  const bound = feature.bindings ?? NO_BINDINGS;
   return (
     <div className="feature-fields">
       <label>Name<input value={feature.name ?? ""} placeholder={feature.id}
@@ -256,6 +347,17 @@ function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: 
             </label>
           );
         }
+        if (key === "sketch" && ["pad", "shaft"].includes(feature.type) && value && typeof value === "object") {
+          const plane = String(feature.plane ?? (feature.type === "shaft" ? "xz" : "xy"));
+          return (
+            <div key={key} className="wide">
+              <span className="hint">Constrained sketch on the {plane} plane{feature.type === "shaft" ? "; it revolves about the vertical axis" : ""}</span>
+              <ConstraintSketcher sketch={value as Sketch} bindings={bound} axis={feature.type === "shaft"}
+                labels={feature.type === "shaft" ? ["r", "z"] : [plane[0], plane[1]] as [string, string]}
+                onApply={(sk, b) => onChange({ ...feature, sketch: sk, bindings: b })} />
+            </div>
+          );
+        }
         return <label key={key} className="wide">{key}<JsonField value={value} onCommit={(v) => set(key, v)} /></label>;
       })}
       {"edges" in feature || ["fillet", "chamfer"].includes(feature.type) ? (
@@ -279,6 +381,7 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
   const [feature, setFeature] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
   // Starting points from several domains, served by the backend (each one builds).
   const [presets, setPresets] = useState<Record<string, PartDoc>>({});
   useEffect(() => { api.partPresets().then(setPresets).catch(() => setPresets({})); }, []);
@@ -397,6 +500,8 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
               {features.map((f, i) => (
                 <li key={f.id} className={`${f.id === feature ? "open" : ""} ${f.suppressed ? "suppressed" : ""} ${f.id === failed ? "failed" : ""}`}>
                   <div className="row">
+                    <input type="checkbox" title="Tick to save in a template" checked={picked.includes(f.id)}
+                      onChange={(ev) => setPicked((p) => ev.target.checked ? [...p, f.id] : p.filter((x) => x !== f.id))} />
                     <button className="name" onClick={() => setFeature(f.id === feature ? null : f.id)}>
                       {LABELS[f.type] ?? f.type} <em>{f.name || f.id}</em>
                     </button>
@@ -418,9 +523,18 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
                       {" "}{part.info[f.id].bends} bend(s) (K-factor allowance)</div>
                   )}
                   {f.id === feature && <FeatureFields feature={f} onChange={(next) => editFeature(i, next)} />}
+                  {f.id === feature && (
+                    <details className="inspect" open>
+                      <summary>Inspect topology</summary>
+                      <TopologyInspector part={part} featureId={f.id} />
+                    </details>
+                  )}
                 </li>
               ))}
             </ol>
+            <strong>Templates (power copies)</strong>
+            <Templates projectId={projectId} part={part} picked={picked} busy={busy} run={run}
+              onInserted={() => setPicked([])} />
             <label>Add feature
               <select value="" disabled={busy} onChange={(e) => addFeature(e.target.value)}>
                 <option value="">choose…</option>

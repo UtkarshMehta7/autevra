@@ -155,7 +155,7 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=1,
         min=0,
-        max=11,
+        max=12,
         step=1,
         options=(
             "Arctic White",
@@ -170,6 +170,7 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
             "Solar Yellow",
             "Champagne",
             "Satin Bronze",
+            "Sage Green",
         ),  # fmt: skip
         description="Body paint colour (appearance only; no effect on geometry or tests).",
         aliases=("paint colour", "paint color", "colour", "color", "paint"),
@@ -194,9 +195,9 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=0,
         min=0,
-        max=3,
+        max=4,
         step=1,
-        options=("LED strip", "Matrix LED", "Round", "Split"),
+        options=("LED strip", "Matrix LED", "Round", "Split", "Swept"),
         description="Head lamp layout on the front face (styling envelope; no photometry).",
         aliases=(
             "head lamp signature",
@@ -215,9 +216,9 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=0,
         min=0,
-        max=2,
+        max=3,
         step=1,
-        options=("Light bar", "Separate clusters", "Vertical"),
+        options=("Light bar", "Separate clusters", "Vertical", "Swept"),
         description="Tail lamp layout on the rear face (styling envelope; no photometry).",
         aliases=(
             "tail lamp signature",
@@ -226,6 +227,121 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
             "tail light style",
             "rear lamp style",
             "tail lamp design",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="grille_style",
+        label="Front grille",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=3,
+        step=1,
+        options=("None", "Horizontal bars", "Mesh", "Sport mesh"),
+        description="Grille recessed in the nose below the head lamps: none (a closed nose), "
+        "horizontal bars, a diamond mesh, or a large trapezoid mesh reaching down the chin "
+        "with corner intakes (styling envelope; no cooling-air flow).",
+        aliases=("grille", "grille style", "front grille", "grill", "radiator grille"),
+    ),
+    _p(
+        id="side_vents",
+        label="Fender vents",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=2,
+        step=1,
+        options=("None", "Three gills", "Single slot"),
+        description="Vents cut into each front wing behind the wheel arch (styling only).",
+        aliases=("fender vents", "side vents", "wing vents", "gills", "fender gills"),
+    ),
+    _p(
+        id="exhaust_tips",
+        label="Exhaust tips",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=3,
+        step=1,
+        options=("Hidden", "Twin", "Quad", "Centre"),
+        description="Visible tailpipes through the rear valance (combustion and hybrid "
+        "drives): one each side, a pair each side, or a pair in the middle (styling only; "
+        "no flow or noise model).",
+        aliases=(
+            "exhaust tips",
+            "tailpipes",
+            "tail pipes",
+            "exhaust outlets",
+            "quad exhaust",
+            "twin exhaust",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="lamp_housing",
+        label="Head lamp housing",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=1,
+        step=1,
+        options=("None", "Smoked"),
+        description="A dark smoked housing round each head lamp (the lamp runs along its top "
+        "edge), as on many sports and luxury cars (styled surface; styling only).",
+        aliases=(
+            "lamp housing",
+            "headlamp housing",
+            "smoked lamps",
+            "dark headlights",
+            "smoked headlights",
+            "lamp surround",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="door_lines",
+        label="Door shut lines",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=2,
+        step=1,
+        options=("None", "Shut lines", "Shut lines and handles"),
+        description="Panel gaps cut round each door between the wheel arches (two long doors "
+        "on coupes, roadsters and supercars, else front and rear doors), optionally with "
+        "flush handle recesses (styling only; the doors do not open).",
+        aliases=(
+            "door lines",
+            "shut lines",
+            "door gaps",
+            "panel gaps",
+            "door handles",
+            "door cut lines",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="lower_trim",
+        label="Lower trim",
+        group=Group.BODY,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=1,
+        step=1,
+        options=("Body colour", "Gloss black"),
+        description="Finish of the band round the foot of the body: the front splitter, side "
+        "skirts and rear valance (styled surface; styling only).",
+        aliases=(
+            "lower trim",
+            "splitter",
+            "side skirts",
+            "skirts",
+            "valance",
+            "lower body trim",
+            "contrast trim",
         ),  # fmt: skip
     ),
     # --- Body shaping (any style can be pushed towards any other) ---
@@ -303,6 +419,33 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         aliases=("tumblehome", "roof inset", "glasshouse taper"),
     ),
     _p(
+        id="surface_quality",
+        label="Surface",
+        group=Group.SHAPE,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=1,
+        step=1,
+        options=("Styled freeform", "Draft (fast)"),
+        description="Styled: the whole body as one smooth freeform skin (seconds per build). "
+        "Draft: planar faces, about five times faster (for slow hosts and quick studies).",
+        aliases=("surface quality", "surface", "body surface", "surface mode"),
+    ),
+    _p(
+        id="roof_arc",
+        label="Roof arc",
+        group=Group.SHAPE,
+        unit=Unit.MM,
+        default=40,
+        min=0,
+        max=250,
+        step=5,
+        description="How far the roof ends drop below its highest point (styled surface): "
+        "0 is a flat roof panel, more is a flowing arched roofline.",
+        aliases=("roof arc", "roof curvature", "roofline curve", "roof camber"),
+    ),
+    _p(
         id="fender_rise",
         label="Fender rise",
         group=Group.SHAPE,
@@ -312,8 +455,113 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         max=200,
         step=5,
         description="How far the bonnet drops between raised front wings (the wings keep the "
-        "wheel-arch clearance).",
+        "wheel-arch clearance). On the styled surface the wings also swell up over the "
+        "wheels by up to half this, and an open car's deck sinks between the rear haunches.",
         aliases=("fender rise", "wing rise", "fender height", "raised wings", "fender peaks"),
+    ),
+    _p(
+        id="nose_rake",
+        label="Nose rake",
+        group=Group.SHAPE,
+        unit=Unit.PERCENT,
+        default=0,
+        min=0,
+        max=80,
+        step=5,
+        description="How far the bonnet's leading edge sits back from the bumper line, as a "
+        "share of the front face's height: 0 is an upright face, more rakes the nose back so "
+        "the bonnet falls to a low, pointed front (the lamps and grille follow the face).",
+        aliases=(
+            "nose rake",
+            "front rake",
+            "face rake",
+            "nose slope",
+            "pointed nose",
+            "raked nose",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="hip_rise",
+        label="Hip rise",
+        group=Group.SHAPE,
+        unit=Unit.MM,
+        default=0,
+        min=0,
+        max=150,
+        step=5,
+        description="How far the rear wings swell up over the rear wheels above the door line "
+        "(muscular rear haunches; the deck between them stays low; styled surface, the "
+        "overall height is unchanged).",
+        aliases=(
+            "hip rise",
+            "rear haunch",
+            "rear haunches",
+            "hips",
+            "muscular hips",
+            "rear shoulders",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="front_face",
+        label="Front face",
+        group=Group.SHAPE,
+        unit=Unit.PERCENT,
+        default=0,
+        min=0,
+        max=100,
+        step=5,
+        description="How broad and upright the front face is: 0 rounds the nose off into a "
+        "bullet, 100 keeps a full, near-vertical fascia down to a low chin, as a grand tourer "
+        "wearing a large grille (the overall length is unchanged).",
+        aliases=(
+            "front face",
+            "fascia",
+            "front fascia",
+            "blunt nose",
+            "nose fullness",
+            "upright nose",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="wing_crease",
+        label="Wing crease",
+        group=Group.SHAPE,
+        unit=Unit.PERCENT,
+        default=0,
+        min=0,
+        max=100,
+        step=5,
+        description="A sharp character line down each side, from the head lamp along the "
+        "wing and the doors into the rear haunch, with the flank drawn in beneath it (styled "
+        "surface; the body width is unchanged).",
+        aliases=(
+            "wing crease",
+            "character line",
+            "fender crease",
+            "side crease",
+            "feature line",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="bonnet_dome",
+        label="Bonnet dome",
+        group=Group.SHAPE,
+        unit=Unit.PERCENT,
+        default=0,
+        min=0,
+        max=80,
+        step=5,
+        description="A power dome along the middle of the bonnet, rising from the valley "
+        "between raised wings (as a share of the fender rise), framed by two creases; "
+        "needs a fender rise on the styled surface.",
+        aliases=(
+            "bonnet dome",
+            "hood bulge",
+            "power dome",
+            "bonnet bulge",
+            "hood scoop bulge",
+            "power bulge",
+        ),  # fmt: skip
     ),
     # --- Exterior options ---
     _p(
@@ -498,11 +746,32 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=0,
         min=0,
-        max=5,
+        max=6,
         step=1,
-        options=("Charcoal", "Stone Grey", "Cream", "Tan", "Cognac", "Oxblood"),
+        options=("Charcoal", "Stone Grey", "Cream", "Tan", "Cognac", "Oxblood", "Taupe"),
         description="Seat and trim colour (appearance only).",
         aliases=("interior colour", "interior color", "upholstery", "seat colour", "seat color"),
+    ),
+    _p(
+        id="seat_accent",
+        label="Seat accent",
+        group=Group.INTERIOR,
+        unit=Unit.NONE,
+        default=0,
+        min=0,
+        max=4,
+        step=1,
+        options=("Single tone", "Charcoal", "Cream", "Tan", "Oxblood"),
+        description="Two-tone seats: the side bolsters and head rest panels in a contrast "
+        "colour (Single tone keeps them in the interior colour).",
+        aliases=(
+            "seat accent",
+            "two tone seats",
+            "two-tone seats",
+            "bolster colour",
+            "bolster color",
+            "contrast seats",
+        ),  # fmt: skip
     ),
     _p(
         id="driving_side",
@@ -553,6 +822,59 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         step=10,
         description="Shift of the cabin centre from the body centre (positive = forward).",
         aliases=("cabin offset", "cabin position", "greenhouse offset"),
+    ),
+    # --- Seating package (allowances, editable per design) ---
+    _p(
+        id="seat_height",
+        label="Seat height",
+        group=Group.CABIN,
+        unit=Unit.MM,
+        default=280,
+        min=100,
+        max=450,
+        step=5,
+        description="Cushion top above the cabin floor (capped at 28 % of the floor-to-roof "
+        "height). Low sports seating is 150-200 mm.",
+        aliases=("seat height", "cushion height", "seating height", "seat position height"),
+    ),
+    _p(
+        id="seat_recline",
+        label="Seat recline",
+        group=Group.CABIN,
+        unit=Unit.DEG,
+        default=22,
+        min=10,
+        max=40,
+        step=1,
+        description="Backrest angle from vertical. A steeper recline lowers the seated head "
+        "height (sports cars use 28-35 degrees).",
+        aliases=("seat recline", "recline", "backrest angle", "seat back angle"),
+    ),
+    _p(
+        id="dash_zone",
+        label="Dashboard zone",
+        group=Group.CABIN,
+        unit=Unit.MM,
+        default=350,
+        min=200,
+        max=700,
+        step=10,
+        description="Depth kept for the dashboard behind the windscreen base, ahead of the "
+        "front seats.",
+        aliases=("dashboard zone", "dash zone", "dashboard depth", "instrument panel depth"),
+    ),
+    _p(
+        id="row_pitch",
+        label="Seat row pitch",
+        group=Group.CABIN,
+        unit=Unit.MM,
+        default=850,
+        min=650,
+        max=1100,
+        step=10,
+        description="Length taken by one row of seats; sets legroom and the cabin length "
+        "the seat rows need.",
+        aliases=("row pitch", "seat pitch", "seat row pitch", "couple distance", "legroom"),
     ),
     # --- Wheels and tyres ---
     _p(
@@ -606,9 +928,18 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=0,
         min=0,
-        max=5,
+        max=7,
         step=1,
-        options=("Five-spoke", "Multi-spoke", "Twin-spoke", "Mesh", "Aero disc", "Steel"),
+        options=(
+            "Five-spoke",
+            "Multi-spoke",
+            "Twin-spoke",
+            "Mesh",
+            "Aero disc",
+            "Steel",
+            "Y-spoke",
+            "Ten twin-spoke",
+        ),  # fmt: skip
         description="Rim face design (styling; the ride models use the tyre size only).",
         aliases=("wheel design", "rim design", "wheel style", "rim style", "alloy design"),
     ),
@@ -619,9 +950,17 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=0,
         min=0,
-        max=5,
+        max=6,
         step=1,
-        options=("Silver", "Gunmetal", "Gloss black", "Diamond cut", "Bronze", "White"),
+        options=(
+            "Silver",
+            "Gunmetal",
+            "Gloss black",
+            "Diamond cut",
+            "Bronze",
+            "White",
+            "Satin black",
+        ),
         description="Rim colour and finish (appearance only).",
         aliases=(
             "rim finish",
@@ -630,6 +969,26 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
             "rim color",
             "wheel colour",
             "wheel color",
+        ),  # fmt: skip
+    ),
+    _p(
+        id="caliper_colour",
+        label="Brake calipers",
+        group=Group.WHEELS,
+        unit=Unit.NONE,
+        default=1,
+        min=0,
+        max=5,
+        step=1,
+        options=("Black", "Silver", "Red", "Yellow", "Blue", "Green"),
+        description="Brake caliper colour, seen through the wheels (appearance only).",
+        aliases=(
+            "caliper colour",
+            "caliper color",
+            "brake calipers",
+            "calipers",
+            "brake caliper colour",
+            "brake caliper color",
         ),  # fmt: skip
     ),
     _p(

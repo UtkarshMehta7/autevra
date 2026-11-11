@@ -109,8 +109,10 @@ def body_layout(p: Inputs) -> BodyLayout:
     centre = (rear + front) / 2.0 + p["cabin_offset"]
     # The wheel arches shape only the lower profile; the glazing is built without them.
     arch_top = p.get("tyre_radius", 0.0) + p.get("arch_radius", 0.0)
-    under = min(0.06 * length, 220.0)
-    bumper = floor + 0.25 * depth
+    # A full front face stands upright from a low chin (a short undercut, a low bumper line).
+    face = min(max(p.get("front_face", 0.0), 0.0), 100.0) / 100.0
+    under = min(0.06 * length, 220.0) * (1.0 - 0.6 * face)
+    bumper = floor + 0.25 * depth * (1.0 - 0.45 * face)
     tail_low = floor + 0.3 * depth
 
     # The bonnet clears the front arch by 40 mm, or drops between raised wings by the
@@ -120,8 +122,13 @@ def body_layout(p: Inputs) -> BodyLayout:
     def nose_at(share: float) -> float:  # hood height at the nose, above the front arch
         return min(max(floor + share * depth, arch_top + 40.0 - drop), belt - 20.0)
 
+    # The nose rake sets the bonnet's leading edge back from the bumper line (a share of the
+    # front face's height), so the bonnet falls to a low, pointed nose, not a vertical slab.
+    rake_share = min(max(p.get("nose_rake", 0.0), 0.0), 100.0) / 100.0
+
     def hood(share: float) -> list[tuple[float, float]]:  # nose, curved hood, windscreen base
-        nose = (front, nose_at(share))
+        z = nose_at(share)
+        nose = (front - rake_share * max(z - bumper, 0.0), z)
         return [nose, *_hood_curve(nose, (cowl, belt)), (cowl, belt)]
 
     # Windscreen base and rear screen base; the greenhouse keeps at least MIN_GREENHOUSE
@@ -224,6 +231,7 @@ def body_profile(p: Inputs) -> list[tuple[float, float]]:
 
 
 PILLAR = 70.0  # pillar and roof-rail width left around the window openings, mm
+OPEN_PILLAR = 40.0  # an open car's slim windscreen surround (no roof load), mm
 GLASS_INSET = 8.0  # near-flush glazing: this far inside the greenhouse surface, mm
 
 
@@ -259,12 +267,13 @@ def _window_frame(p: Inputs, layout: BodyLayout) -> k.Shape:
     the pillars and the roof; the glazing component fills the openings from inside."""
     half_w = p["body_width"] / 2.0
     belt, top = p["beltline_height"], layout.roof_z
-    z = (belt + PILLAR * 0.6, top - PILLAR)
+    pillar = OPEN_PILLAR if layout.open else PILLAR
+    z = (belt + PILLAR * 0.6, top - pillar)
     roof_w = roof_half_width(p)
     (g0, g1), (r0, r1) = layout.glass, layout.roof
-    side = k.box((r0 + PILLAR, r1 - PILLAR), (-half_w - 10.0, half_w + 10.0), z)
+    side = k.box((r0 + pillar, r1 - pillar), (-half_w - 10.0, half_w + 10.0), z)
     screens = [
-        k.box(x, (-roof_w + PILLAR, roof_w - PILLAR), z)
+        k.box(x, (-roof_w + pillar, roof_w - pillar), z)
         for x in ((r1 - 1.0, g1 + 10.0), (g0 - 10.0, r0 + 1.0))  # windscreen, rear screen
         if x[1] - x[0] > 1.0
     ]
@@ -278,9 +287,26 @@ def _open_top(p: Inputs, layout: BodyLayout, shape: k.Shape) -> k.Shape:
     if not layout.open:
         return shape
     half_w = p["body_width"] / 2.0
+    belt, top = p["beltline_height"], layout.roof_z
     (_, g1), (_, r1) = layout.glass, layout.roof
-    keep = k.box((r1 - PILLAR - 1.0, g1 + 20.0), (-half_w - 20.0, half_w + 20.0),
-                 (p["beltline_height"] - 5.0, layout.roof_z + 5.0))  # fmt: skip
+    keep = k.box((r1 - OPEN_PILLAR - 1.0, g1 + 20.0), (-half_w - 20.0, half_w + 20.0),
+                 (belt - 5.0, top + 5.0))  # fmt: skip
+    # Behind the windscreen only the A-pillars and the header rail stay: the side wall
+    # between them is open (the side windows are down with the roof).
+    run, rise = g1 - r1, max(top - belt, 1.0)
+    back = OPEN_PILLAR * math.hypot(run, rise) / rise  # a slim pillar, measured along x
+
+    def screen_x(z: float) -> float:
+        return g1 - run * (z - belt) / rise
+
+    # From above the cabin cut (which reaches 60 mm over the beltline), so the pillars stay
+    # joined to the body through the cowl sides.
+    z0, z1 = belt + 100.0, top - OPEN_PILLAR
+    if z1 - z0 > 20.0:
+        air = k.prism_y([(r1 - OPEN_PILLAR - 50.0, z0), (screen_x(z0) - back, z0),
+                         (screen_x(z1) - back, z1), (r1 - OPEN_PILLAR - 50.0, z1)],
+                        (-half_w - 30.0, half_w + 30.0))  # fmt: skip
+        keep = k.cut(keep, air)
     return k.intersect(shape, keep)
 
 
@@ -290,14 +316,27 @@ GLASS_THICKNESS = 6.0  # mm
 def build_glass(p: Inputs) -> k.Shape:
     """Glazing: a thin shell just inside the body's window openings, open at the beltline,
     so the cabin can be seen through it."""
+    from autevra.domains.automotive import styled
+
+    if styled.styled_ok(p):
+        try:
+            return styled.build_styled_glass(p)
+        except Exception:  # no glazing rather than glazing that does not match the body
+            return None
     layout = body_layout(p)
     outer = _greenhouse(p, layout, inset=GLASS_INSET)
     shell = k.cut(outer, _greenhouse(p, layout, inset=GLASS_INSET + GLASS_THICKNESS))
     return _open_top(p, layout, shell)
 
 
-def build_lamps(p: Inputs, end: str) -> k.Shape:
-    from autevra.domains.automotive import styling
+def build_lamps(p: Inputs, end: str) -> k.Shape | None:
+    from autevra.domains.automotive import styled, styling
+
+    if styled.styled_ok(p):
+        try:
+            return styled.build_styled_lamps(p, end)
+        except Exception:
+            return None
 
     first, *rest = styling.lamp_solids(p, end, body_layout(p))
     return k.fuse(first, *rest) if rest else first
@@ -316,8 +355,10 @@ def build_body(p: Inputs) -> k.Shape:
     side profile) and the window frame of a raked, tapered greenhouse, shaped by the body
     style (an open bed for a pickup, a cargo box for a box truck), with wheel wells.
     Extents: overhang to overhang, full width, floor to roof."""
-    from autevra.domains.automotive import sculpt
+    from autevra.domains.automotive import sculpt, styled
 
+    if styled.surface(p) == "styled" and (shape := styled.try_body(p)) is not None:
+        return shape
     layout = body_layout(p)
     half_w = p["body_width"] / 2.0
     floor, belt = p["body_floor"], p["beltline_height"]
@@ -353,14 +394,24 @@ def build_body(p: Inputs) -> k.Shape:
     cabin = k.box(*interior.cavity(p))  # the passenger space, open into the glasshouse
     opening = exterior.roof_opening(p, layout)  # panoramic roof or sunroof
     roof = [k.box(*opening)] if opening is not None else []
-    return k.cut(body, *wells, *lamps, cabin, *roof)  # one boolean for all the openings
+    from autevra.domains.automotive import details
+
+    trims = [
+        *details.grille_tools(p, layout),
+        *details.vent_tools(p),
+        *details.door_tools(p, layout),
+    ]
+    return k.cut(body, *wells, *lamps, cabin, *roof, *trims)  # one boolean for all openings
 
 
 build_body.mesh_angular = 0.12  # type: ignore[attr-defined]  (smooth highlights on the curves)
 
 
 def _ladder(p: Inputs, z: tuple[float, float]) -> k.Shape:
-    front = p["front_overhang"] - 150.0
+    # The crash rails end inside the nose: behind the chin, which slopes back from the
+    # bumper line to the floor over up to 220 mm (see ``body_layout``).
+    length = p["wheelbase"] + p["front_overhang"] + p["rear_overhang"]
+    front = p["front_overhang"] - max(150.0, min(0.06 * length, 220.0) + 30.0)
     rear = -(p["wheelbase"] + p["rear_overhang"] - 150.0)
     w, t = p["rail_width"], p["rail_wall"]
     half = p["rail_spacing"] / 2.0
@@ -387,7 +438,8 @@ def build_frame(p: Inputs) -> k.Shape:
     if kind == "ladder":
         return _ladder(p, (gc, gc + p["rail_height"]))
     w, t = p["rail_width"], p["rail_wall"]
-    front = p["front_overhang"] - 150.0
+    length = p["wheelbase"] + p["front_overhang"] + p["rear_overhang"]
+    front = p["front_overhang"] - max(150.0, min(0.06 * length, 220.0) + 30.0)  # behind the chin
     rear = -(p["wheelbase"] + p["rear_overhang"] - 150.0)
     half_rail = p["rail_spacing"] / 2.0
     sill = p["body_width"] / 2.0 - 110.0

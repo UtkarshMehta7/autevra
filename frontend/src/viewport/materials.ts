@@ -23,12 +23,12 @@ export function materialFor(finish: string | undefined, color: [number, number, 
         sheen: 0.6, sheenRoughness: 0.8, sheenColor: c.clone().lerp(new THREE.Color(1, 1, 1), 0.2) });
     case "trim":
       return new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, metalness: 0.05 });
-    case "screen":
-      return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.08, metalness: 0.2,
-        clearcoat: 1, emissive: new THREE.Color(0.08, 0.22, 0.45), emissiveIntensity: 0.9 });
+    case "screen": // glossy black glass with a faint backlight, as a display reads by day
+      return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.06, metalness: 0.2,
+        clearcoat: 1, emissive: new THREE.Color(0.03, 0.07, 0.13), emissiveIntensity: 0.25 });
     case "lamp":
       return new THREE.MeshStandardMaterial({ color: c, roughness: 0.2, metalness: 0,
-        emissive: c, emissiveIntensity: 0.55 });
+        emissive: c, emissiveIntensity: 3.2 }); // lit: well above 1 in HDR, so lamps bloom in Render
     case "rubber":
       return new THREE.MeshStandardMaterial({ color: c, roughness: 0.92, metalness: 0 });
     case "polished": // diamond-cut or polished alloy
@@ -38,9 +38,9 @@ export function materialFor(finish: string | undefined, color: [number, number, 
     case "paint_metallic":
       return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.32, metalness: 0.65,
         clearcoat: 1, clearcoatRoughness: 0.08 });
-    case "paint_matte":
-      return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.78, metalness: 0.05,
-        clearcoat: 0 });
+    case "paint_matte": // satin: no gloss, but a broad soft sheen along the curvature
+      return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.58, metalness: 0.05,
+        clearcoat: 0.25, clearcoatRoughness: 0.5 });
     case "paint_pearl":
       return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.3, metalness: 0.3,
         clearcoat: 1, clearcoatRoughness: 0.05, iridescence: 0.35, iridescenceIOR: 1.5,
@@ -113,4 +113,44 @@ let curvature: THREE.MeshLambertMaterial | null = null;
 export function curvatureMaterial(): THREE.MeshLambertMaterial {
   curvature ??= new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   return curvature;
+}
+
+let draft: THREE.ShaderMaterial | null = null;
+
+/** Draft analysis: each surface coloured by its draft angle to the pull direction (world
+ * space): green releases (at least ``minDeg``), yellow is short of draft, red is undercut
+ * (or belongs to the other mould half). Honours the section plane. */
+export function draftMaterial(pull: THREE.Vector3, minDeg: number): THREE.ShaderMaterial {
+  draft ??= new THREE.ShaderMaterial({
+    clipping: true,
+    side: THREE.DoubleSide,
+    uniforms: { pull: { value: new THREE.Vector3(0, 0, 1) }, minDeg: { value: 1 } },
+    vertexShader: `
+      #include <clipping_planes_pars_vertex>
+      varying vec3 vWorldNormal;
+      void main() {
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <clipping_planes_vertex>
+      }`,
+    fragmentShader: `
+      #include <clipping_planes_pars_fragment>
+      uniform vec3 pull;
+      uniform float minDeg;
+      varying vec3 vWorldNormal;
+      void main() {
+        #include <clipping_planes_fragment>
+        vec3 n = normalize(vWorldNormal);
+        if (!gl_FrontFacing) n = -n;
+        float angle = 90.0 - degrees(acos(clamp(dot(n, normalize(pull)), -1.0, 1.0)));
+        vec3 c = angle >= minDeg ? vec3(0.18, 0.72, 0.35)
+               : angle > -minDeg ? vec3(0.95, 0.78, 0.15) : vec3(0.86, 0.22, 0.2);
+        float light = 0.55 + 0.45 * abs(n.z);
+        gl_FragColor = vec4(c * light, 1.0);
+      }`,
+  });
+  draft.uniforms.pull.value.copy(pull);
+  draft.uniforms.minDeg.value = minDeg;
+  return draft;
 }

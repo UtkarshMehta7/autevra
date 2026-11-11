@@ -449,7 +449,8 @@ DEFINITIONS: dict[str, tuple[DerivedDef, Callable[[Values], float]]] = {
     "front_headroom": (
         DerivedDef(
             id="front_headroom", label="Front headroom", unit="mm",
-            controlled_by=("overall_height", "ground_clearance", "rail_height", "body_style"),
+            controlled_by=("overall_height", "ground_clearance", "rail_height", "body_style",
+                           "seat_height", "seat_recline"),
             aliases=("headroom", "front headroom", "head room"),
         ),
         front_headroom,
@@ -488,8 +489,8 @@ DEFINITIONS: dict[str, tuple[DerivedDef, Callable[[Values], float]]] = {
         DerivedDef(
             id="h_point_height", label="H-point height", unit="mm",
             controlled_by=("ground_clearance", "rail_height", "overall_height", "body_style",
-                           "chassis_type"),
-            aliases=("h-point height", "h point height", "hip point height", "seat height"),
+                           "chassis_type", "seat_height"),
+            aliases=("h-point height", "h point height", "hip point height"),
         ),
         h_point_height,
     ),

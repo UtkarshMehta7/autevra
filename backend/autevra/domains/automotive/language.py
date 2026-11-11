@@ -21,6 +21,17 @@ NORMALISERS = (
         lambda m: "track" if m.group(1) == "track" else "overhangs",
     ),
     (r"\bthe (car|vehicle)\b", "it"),
+    # Two-tone seats: "(two tone seats with) tan bolsters" sets the seat accent.
+    (
+        r"\b(?:(?:make )?(?:the )?two[- ]tone seats? (?:with )?)?"
+        r"(charcoal|black|cream|white|tan|oxblood|red) bolsters\b",
+        r"seat accent \1",
+    ),
+    (r"\b(?:make )?(?:the )?seats? two[- ]tone\b|^two[- ]tone seats?$", "seat accent charcoal"),
+    (
+        r"\b(?:make )?(?:the )?(?:single|one)[- ]tone seats?\b|\bseats? (?:single|one)[- ]tone\b",
+        "seat accent single tone",
+    ),  # fmt: skip
 )
 
 COMPARATIVES: dict[str, tuple[str, bool]] = {
@@ -500,10 +511,12 @@ LANGUAGE = Language(
                 "10-spoke",
                 "fine spoke",
             ),
-            "Twin-spoke": ("twin spoke", "double spoke", "split spoke", "y spoke", "y-spoke"),
+            "Twin-spoke": ("twin spoke", "double spoke", "split spoke"),
             "Mesh": ("cross spoke", "lattice", "bbs style"),
             "Aero disc": ("aero", "aero disc", "aerodynamic", "covered", "turbine", "disc"),
             "Steel": ("steelies", "steel wheels", "plain steel", "basic"),
+            "Y-spoke": ("y spoke", "y-spoke", "forked spoke", "forked spokes"),
+            "Ten twin-spoke": ("ten twin spoke", "10 twin spoke", "twenty spoke", "20 spoke"),
         },
         "rim_finish": {
             "Silver": ("silver", "bright silver", "painted silver"),
@@ -512,17 +525,20 @@ LANGUAGE = Language(
             "Diamond cut": ("diamond-cut", "machined", "polished", "two-tone", "two tone"),
             "Bronze": ("gold", "satin bronze", "champagne"),
             "White": ("white", "matte white"),
+            "Satin black": ("satin black", "matte black", "dark wheels", "black wheels"),
         },
         "head_lamp_style": {
             "LED strip": ("strip", "slim", "led strips", "light strip", "light line"),
             "Matrix LED": ("matrix", "adaptive", "pixel", "segmented"),
             "Round": ("round", "circular", "retro", "classic"),
             "Split": ("split", "split level", "split-level", "stacked"),
+            "Swept": ("swept", "boomerang", "wraparound", "wrap around", "swept back"),
         },
         "tail_lamp_style": {
             "Light bar": ("light bar", "full width", "full-width", "bar", "lightbar"),
             "Separate clusters": ("clusters", "separate", "corner clusters", "two clusters"),
             "Vertical": ("vertical", "upright", "tall"),
+            "Swept": ("swept", "boomerang", "wraparound", "slim", "swept back"),
         },
         "roof_type": {
             "Solid": ("solid", "metal", "steel"),
@@ -549,6 +565,62 @@ LANGUAGE = Language(
         "mirror_type": {
             "Conventional": ("conventional", "normal", "glass"),
             "Camera": ("camera", "digital", "virtual", "camera pods"),
+        },
+        "grille_style": {
+            "None": ("no", "closed", "closed nose", "blanked"),
+            "Horizontal bars": ("bars", "slats", "horizontal slats", "bar grille"),
+            "Mesh": ("mesh", "honeycomb", "diamond mesh", "mesh grille"),
+            "Sport mesh": (
+                "sport",
+                "large grille",
+                "big grille",
+                "trapezoid",
+                "sport grille",
+                "large mesh",
+            ),  # fmt: skip
+        },
+        "exhaust_tips": {
+            "Hidden": ("hidden exhaust", "no tailpipes", "hidden"),
+            "Twin": ("twin", "dual", "twin tailpipes", "dual exhaust"),
+            "Quad": ("quad", "four tailpipes", "quad tailpipes"),
+            "Centre": ("centre", "center", "central", "centre exit", "center exit"),
+        },
+        "lamp_housing": {
+            "None": ("clear", "no housing", "plain lamps"),
+            "Smoked": ("smoked", "dark", "tinted", "black housing"),
+        },
+        "door_lines": {
+            "None": ("no door lines", "seamless", "no shut lines"),
+            "Shut lines": ("shut lines", "door lines", "panel gaps", "door gaps"),
+            "Shut lines and handles": (
+                "door handles",
+                "flush handles",
+                "handles",
+                "lines and handles",
+            ),  # fmt: skip
+        },
+        "lower_trim": {
+            "Body colour": (
+                "body colour",
+                "body color",
+                "colour coded",
+                "color coded",
+                "painted",
+            ),  # fmt: skip
+            "Gloss black": ("gloss black", "black", "piano black", "contrast", "blacked out"),
+        },
+        "side_vents": {
+            "None": ("no",),
+            "Three gills": ("gills", "three vents", "triple vents", "three gills"),
+            "Single slot": ("slot", "single vent", "one vent", "slot vent"),
+        },
+        "caliper_colour": {
+            "Black": ("black",),
+            "Silver": ("silver", "grey", "gray"),
+            "Red": ("red",),
+            "Yellow": ("yellow", "gold"),
+            "Blue": ("blue",),
+            "Green": ("green",),
         },
         "tow_bar": {
             "None": ("no",),
@@ -594,6 +666,14 @@ LANGUAGE = Language(
             "Tan": ("tan", "camel", "beige interior"),
             "Cognac": ("cognac", "brown interior", "saddle"),
             "Oxblood": ("oxblood", "red interior", "burgundy"),
+            "Taupe": ("taupe", "mocha", "grey brown", "gray brown"),
+        },
+        "seat_accent": {
+            "Single tone": ("single tone", "one tone", "plain seats"),
+            "Charcoal": ("black", "black bolsters", "charcoal bolsters"),
+            "Cream": ("white", "cream bolsters", "white bolsters"),
+            "Tan": ("tan bolsters",),
+            "Oxblood": ("red", "red bolsters", "oxblood bolsters"),
         },
         "driving_side": {
             "Left-hand drive": ("lhd", "left hand drive", "left-hand-drive"),
@@ -612,6 +692,14 @@ LANGUAGE = Language(
             "Solar Yellow": ("yellow",),
             "Champagne": ("gold", "beige"),
             "Satin Bronze": ("bronze", "brown"),
+            "Sage Green": (
+                "sage",
+                "olive",
+                "olive green",
+                "matte green",
+                "muted green",
+                "military green",
+            ),  # fmt: skip
         },
         "paint_finish": {
             "Gloss": ("glossy", "solid", "shiny"),

@@ -1,4 +1,5 @@
-"""The only module that talks to the CAD kernel (CadQuery on Open CASCADE).
+"""The CAD kernel interface (CadQuery on Open CASCADE); with ``topology`` (B-rep inspection),
+the only code that talks to the kernel.
 
 Everything else in Autevra handles ``Shape`` values opaquely and calls the
 functions here, so swapping CadQuery for build123d or raw OCP stays local.
@@ -143,6 +144,26 @@ def prism_y(profile: Sequence[tuple[float, float]], y: tuple[float, float]) -> S
     pts = [cq.Vector(x, y[0], z) for x, z in profile]
     face = cq.Face.makeFromWires(cq.Wire.makePolygon(pts, close=True))
     return cq.Solid.extrudeLinear(face, cq.Vector(0, y[1] - y[0], 0))
+
+
+def prism_x(outline: Sequence[tuple[float, float]], x: tuple[float, float]) -> Shape:
+    """Solid from a closed (y, z) outline in the YZ plane, extruded from x[0] to x[1]."""
+    pts = [cq.Vector(x[0], y, z) for y, z in outline]
+    face = cq.Face.makeFromWires(cq.Wire.makePolygon(pts, close=True))
+    return cq.Solid.extrudeLinear(face, cq.Vector(x[1] - x[0], 0, 0))
+
+
+def perforated_prism_x(outline: Sequence[tuple[float, float]],
+                       holes: Sequence[Sequence[tuple[float, float]]],
+                       x: tuple[float, float]) -> Shape:  # fmt: skip
+    """Like ``prism_x`` with holes through it (each hole a closed (y, z) outline inside the
+    outline): one extrusion, no booleans, so hundreds of holes stay cheap."""
+
+    def wire(points: Sequence[tuple[float, float]]) -> cq.Wire:
+        return cq.Wire.makePolygon([cq.Vector(x[0], y, z) for y, z in points], close=True)
+
+    face = cq.Face.makeFromWires(wire(outline), [wire(h) for h in holes])
+    return cq.Solid.extrudeLinear(face, cq.Vector(x[1] - x[0], 0, 0))
 
 
 def prism_z(outline: Sequence[tuple[float, float]], z: tuple[float, float]) -> Shape:

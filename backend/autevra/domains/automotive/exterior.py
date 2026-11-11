@@ -66,6 +66,38 @@ def _mirror_x(layout: b.BodyLayout) -> float:
     return min(g1 - 80.0, max((g1 + r1) / 2.0, r1 - b.PILLAR + 70.0))
 
 
+def _rounded(solid: k.Shape, radius: float) -> k.Shape:
+    """A box with every edge filleted (or the box itself if the kernel cannot)."""
+    try:
+        return solid.fillet(radius, solid.Edges())
+    except Exception:  # the kernel raises several types; a sharp box is a safe answer
+        return solid
+
+
+def _pod(x: float, y: float, z: float, half_w: float, half_h: float) -> k.Shape:
+    """A mirror housing: an ellipse at the rear (the glass face), running forward, then
+    tapering to a rounded nose ahead of it (a smooth loft; a rounded box if it fails)."""
+
+    def loft(hw: float) -> k.Shape:
+        return (
+            cq.Workplane("YZ", origin=(x - 55.0, 0.0, 0.0)).center(y, z)
+            .ellipse(hw, half_h)
+            .workplane(offset=35.0).ellipse(hw, half_h)
+            .workplane(offset=45.0).ellipse(0.8 * hw, 0.78 * half_h)
+            .workplane(offset=30.0).ellipse(0.35 * hw, 0.35 * half_h)
+            .loft(ruled=False).val()
+        )  # fmt: skip
+
+    try:
+        # The spline between the sections bulges a little past them: scale the sections
+        # (the loft scales with them) so the pod spans exactly its width.
+        (_, y0, _), (_, y1, _) = k.bounds(loft(half_w))
+        return loft(half_w * 2.0 * half_w / (y1 - y0))
+    except Exception:  # the kernel raises several types; a moulded box is a safe answer
+        return _rounded(k.box((x - 55.0, x + 55.0), (y - half_w, y + half_w),
+                              (z - half_h, z + half_h)), 28.0)  # fmt: skip
+
+
 def build_mirrors(p: Inputs) -> k.Shape:
     layout = b.body_layout(p)
     xm, belt = _mirror_x(layout), p["beltline_height"]
@@ -82,11 +114,11 @@ def build_mirrors(p: Inputs) -> k.Shape:
                                (belt + 55.0, belt + 80.0)))  # fmt: skip
             parts.append(k.box((xm - 40.0, xm + 45.0), y(side + reach - 70.0, side + reach),
                                (belt + 45.0, belt + 95.0)))  # fmt: skip
-        else:  # arm and housing
-            parts.append(k.box((xm - 30.0, xm + 30.0), y(side - 40.0, side + 60.0),
-                               (belt + 40.0, belt + 80.0)))  # fmt: skip
-            parts.append(k.box((xm - 60.0, xm + 60.0), y(side + 40.0, side + reach),
-                               (belt + 30.0, belt + 180.0)))  # fmt: skip
+        else:  # a slim stalk and a teardrop housing, flat glass face to the rear
+            parts.append(_rounded(k.box((xm - 25.0, xm + 25.0), y(side - 40.0, side + 70.0),
+                                        (belt + 45.0, belt + 75.0)), 10.0))  # fmt: skip
+            parts.append(_pod(xm, s * (2.0 * side + 40.0 + reach) / 2.0, belt + 105.0,
+                              (reach - 40.0) / 2.0, 75.0))  # fmt: skip
     return k.fuse(*parts)
 
 

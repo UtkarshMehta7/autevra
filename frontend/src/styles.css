@@ -23,10 +23,28 @@ button:disabled { opacity: 0.45; }
 
 .app {
   display: grid; height: 100vh;
-  grid-template:
-    "head head head" auto "left main right" minmax(0, 1fr) "left dock right" auto
-    / 240px minmax(0, 1fr) 360px;
+  grid-template-areas:
+    "head head head head head"
+    "left lsplit main rsplit right"
+    "left lsplit hsplit rsplit right"
+    "left lsplit dock rsplit right";
+  grid-template-columns: 240px 5px minmax(0, 1fr) 5px 360px;
+  grid-template-rows: auto minmax(0, 1fr) 5px 360px;
 }
+/* Focus view: the 3D view takes everything below the header. */
+.app.focus { grid-template-columns: 0 0 minmax(0, 1fr) 0 0; grid-template-rows: auto minmax(0, 1fr) 0 0; }
+.app.focus > aside, .app.focus > .dock, .app.focus > .splitter { display: none; }
+.app > aside { min-width: 0; }
+.splitter { background: var(--line); position: relative; z-index: 2; touch-action: none; }
+.splitter.vertical { cursor: col-resize; }
+.splitter.horizontal { cursor: row-resize; }
+.splitter::after { content: ""; position: absolute; inset: -4px; } /* a wider grab area */
+.splitter:hover, .splitter:focus-visible, .splitter:active { background: var(--accent); outline: none; }
+body.resizing-x, body.resizing-x * { cursor: col-resize !important; user-select: none; }
+body.resizing-y, body.resizing-y * { cursor: row-resize !important; user-select: none; }
+.layout-buttons { display: flex; gap: 2px; }
+.layout-buttons button { padding: 4px 8px; font-size: 12px; color: var(--muted); }
+.layout-buttons button.on { color: var(--text); border-color: var(--accent); }
 .app > header {
   grid-area: head; display: flex; gap: 8px; align-items: center;
   padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel);
@@ -35,11 +53,28 @@ button:disabled { opacity: 0.45; }
 .spacer { flex: 1; }
 .toggle { display: flex; gap: 6px; align-items: center; color: var(--muted); }
 .app aside { overflow-y: auto; background: var(--panel); }
-.app .left { grid-area: left; border-right: 1px solid var(--line); }
-.app .right { grid-area: right; border-left: 1px solid var(--line); display: flex; flex-direction: column; }
+.app .left { grid-area: left; }
+.app .right { grid-area: right; display: flex; flex-direction: column; }
 .app > main { grid-area: main; position: relative; min-width: 0; }
 .viewport { position: absolute; inset: 0;
   background: radial-gradient(ellipse at 50% 35%, #2c3746 0%, #1a2029 55%, #11151b 100%); }
+/* Reference photo beside the 3D view: the view and its toolbar give way on the right. */
+.app > main { --ref-w: 44%; }
+.app > main.with-ref .viewport { right: var(--ref-w); }
+.app > main.with-ref .cad-toolbar { right: calc(var(--ref-w) + 8px); }
+.reference { position: absolute; top: 0; right: 0; bottom: 0; width: var(--ref-w); display: flex;
+  flex-direction: column; background: #0d1014; border-left: 1px solid var(--line); z-index: 3; }
+.reference.over { outline: 2px dashed #4f86d6; outline-offset: -6px; }
+.reference header { display: flex; align-items: center; gap: 6px; padding: 6px 8px; font-size: 12px;
+  border-bottom: 1px solid var(--line); min-width: 0; }
+.reference header .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.reference header button { font-size: 11px; padding: 2px 7px; }
+.reference header button.on { color: #fff; background: #24406a; }
+.reference img { flex: 1; min-height: 0; width: 100%; object-fit: contain; }
+.reference-empty { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 24px;
+  text-align: center; font-size: 13px; color: var(--text); }
+.reference .error { color: var(--bad); padding: 6px 10px; font-size: 12px; }
+@media (max-width: 720px) { .app > main { --ref-w: 50%; } }
 .status {
   position: absolute; left: 10px; bottom: 8px; color: var(--muted);
   background: #0008; padding: 3px 8px; border-radius: 4px; pointer-events: none;
@@ -91,8 +126,8 @@ legend { color: var(--muted); padding: 0; margin-bottom: 4px; }
 .reply.test { border-left-color: var(--accent); }
 
 /* Engineering dock: test bench and integration */
-.dock { grid-area: dock; border-top: 1px solid var(--line); background: var(--panel);
-  height: 46vh; display: flex; flex-direction: column; min-width: 0; }
+.dock { grid-area: dock; background: var(--panel);
+  display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 .dock.closed { height: auto; }
 .tabs { display: flex; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 .tabs button { border: 0; background: none; color: var(--muted); }
@@ -263,3 +298,127 @@ textarea.json.bad { border-color: var(--bad); }
 .package .drawing svg { width: 100%; height: auto; max-height: 520px; display: block; }
 .package-values td { padding: 2px 6px; font-size: 12px; }
 .package-values td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Styling curves editor */
+.curve-editor { width: 100%; background: var(--panel-2, #11161d); border: 1px solid var(--line); border-radius: 6px; touch-action: none; display: block; margin: 4px 0 10px; }
+.curve-point { cursor: grab; stroke: #0b0e12; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.curve-insert { fill: rgba(255, 255, 255, 0.18); cursor: copy; }
+.ref-wheel { fill: rgba(255, 255, 255, 0.05); stroke: #6b7785; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.ref-ground { stroke: #6b7785; stroke-width: 1; stroke-dasharray: 8 6; vector-effect: non-scaling-stroke; }
+.ref-limit { stroke: #c0392b; stroke-width: 1; stroke-dasharray: 6 6; vector-effect: non-scaling-stroke; }
+.ref-belt { stroke: #95a5a6; stroke-width: 1; stroke-dasharray: 3 5; vector-effect: non-scaling-stroke; }
+.ref-mirror { fill: none; stroke: #8fd694; stroke-width: 1.2; stroke-dasharray: 5 5; opacity: 0.6; vector-effect: non-scaling-stroke; }
+.styling .bench-detail { min-width: 0; }
+
+.blueprint-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; margin: 4px 0; }
+.blueprint-controls label { display: flex; gap: 4px; align-items: center; }
+.blueprint-controls button.active { background: var(--accent-soft, #24364f); }
+
+/* Constrained sketcher (pad and shaft features) */
+.csketch { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.csketch-tools { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.csketch-tools button { padding: 3px 8px; font-size: 12px; }
+.csketch-tools button.active { border-color: var(--accent); background: rgba(79, 143, 230, 0.18); }
+.csketch-tools .sep { flex: 1; }
+.csketch-status { font-size: 12px; color: var(--muted); }
+.csketch-status.full { color: var(--good); }
+.csketch-status.conflict { color: var(--bad); }
+.csketch-canvas { width: 100%; height: 300px; background: #11161d; border: 1px solid var(--line); border-radius: 6px; touch-action: none; outline: none; }
+.csketch-canvas:focus-visible { border-color: var(--accent); }
+.csketch-canvas.tool-line, .csketch-canvas.tool-rect, .csketch-canvas.tool-circle, .csketch-canvas.tool-arc { cursor: crosshair; }
+.csketch .sk-axis { stroke: rgba(255, 255, 255, 0.16); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.csketch .sk-axis.revolve { stroke: #c9a227; stroke-dasharray: 6 4; }
+.csketch .sk-axis-label { fill: var(--muted); }
+.csketch .sk-geo { fill: none; stroke: #e8eef6; stroke-width: 1.6; vector-effect: non-scaling-stroke; cursor: pointer; }
+.csketch .sk-geo.full { stroke: var(--good); }
+.csketch .sk-geo.construction { stroke-dasharray: 5 4; opacity: 0.7; }
+.csketch .sk-geo.selected { stroke: #ffd166; stroke-width: 2.6; }
+.csketch .sk-geo.conflict { stroke: var(--bad); }
+.csketch .sk-preview { fill: none; stroke: var(--accent); stroke-dasharray: 4 3; stroke-width: 1.2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.csketch .sk-pt { fill: #e8eef6; stroke: #0b0e12; stroke-width: 1; vector-effect: non-scaling-stroke; cursor: grab; }
+.csketch .sk-pt.full { fill: var(--good); }
+.csketch .sk-pt.selected { fill: #ffd166; }
+.csketch .sk-pt.conflict { fill: var(--bad); }
+.csketch .sk-dim { fill: #7fb2ff; font-family: ui-monospace, monospace; pointer-events: none; paint-order: stroke; stroke: #11161d; stroke-width: 3px; }
+.csketch .sk-dim.conflict { fill: var(--bad); }
+.csketch-side { display: flex; flex-direction: column; gap: 6px; }
+.csketch-constrain { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.csketch-constrain button { padding: 2px 8px; font-size: 12px; }
+.csketch-constrain .hint { width: 100%; }
+.csketch-list { width: 100%; border-collapse: collapse; font-size: 12px; }
+.csketch-list td { padding: 2px 4px; border-bottom: 1px solid var(--line); }
+.csketch-list td.refs { color: var(--muted); font-family: ui-monospace, monospace; }
+.csketch-list tr { cursor: pointer; }
+.csketch-list tr.conflict td { color: var(--bad); }
+.csketch-list input { padding: 2px 6px; width: 7em; }
+.csketch-list button { padding: 0 6px; }
+.csketch-apply { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.csketch-apply .error { color: var(--bad); font-size: 12px; }
+
+/* Topology inspector (Part Design) */
+.inspect { margin: 6px 0 4px; }
+.inspect summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.inspector { display: grid; gap: 6px; font-size: 12px; padding: 6px 0; }
+.inspector table.mini { border-collapse: collapse; width: auto; }
+.inspector table.mini th, .inspector table.mini td { padding: 2px 10px 2px 0; text-align: right; }
+.inspector table.mini th:first-child, .inspector table.mini td:first-child { text-align: left; }
+.inspector td.changed { color: #ffc94a; font-weight: 600; }
+.inspector .math { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; display: grid; gap: 2px; }
+.inspector .muted { color: var(--muted); }
+.good-text { color: var(--good); }
+
+/* Solver console (sketcher) */
+.solver-console { margin-top: 8px; font-size: 12px; }
+.solver-console summary { cursor: pointer; color: var(--muted); }
+.solver-console .math { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; display: grid; gap: 2px; margin: 6px 0; }
+.solver-console table.equations td.eq { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+.solver-console table.equations tr.conflict td { background: rgba(220, 80, 80, 0.08); }
+.chart.convergence { width: 100%; max-width: 360px; }
+.chart.convergence .series { fill: none; stroke: #6fa8ff; stroke-width: 1.5; }
+.chart.convergence .pt { fill: #6fa8ff; }
+.chart.convergence .pt.rejected { fill: none; stroke: #ffc94a; }
+.chart.convergence .grid { stroke: var(--line); stroke-width: 0.5; }
+.chart.convergence .tick { fill: var(--muted); font-size: 8px; }
+
+/* Surface laboratory */
+.surfaces-lab { display: grid; grid-template-columns: minmax(280px, 1.3fr) minmax(300px, 1fr); gap: 10px; min-height: 360px; }
+.surfaces-lab .lab-view { position: relative; min-height: 340px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 35%, #2c3746 0%, #1a2029 60%, #11151b 100%); }
+.surface-view { position: absolute; inset: 0; }
+.lab-toolbar { position: absolute; top: 6px; left: 6px; display: flex; gap: 2px; align-items: center; font-size: 11px;
+  background: rgba(16,20,26,0.82); border: 1px solid var(--line); border-radius: 6px; padding: 2px; }
+.lab-toolbar button { font-size: 11px; padding: 3px 7px; border: 0; background: transparent; color: var(--muted); border-radius: 4px; }
+.lab-toolbar button.on { color: #fff; background: #24406a; }
+.lab-side { display: grid; gap: 6px; align-content: start; font-size: 12px; overflow: auto; }
+.lab-side .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.lab-side .math { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; display: grid; gap: 2px; overflow-wrap: anywhere; }
+.lab-side .math .sel-head { color: #ffc94a; margin-top: 4px; }
+.lab-side .math .muted, .lab-side .muted { color: var(--muted); }
+.lab-side .point-edit input[type="number"] { width: 70px; }
+.chart.basis, .chart.param { width: 100%; max-width: 340px; }
+.chart.param { max-width: 140px; }
+.chart.basis .fn { fill: none; stroke: #5d6b7c; stroke-width: 1; }
+.chart.basis .fn.on { stroke: #ffc94a; stroke-width: 2.2; }
+.chart.basis .knot, .chart.param .knot { stroke: #3a4552; stroke-width: 0.6; stroke-dasharray: 2 2; }
+.chart.param .domain { fill: rgba(255,255,255,0.02); stroke: var(--line); }
+.chart.param .support { fill: rgba(255, 184, 64, 0.28); stroke: #ffb840; stroke-width: 0.8; }
+.chart.basis .tick, .chart.param .tick, .chart.basis .chart-title { fill: var(--muted); font-size: 8px; }
+/* Structures (FEA) */
+.structures .legend { position: absolute; left: 8px; bottom: 8px; width: 220px; font-size: 11px; background: rgba(16,20,26,0.82);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; display: grid; gap: 4px; }
+.structures .legend .bar { height: 10px; border-radius: 3px; }
+.structures .legend .ends { display: flex; justify-content: space-between; color: var(--muted); }
+.structures .legend input[type="range"] { width: 100%; }
+.lab-busy { position: absolute; inset: auto 0 50% 0; text-align: center; color: #fff; font-size: 13px; text-shadow: 0 1px 3px #000; }
+.structures .math.results { border-color: #2d4a6e; }
+.math.continuity .level { font-weight: 700; font-size: 13px; }
+.level-G2, .level-G3 { color: var(--good); }
+.level-G1 { color: #ffc94a; }
+.level-G0, .level-none { color: var(--bad); }
+.chart.param { width: 140px; height: 140px; flex: none; }
+.chart.basis { height: auto; }
+.basis-row { display: flex; gap: 8px; align-items: flex-start; }
+.basis-col { display: grid; gap: 4px; flex: 1; min-width: 0; }

@@ -1,42 +1,5 @@
 import type {
-  Command,
-  Comparison,
-  ComponentTestStatus,
-  Diagnosis,
-  ImpactPreview,
-  DesignTemplate,
-  DomainDef,
-  IntegrationReport,
-  RuleStatus,
-  RunIndexItem,
-  SystemGraph,
-  Requirement,
-  RequirementRow,
-  LoopResult,
-  Study,
-  StudyResult,
-  Variable,
-  RunRecord,
-  SpecDesign,
-  SpecState,
-  RunSummary,
-  TestDefinition,
-  TestRunResponse,
-  CommandResult,
-  HistoryEntry,
-  InstructionResult,
-  LLMStatus,
-  ModelPayload,
-  ParameterDef,
-  BomLine,
-  PackageValue,
-  PartDoc,
-  PartOut,
-  DerivedValue,
-  ProjectState,
-  ProjectSummary,
-  Violation,
-} from "./types";
+  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -246,6 +209,11 @@ export const api = {
   specReset: (id: string) => request<SpecState>(`/projects/${id}/spec`, { method: "DELETE" }),
   specDesign: (id: string) => post<SpecDesign>(`/projects/${id}/spec/design`),
   specApply: (id: string) => post<{ result: CommandResult; requirements: string[] }>(`/projects/${id}/spec/apply`),
+  styling: (id: string) => request<Styling>(`/projects/${id}/styling`),
+  setStyling: (id: string, doc: Record<string, [number, number][]>) =>
+    request<Styling>(`/projects/${id}/styling`, { method: "PUT", body: JSON.stringify(doc) }),
+  undoStyling: (id: string) => post<Styling>(`/projects/${id}/styling/undo`),
+  redoStyling: (id: string) => post<Styling>(`/projects/${id}/styling/redo`),
   package: (id: string) => request<PackageValue[]>(`/projects/${id}/package`),
   packageSvgUrl: (id: string) => `${API}/projects/${id}/package.svg`,
   packageSvg: async (id: string): Promise<string> => {
@@ -255,7 +223,28 @@ export const api = {
   },
   bom: (id: string) => request<BomLine[]>(`/projects/${id}/bom`),
   bomUrl: (id: string) => `${API}/projects/${id}/bom.csv`,
+  featureTemplates: () => request<FeatureTemplate[]>("/feature-templates"),
+  saveFeatureTemplate: (body: { project_id: string; part_id: string; name: string; feature_ids: string[]; description?: string }) =>
+    post<FeatureTemplate>("/feature-templates", body),
+  deleteFeatureTemplate: (id: string) => request<void>(`/feature-templates/${id}`, { method: "DELETE" }),
+  insertFeatureTemplate: (id: string, part: string, body: { template: string; prefix: string;
+    inputs: Record<string, number | string>; offset: [number, number, number] }) =>
+    post<PartOut>(`/projects/${id}/parts/${part}/insert-template`, body),
+  solveSketch: (sketch: Sketch, drag?: { point: string; x: number; y: number }) =>
+    post<SketchSolve>("/sketch/solve", { sketch, drag: drag ?? null }),
   partPresets: () => request<Record<string, PartDoc>>("/part-presets"),
+  // Surface laboratory (NURBS mathematics, continuity)
+  evaluateSurface: (surface: NurbsSurface, samples = 33, selected: [number, number] | null = null) =>
+    post<NurbsEvaluation>("/surfaces/evaluate", { surface, samples, selected }),
+  insertKnot: (surface: NurbsSurface, direction: "u" | "v", t: number) =>
+    post<{ surface: Required<NurbsSurface>; max_shape_change: number }>("/surfaces/insert-knot", { surface, direction, t }),
+  joinSurface: (surface: NurbsSurface, target: "G0" | "G1" | "G2", bend: number) =>
+    post<{ surface: Required<NurbsSurface> }>("/surfaces/join", { surface, target, bend }),
+  feaCatalogue: () => request<FeaCatalogue>("/structures/catalogue"),
+  runFea: (body: FeaRequest, part?: { project: string; part: string }) =>
+    post<FeaResult>(part ? `/projects/${part.project}/parts/${part.part}/structures` : "/structures/run", body),
+  surfaceContinuity: (a: NurbsSurface, b: NurbsSurface, combScale: number) =>
+    post<ContinuityReport>("/surfaces/continuity", { a, b, comb_scale: combScale }),
   parts: (id: string) => request<PartOut[]>(`/projects/${id}/parts`),
   createPart: (id: string, doc: PartDoc) => post<PartOut>(`/projects/${id}/parts`, doc),
   updatePart: (id: string, part: string, doc: PartDoc) =>

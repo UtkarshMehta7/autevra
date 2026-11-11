@@ -542,6 +542,23 @@ export type PartFeature = { id: string; type: string; name?: string; suppressed?
 
 export interface Placement { x?: number; y?: number; z?: number; rx?: number; ry?: number; rz?: number }
 
+export interface FeatureTemplate {
+  id: string;
+  name: string;
+  description: string;
+  parameters: Record<string, number | string>;
+  features: PartFeature[];
+}
+
+export interface Styling {
+  curves: { top: [number, number][]; bottom: [number, number][]; plan: [number, number][] };
+  custom: { top: boolean; bottom: boolean; plan: boolean };
+  reference: { rear: number; front: number; wheelbase: number; tyre_radius: number;
+    overall_height: number; half_width: number; beltline: number; glass: number[]; roof: number[] };
+  can_undo: boolean;
+  can_redo: boolean;
+}
+
 export interface PackageValue { id: string; label: string; value: number; unit: string; note: string }
 
 export interface BomLine {
@@ -570,6 +587,22 @@ export interface PartDoc {
   finish?: string;
 }
 
+/** B-rep topology after a feature (backend cad/topology.py). */
+export interface Topology {
+  vertices: number; edges: number; loops: number; faces: number; shells: number; solids: number;
+  rings: number; euler: number; genus: number; balanced: boolean;
+  free_edges: number; nonmanifold_edges: number; degenerate_edges: number; seam_edges: number;
+  watertight: boolean; valid: boolean;
+  surfaces: Record<string, number>; curves: Record<string, number>;
+  area: number; volume: number;
+}
+
+/** Where a boolean's tool met the body (the curves the boolean is computed along). */
+export interface BooleanSection {
+  op: "add" | "cut" | "intersect"; tools: number; curves: number; length: number;
+  polylines: [number, number, number][][];
+}
+
 export interface PartOut {
   id: string;
   document: PartDoc;
@@ -578,6 +611,97 @@ export interface PartOut {
   built: string[];
   errors: { feature: string; message: string }[];
   info?: Record<string, Record<string, number>>;
+  topology?: Record<string, Topology | { error: string }>; // per feature, after it
+  sections?: Record<string, BooleanSection>; // per boolean feature on an existing body
   volume: number | null;
   bounds: [[number, number, number], [number, number, number]] | null;
+}
+
+/** A constrained 2D sketch (see backend autevra/part/sketch.py). */
+export interface SketchPoint { id: string; x: number; y: number; fixed?: boolean }
+export type SketchEntity =
+  | { type: "line"; id: string; a: string; b: string; construction?: boolean }
+  | { type: "circle"; id: string; center: string; radius: number; construction?: boolean }
+  | { type: "arc"; id: string; center: string; start: string; end: string; construction?: boolean };
+export interface SketchConstraint { kind: string; refs: string[]; value?: number | null }
+export interface Sketch { points: SketchPoint[]; entities: SketchEntity[]; constraints: SketchConstraint[] }
+export interface SketchSolve {
+  sketch: Sketch;
+  ok: boolean;
+  dof: number;
+  redundant: number;
+  conflicting: number[];
+  fixed_points: string[];
+  fixed_entities: string[];
+  residual: number;
+  // Inspection (backend part/sketch.py): the system F(x) = 0 and the convergence history.
+  method?: string;
+  unknowns?: number;
+  equations?: { index: number | null; kind: string; text: string; rows: number; residual: number }[];
+  rank?: number;
+  iterations?: { step: number; cost: number; max_residual: number; damping: number; step_norm: number; accepted: boolean }[];
+  converged?: boolean;
+}
+
+/** A NURBS surface (backend geometry/nurbs.py): control grid [u][v] of (x, y, z), weights. */
+export interface NurbsSurface {
+  degree_u: number;
+  degree_v: number;
+  control: [number, number, number][][];
+  weights?: number[][];
+  knots_u?: number[];
+  knots_v?: number[];
+}
+
+export interface NurbsEvaluation {
+  surface: Required<NurbsSurface>;
+  grid: { u: number[]; v: number[]; points: [number, number, number][]; normals: [number, number, number][];
+    gaussian: number[]; mean: number[]; triangles: number[] };
+  basis_u: { t: number[]; functions: number[][] };
+  basis_v: { t: number[]; functions: number[][] };
+  domain: [[number, number], [number, number]];
+  support: { u: [number, number]; v: [number, number]; point: [number, number, number]; weight: number } | null;
+}
+
+export interface ContinuityReport {
+  report: { samples: number; gap: number; angle: number; curvature_a: number[]; curvature_b: number[];
+    curvature_jump: number; rate_jump: number; level: "none" | "G0" | "G1" | "G2" | "G3"; explanation: string };
+  tolerances: { g0: number; g1_deg: number; g2_rel: number; g3_rel: number };
+  combs: { points: [number, number, number][]; tips: [number, number, number][]; curvature: number[] }[];
+}
+
+/** Linear static FEA run (backend api/structures.py, fea/). */
+export interface FeaRequest {
+  demo?: string;
+  element: "tet4" | "tet10" | "hex8";
+  size: number;
+  material: { name: string; youngs?: number; poisson?: number; density?: number; yield_strength?: number };
+  supports: string[];
+  loads: { region: string; force: [number, number, number]; pressure: number }[];
+}
+
+export interface FeaResult {
+  mesh: { kind: "tet4" | "tet10" | "hex8"; nodes: [number, number, number][]; boundary: [number, number, number][];
+    stats: { nodes: number; elements: number; size: number; volume_ratio: number; quality_min: number;
+      quality_mean: number; slivers: number; method: string };
+    cad_volume: number };
+  fields: { displacement: [number, number, number][]; magnitude: number[]; von_mises: number[];
+    principal_1: number[]; strain_eq: number[] };
+  supports: number[];
+  loaded: Record<string, number[]>;
+  material: { name: string; youngs: number; poisson: number; density: number; yield_strength: number };
+  stats: { dofs: number; free_dofs: number; fixed_dofs: number; k_shape: [number, number]; k_nnz: number;
+    k_density: number; k_memory_mb: number; element_matrix: [number, number]; cg_iterations: number;
+    cg_converged: boolean; cg_residuals: number[]; cg_final_residual: number; direct_difference: number | null;
+    time_assemble: number; time_solve: number; applied_force: [number, number, number];
+    reaction_force: [number, number, number]; equilibrium_error: number; compliance: number;
+    max_displacement: number; max_von_mises: number; max_principal: number; min_principal: number;
+    factor_of_safety: number | null; mass_kg: number; method: string };
+  assumptions: string[];
+}
+
+export interface FeaCatalogue {
+  demos: Record<string, string>;
+  materials: Record<string, { name: string; youngs: number; poisson: number; density: number; yield_strength: number }>;
+  regions: string[];
 }

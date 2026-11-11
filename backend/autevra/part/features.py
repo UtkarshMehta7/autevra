@@ -7,6 +7,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from autevra.part.sketch import Sketch
+
 Length = Annotated[float, Field(gt=0.0, le=50_000.0)]
 Coord = Annotated[float, Field(ge=-50_000.0, le=50_000.0)]
 Point2 = tuple[Coord, Coord]
@@ -108,6 +110,29 @@ class Revolve(_Solid):
         if any(r < 0.0 for r, _ in self.points):
             raise ValueError("revolve profile radii must be zero or positive")
         return self
+
+
+class Pad(_Solid):
+    """A constrained sketch's closed profiles (with their holes) extruded along the plane
+    normal: a pad, or a pocket with ``op: cut``. The sketch is solved before the build, so
+    its dimensions can be bound to the part's parameters
+    (``sketch.constraints.<i>.value``)."""
+
+    type: Literal["pad"] = "pad"
+    plane: Plane = Plane.XY
+    sketch: Sketch
+    depth: Length = 50.0
+    symmetric: bool = False
+
+
+class Shaft(_Solid):
+    """A constrained sketch revolved about the sketch's vertical axis (u = 0): a shaft, or
+    a groove with ``op: cut``. The profile sits at u >= 0 in the plane."""
+
+    type: Literal["shaft"] = "shaft"
+    plane: Plane = Plane.XZ
+    sketch: Sketch
+    angle: float = Field(360.0, gt=0.0, le=360.0)
 
 
 class Section(BaseModel):
@@ -269,6 +294,8 @@ Feature = Annotated[
     | Sphere
     | Extrude
     | Revolve
+    | Pad
+    | Shaft
     | Loft
     | Sweep
     | Wing
@@ -282,7 +309,8 @@ Feature = Annotated[
     Field(discriminator="type"),
 ]
 SOLID_TYPES = (
-    "box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep", "wing", "sheet_metal",
+    "box", "cylinder", "sphere", "extrude", "revolve", "pad", "shaft", "loft", "sweep", "wing",
+    "sheet_metal",
 )  # fmt: skip
 FEATURE_TYPES = (*SOLID_TYPES, "shell", "fillet", "chamfer", "mirror", "linear_pattern",
                  "circular_pattern")  # fmt: skip

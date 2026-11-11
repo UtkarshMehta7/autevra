@@ -1,7 +1,7 @@
 """Request and response schemas for the HTTP API."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -400,5 +400,9 @@ class PartOut(BaseModel):
     built: list[str]  # ids of the features applied, in order
     errors: list[FeatureErrorOut]  # at most one: the feature where the build stopped
     info: dict[str, dict[str, float]] = {}  # per feature, e.g. sheet-metal flat size (mm)
+    # Inspection: per feature, the topology after it and (for booleans on a body) the
+    # section curves the kernel computed the boolean along.
+    topology: dict[str, dict[str, Any]] = {}
+    sections: dict[str, dict[str, Any]] = {}
     volume: float | None  # mm^3, of the built solid
     bounds: tuple[tuple[float, float, float], tuple[float, float, float]] | None  # part frame

@@ -55,7 +55,8 @@ def test_acceptance_increase_wheelbase_by_100_mm(
     rebuilt = set(reply["result"]["impact"]["rebuild"])
     assert {"body", "frame", "glass", "seats", "fuel_tank"} <= rebuilt  # cabin and equipment
     assert not {"wheel_fl", "front_axle"} & rebuilt
-    rear_group = {"rear_axle", "wheel_rl", "wheel_rr", "rim_rl", "rim_rr", "damper_rl", "damper_rr"}
+    rear_group = {"rear_axle", "wheel_rl", "wheel_rr", "rim_rl", "rim_rr", "damper_rl", "damper_rr",
+                  "rotor_rl", "rotor_rr", "caliper_rl", "caliper_rr"}  # fmt: skip
     assert set(reply["result"]["impact"]["move"]) == rear_group
 
     after = _model(client, project)
@@ -84,14 +85,14 @@ def test_acceptance_increase_wheelbase_by_100_mm(
 
 def test_model_deduplicates_and_skips_known_geometry(client: TestClient, project: str) -> None:
     model = _model(client, project)
-    assert len(model["parts"]) == 33
-    assert (
-        len(model["geometries"]) == 25
-    )  # body, glass, 2 lamps, mirrors, 5 interior, frame, axle, tyre, rim, 2 dampers, equipment
+    assert len(model["parts"]) == 41
+    # body, glass, 2 lamps, mirrors, 5 interior, frame, axle, tyre, rim, rotor, caliper,
+    # 2 dampers, equipment
+    assert len(model["geometries"]) == 27
     keys = ",".join(model["geometries"])
     partial = client.get(f"/api/projects/{project}/model", params={"known": keys}).json()
     assert partial["geometries"] == {}
-    assert len(partial["parts"]) == 33
+    assert len(partial["parts"]) == 41
 
 
 def test_typed_command_endpoint_and_rejection(client: TestClient, project: str) -> None:
@@ -164,7 +165,7 @@ def test_project_crud_and_404(client: TestClient) -> None:
 def test_catalogue(client: TestClient) -> None:
     body = client.get("/api/parameters").json()
     ids = [p["id"] for p in body["parameters"]]
-    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 78
+    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 97
 
 
 def test_state_survives_app_restart(tmp_path: Path) -> None:

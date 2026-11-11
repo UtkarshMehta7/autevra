@@ -22,15 +22,18 @@ TYRE = ("rim_diameter", "tyre_width", "tyre_aspect_ratio")
 # Shape controls: the sculpted lower body reads all of them, the greenhouse (and so the
 # glazing and the cabin) the haunch and the tumblehome.
 SHAPE = ("haunch", "nose_taper", "tail_taper", "sill_tuck", "body_roundness", "tumblehome",
-         "fender_rise")  # fmt: skip
+         "fender_rise", "surface_quality", "roof_arc", "nose_rake", "bonnet_dome",
+         "wing_crease", "front_face", "hip_rise")  # fmt: skip
 GREENHOUSE_SHAPE = ("haunch", "tumblehome")
 
 BODY_GEOMETRY = (
     "body_style", "wheelbase", "front_overhang", "rear_overhang", "body_width", "overall_height",
     "beltline_height", "ground_clearance", "rail_height", "cabin_length", "roof_length",
     "cabin_offset", "track_front", "track_rear", "arch_clearance", *TYRE, *d.CHASSIS_INPUTS,
-    "head_lamp_style", "tail_lamp_style",  # the body is recessed for the lamps
+    "head_lamp_style", "tail_lamp_style", "lamp_housing",  # the body is recessed for the lamps
     "roof_type",  # and opened for a panoramic roof or sunroof
+    "grille_style", "side_vents",  # and recessed for the grille and the wing vents
+    "door_lines",  # and cut for the door shut lines and handles
     *SHAPE,
 )  # fmt: skip
 
@@ -48,17 +51,26 @@ def _glass_inputs(p: Values) -> dict[str, float]:
 
 
 # Interior parts follow the cabin (greenhouse) plus their own choices.
-INTERIOR_GEOMETRY = (*GLASS_GEOMETRY, "seat_rows", "interior_trim", "driving_side")
+INTERIOR_GEOMETRY = (
+    *GLASS_GEOMETRY, "seat_rows", "interior_trim", "driving_side",
+    "seat_height", "seat_recline", "dash_zone", "row_pitch",
+    "surface_quality", "roof_arc",  # seats follow the styled roofline
+    "seat_accent",  # two-tone seats split the accent panels off the seats
+)  # fmt: skip
 
 
 def _interior_inputs(p: Values) -> dict[str, float]:
-    return {k: p[k] for k in INTERIOR_GEOMETRY} | {"body_floor": d.body_floor_height(p)}
+    # Only whether the seats are two-tone changes the shape; the accent colour is appearance.
+    return {k: p[k] for k in INTERIOR_GEOMETRY} | {
+        "body_floor": d.body_floor_height(p),
+        "seat_accent": float(p["seat_accent"] > 0),
+    }
 
 
 # Powertrain and electrical equipment follow the chassis, the drive layout and the tyres.
 POWERTRAIN_GEOMETRY = (
     *d.CHASSIS_INPUTS, "front_overhang", "rear_overhang", "beltline_height", "front_drive_share",
-    "engine_cylinders", *TYRE,
+    "engine_cylinders", "nose_rake", "exhaust_tips", *TYRE,
 )  # fmt: skip
 
 
@@ -118,13 +130,19 @@ EQUIPMENT = (
 # Interior colour palette, in the order of the ``interior_colour`` options.
 UPHOLSTERY = (
     (0.035, 0.036, 0.04), (0.28, 0.28, 0.27), (0.62, 0.56, 0.44), (0.42, 0.24, 0.11),
-    (0.30, 0.11, 0.04), (0.22, 0.02, 0.03),
+    (0.30, 0.11, 0.04), (0.22, 0.02, 0.03), (0.105, 0.085, 0.068),
 )  # fmt: skip
 _TRIM_FINISH = ("fabric", "leather", "leather")
+SEAT_ACCENTS = (UPHOLSTERY[0], UPHOLSTERY[0], UPHOLSTERY[2], UPHOLSTERY[3], UPHOLSTERY[5])
 
 
 def _upholstery(p: Values) -> tuple[tuple[float, float, float], str]:
     colour = UPHOLSTERY[min(max(int(round(p["interior_colour"])), 0), len(UPHOLSTERY) - 1)]
+    return colour, _TRIM_FINISH[min(max(int(round(p["interior_trim"])), 0), 2)]
+
+
+def _accent(p: Values) -> tuple[tuple[float, float, float], str]:
+    colour = SEAT_ACCENTS[min(max(int(round(p["seat_accent"])), 0), len(SEAT_ACCENTS) - 1)]
     return colour, _TRIM_FINISH[min(max(int(round(p["interior_trim"])), 0), 2)]
 
 
@@ -246,6 +264,7 @@ PAINT = (
     (0.86, 0.87, 0.88), (0.55, 0.57, 0.60), (0.16, 0.17, 0.19), (0.02, 0.022, 0.025),
     (0.55, 0.02, 0.025), (0.02, 0.06, 0.22), (0.02, 0.22, 0.70), (0.02, 0.10, 0.05),
     (0.80, 0.18, 0.02), (0.88, 0.58, 0.02), (0.60, 0.48, 0.32), (0.22, 0.12, 0.06),
+    (0.075, 0.125, 0.085),
 )  # fmt: skip
 PAINT_FINISHES = ("gloss", "metallic", "matte", "pearl")
 
@@ -256,12 +275,12 @@ def _paint(p: Values) -> tuple[tuple[float, float, float], str]:
     return colour, f"paint_{finish}"
 
 
-_FRAME_COLOR = (0.30, 0.32, 0.36)
+_FRAME_COLOR = (0.035, 0.037, 0.04)  # black e-coat (seen as the sills below the doors)
 _GLASS_COLOR = (0.08, 0.11, 0.15)
 _HEAD_LAMP_COLOR = (0.93, 0.92, 0.82)
 _TAIL_LAMP_COLOR = (0.72, 0.08, 0.08)
 _AXLE_COLOR = (0.45, 0.45, 0.48)
-_WHEEL_COLOR = (0.12, 0.12, 0.13)
+_WHEEL_COLOR = (0.022, 0.022, 0.024)  # tyre black (linear)
 _DAMPER_COLOR = (0.85, 0.55, 0.12)
 
 
@@ -279,6 +298,7 @@ RIM_FINISHES = (
     ((0.72, 0.73, 0.75), "metal"), ((0.26, 0.27, 0.29), "metal"),
     ((0.025, 0.025, 0.03), "paint_gloss"), ((0.86, 0.87, 0.88), "polished"),
     ((0.42, 0.30, 0.16), "paint_metallic"), ((0.88, 0.88, 0.87), "paint_gloss"),
+    ((0.018, 0.018, 0.02), "paint_matte"),
 )  # fmt: skip
 
 
@@ -297,6 +317,35 @@ def _rim(cid: str, name: str, axle: str, side: str) -> ComponentDef:
         frames={"hub": ()}, interfaces=_hub,
         mate=Mate(axle, f"hub_{side}", "hub"), color=RIM_FINISHES[0][0], finish="metal",
         appearance=_rim_finish, appearance_inputs=("rim_finish",),
+    )  # fmt: skip
+
+
+# Caliper colours, in the order of the ``caliper_colour`` options.
+CALIPERS = (
+    (0.02, 0.02, 0.022), (0.50, 0.51, 0.53), (0.60, 0.015, 0.02), (0.90, 0.62, 0.0),
+    (0.02, 0.12, 0.60), (0.04, 0.30, 0.07),
+)  # fmt: skip
+
+
+def _caliper_colour(p: Values) -> tuple[tuple[float, float, float], str]:
+    colour = CALIPERS[min(max(int(round(p["caliper_colour"])), 0), len(CALIPERS) - 1)]
+    return colour, "paint_gloss"
+
+
+# Builder names stay clear of the example brake plugin's ("brake_disc", "disc_fl", ...).
+BRAKE_BUILDERS = {"disc": "brake_rotor", "caliper": "styling_caliper"}
+
+
+def _brake(cid: str, name: str, part: str, axle: str, side: str) -> ComponentDef:
+    caliper = part == "caliper"
+    extra = {"appearance": _caliper_colour, "appearance_inputs": ("caliper_colour",)}
+    return ComponentDef(
+        id=cid, name=name, category="wheel", builder=BRAKE_BUILDERS[part],
+        geometry=TYRE, inputs=_wheel_inputs,
+        frames={"hub": ()}, interfaces=_hub,
+        mate=Mate(axle, f"hub_{side}", "hub"),
+        color=CALIPERS[1] if caliper else (0.40, 0.40, 0.42), finish="metal",
+        **(extra if caliper else {}),  # type: ignore[arg-type]
     )  # fmt: skip
 
 
@@ -345,7 +394,8 @@ COMPONENTS: tuple[ComponentDef, ...] = (
     ),
     ComponentDef(
         id="glass", name="Glazing", category="body", builder="glass",
-        geometry=GLASS_GEOMETRY, inputs=_glass_inputs,
+        # Styled bodies glaze the skin itself, so the glazing follows the whole body.
+        geometry=BODY_GEOMETRY, inputs=_body_inputs,
         frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
         mate=Mate("vehicle", "origin", "origin"), color=_GLASS_COLOR, finish="glass",
     ),
@@ -368,8 +418,18 @@ COMPONENTS: tuple[ComponentDef, ...] = (
     _option("spoiler", "Rear spoiler", "rear_spoiler", _BODY_COLOR, "paint", follows_body=True,
             painted=True),
     _option("tow_bar", "Tow bar", "tow_bar", (0.10, 0.10, 0.11), "metal"),
+    _option("grille", "Front grille", "grille_style", (0.025, 0.026, 0.03), "paint_gloss",
+            follows_body=True),
+    _option("side_vents", "Fender vents", "side_vents", (0.02, 0.02, 0.022), "trim",
+            follows_body=True),
+    _option("lower_trim", "Lower trim", "lower_trim", (0.015, 0.016, 0.018), "paint_gloss",
+            follows_body=True),
+    _option("lamp_housings", "Lamp housings", "lamp_housing", (0.02, 0.024, 0.03), "paint_gloss",
+            follows_body=True),
     _interior("seats", "Seats", "seats", UPHOLSTERY[0], "leather", appearance=_upholstery,
               appearance_inputs=("interior_colour", "interior_trim")),
+    _interior("seat_accents", "Seat accents", "seat_accents", UPHOLSTERY[0], "leather",
+              appearance=_accent, appearance_inputs=("seat_accent", "interior_trim")),
     _interior("dashboard", "Dashboard", "dashboard", (0.05, 0.052, 0.058), "trim"),
     _interior("display", "Display", "display", (0.02, 0.03, 0.05), "screen"),
     _interior("steering_wheel", "Steering wheel", "steering_wheel", (0.03, 0.03, 0.035), "leather"),
@@ -379,7 +439,7 @@ COMPONENTS: tuple[ComponentDef, ...] = (
         id="frame", name="Chassis frame", category="chassis", builder="frame",
         geometry=FRAME_GEOMETRY, inputs=lambda p: {k: p[k] for k in dict.fromkeys(FRAME_GEOMETRY)},
         frames={"origin": ()}, interfaces=lambda p: {"origin": tf.identity()},
-        mate=Mate("vehicle", "origin", "origin"), color=_FRAME_COLOR, finish="metal",
+        mate=Mate("vehicle", "origin", "origin"), color=_FRAME_COLOR, finish="trim",
     ),
     _axle("front_axle", "Front suspension", "track_front", "front_axle_mount"),
     _axle("rear_axle", "Rear suspension", "track_rear", "rear_axle_mount"),
@@ -391,6 +451,14 @@ COMPONENTS: tuple[ComponentDef, ...] = (
     _rim("rim_fr", "Rim front right", "front_axle", "right"),
     _rim("rim_rl", "Rim rear left", "rear_axle", "left"),
     _rim("rim_rr", "Rim rear right", "rear_axle", "right"),
+    _brake("rotor_fl", "Brake disc front left", "disc", "front_axle", "left"),
+    _brake("rotor_fr", "Brake disc front right", "disc", "front_axle", "right"),
+    _brake("rotor_rl", "Brake disc rear left", "disc", "rear_axle", "left"),
+    _brake("rotor_rr", "Brake disc rear right", "disc", "rear_axle", "right"),
+    _brake("caliper_fl", "Brake caliper front left", "caliper", "front_axle", "left"),
+    _brake("caliper_fr", "Brake caliper front right", "caliper", "front_axle", "right"),
+    _brake("caliper_rl", "Brake caliper rear left", "caliper", "rear_axle", "left"),
+    _brake("caliper_rr", "Brake caliper rear right", "caliper", "rear_axle", "right"),
     _damper("damper_fl", "Damper front left", "front", "left"),
     _damper("damper_fr", "Damper front right", "front", "right"),
     _damper("damper_rl", "Damper rear left", "rear", "left"),
