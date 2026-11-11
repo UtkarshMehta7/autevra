@@ -11,7 +11,7 @@ from autevra.api import access, schemas
 from autevra.api.routes import WorkspaceDep
 from autevra.api.service import Workspace
 from autevra.core.commands import CommandError
-from autevra.inventory import calc
+from autevra.inventory import calc, mating
 from autevra.inventory.model import Item, ItemSummary, summary
 from autevra.inventory.store import Inventory, InventoryError
 from autevra.part.features import PartDoc, Placement
@@ -73,9 +73,37 @@ def bearing_life(item_id: str, body: LifeIn, ws: WorkspaceDep) -> dict[str, floa
     return calc.bearing_life(c, body.load_kN, body.rpm)
 
 
+class MateIn(BaseModel):
+    part: str  # an installed item's part in the same project
+    port: str  # that item's port
+    own_port: str  # the new item's port that lands on it
+
+
 class InstallIn(BaseModel):
     item: str
     at: Placement = Placement()
+    mate: MateIn | None = None  # snap by interface instead of placing by coordinates
+
+
+def _mated(ws: Workspace, project_id: str, item: Item, m: MateIn) -> dict[str, float]:
+    """Placement snapping ``item``'s port onto a port of an installed item, after the
+    compatibility check (422 with the reason when the ports cannot mate)."""
+    inv = _inventory(ws)
+    rows = [r for r in inv.usage() if r["project"] == project_id and r["part"] == m.part]
+    if not rows:
+        raise HTTPException(status_code=422, detail="the target part is not an inventory item")
+    target_item = inv.get(rows[-1]["item"], rows[-1]["version"])
+    target = next((p for p in target_item.ports if p.name == m.port), None)
+    own = next((p for p in item.ports if p.name == m.own_port), None)
+    if target is None or own is None:
+        raise HTTPException(status_code=422, detail="unknown port")
+    ok, why = mating.compatible(own, target)
+    if not ok:
+        raise HTTPException(status_code=422, detail=f"cannot mate: {why}")
+    doc = dict(ws._part_docs(project_id)).get(m.part)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"no part '{m.part}'")
+    return mating.mate(doc.at.model_dump(), target, own)
 
 
 @router.post("/projects/{project_id}/inventory/install", response_model=schemas.PartOut)
@@ -85,8 +113,10 @@ def install(project_id: str, body: InstallIn, ws: WorkspaceDep) -> schemas.PartO
     item = _item(ws, body.item)
     if not item.definition:
         raise HTTPException(status_code=422, detail=f"'{item.name}' has no geometry")
-    doc = PartDoc.model_validate({**item.definition, "name": item.name[:80],
-                                  "at": body.at.model_dump()})  # fmt: skip
+    at = body.at.model_dump()
+    if body.mate is not None:
+        at = _mated(ws, project_id, item, body.mate)
+    doc = PartDoc.model_validate({**item.definition, "name": item.name[:80], "at": at})
     try:
         part = ws.create_part(project_id, doc)
     except CommandError as exc:
@@ -117,3 +147,23 @@ def publish(project_id: str, part_id: str, ws: WorkspaceDep) -> Item:
         return _inventory(ws).publish(item)
     except InventoryError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.get("/projects/{project_id}/inventory/installed")
+def installed(project_id: str, ws: WorkspaceDep) -> list[dict]:
+    """The inventory items installed in a project that still exist, with their ports (the
+    targets an item can be mated to)."""
+    parts = dict(ws._part_docs(project_id))
+    inv = _inventory(ws)
+    out = []
+    for r in inv.usage():
+        if r["project"] != project_id or r["part"] not in parts:
+            continue
+        try:
+            item = inv.get(r["item"], r["version"])
+        except InventoryError:
+            continue
+        out.append({"part": r["part"], "name": parts[r["part"]].name, "item": item.id,
+                    "version": item.version,
+                    "ports": [p.model_dump() for p in item.ports]})  # fmt: skip
+    return out

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { InventoryItem, ItemSummary } from "../api/types";
+import type { InventoryItem, ItemPort, ItemSummary } from "../api/types";
 
 /** Inventory workspace (shared by every module): browse the standard-parts library and
  * published items, read their dimensions, ports and performance, size a bearing by its
@@ -29,6 +29,10 @@ export function InventoryPanel({ projectId, onModelChanged }: { projectId: strin
   const [rpm, setRpm] = useState(1500);
   const [life, setLife] = useState<{ L10_Mrev: number; L10_hours: number } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [installed, setInstalled] = useState<{ part: string; name: string; ports: ItemPort[] }[]>([]);
+  const [mate, setMate] = useState({ part: "", port: "", own_port: "" });
+  const loadInstalled = () => api.installedItems(projectId).then(setInstalled).catch(() => setInstalled([]));
+  useEffect(() => { loadInstalled(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -50,8 +54,10 @@ export function InventoryPanel({ projectId, onModelChanged }: { projectId: strin
   const install = async () => {
     if (!item) return;
     try {
-      const part = await api.installItem(projectId, item.id, at);
-      setMessage(`Added “${part.document.name}” to the project (linked to ${item.id} v${item.version}).`);
+      const snap = mate.part && mate.port && mate.own_port ? mate : undefined;
+      const part = await api.installItem(projectId, item.id, at, snap);
+      setMessage(`Added “${part.document.name}” to the project (linked to ${item.id} v${item.version})${snap ? `, its ${snap.own_port} mated to ${snap.port}` : ""}.`);
+      loadInstalled();
       onModelChanged();
       api.itemUsage(item.id).then(setUsage).catch(() => undefined);
     } catch (e) { setMessage(e instanceof Error ? e.message : String(e)); }
@@ -116,7 +122,26 @@ export function InventoryPanel({ projectId, onModelChanged }: { projectId: strin
                     <label key={k}>{k} <input type="number" value={at[k]} step={10} onChange={(e) => setAt({ ...at, [k]: Number(e.target.value) })} /> mm</label>
                   ))}
                 </div>
-                <button className="primary" onClick={install}>Add to project</button>
+                <h4>…or snap onto an installed item</h4>
+                <div className="place">
+                  <label>item <select value={mate.part} onChange={(e) => setMate({ ...mate, part: e.target.value, port: "" })}>
+                    <option value="">— place by coordinates —</option>
+                    {installed.map((r) => <option key={r.part} value={r.part}>{r.name}</option>)}
+                  </select></label>
+                  {mate.part && (
+                    <>
+                      <label>its port <select value={mate.port} onChange={(e) => setMate({ ...mate, port: e.target.value })}>
+                        <option value="">choose</option>
+                        {installed.find((r) => r.part === mate.part)?.ports.map((p) => <option key={p.name} value={p.name}>{p.name} ({p.kind.replace("mechanical.", "")})</option>)}
+                      </select></label>
+                      <label>this item's port <select value={mate.own_port} onChange={(e) => setMate({ ...mate, own_port: e.target.value })}>
+                        <option value="">choose</option>
+                        {item.ports.map((p) => <option key={p.name} value={p.name}>{p.name} ({p.kind.replace("mechanical.", "")})</option>)}
+                      </select></label>
+                    </>
+                  )}
+                </div>
+                <button className="primary" onClick={install}>{mate.part ? "Snap into place" : "Add to project"}</button>
                 <h4>Where used</h4>
                 {usage.length === 0 ? <p className="muted small">Not installed anywhere yet.</p> : (
                   <ul className="small">{usage.map((u, i) => <li key={i}>project {u.project.slice(0, 8)} · part {u.part.slice(0, 8)} · v{u.version}</li>)}</ul>

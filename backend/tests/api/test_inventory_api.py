@@ -33,3 +33,18 @@ def test_publish_a_part_as_an_item(client: TestClient, project: str) -> None:
     assert abs(first["properties"]["mass_kg"] - 100 * 50 * 10 * 7850e-9) < 1e-3
     listed = client.get("/api/inventory", params={"category": "Published"}).json()
     assert [r["version"] for r in listed] == ["1.1.0"]
+
+
+def test_install_by_mating_ports(client: TestClient, project: str) -> None:
+    bolt = client.post(f"/api/projects/{project}/inventory/install",
+                       json={"item": "iso4017-m10x40", "at": {"x": 50, "z": 300}}).json()  # fmt: skip
+    nut = client.post(f"/api/projects/{project}/inventory/install", json={
+        "item": "iso4032-m10",
+        "mate": {"part": bolt["id"], "port": "thread", "own_port": "thread"}})  # fmt: skip
+    assert nut.status_code == 200, nut.text
+    at = nut.json()["document"]["at"]
+    assert (at["x"], at["z"]) == (50, 300 - 40)  # at the end of the 40 mm shank
+    wrong = client.post(f"/api/projects/{project}/inventory/install", json={
+        "item": "iso4032-m12",
+        "mate": {"part": bolt["id"], "port": "thread", "own_port": "thread"}})  # fmt: skip
+    assert wrong.status_code == 422 and "does not fit" in wrong.json()["detail"]

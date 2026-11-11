@@ -1,5 +1,5 @@
 import type {
-  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult, AircraftSpec, AircraftAnalysis, ProductEnvelope, ProductOut, SystemsOut, ChainStep, ItemSummary, InventoryItem } from "./types";
+  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult, AircraftSpec, AircraftAnalysis, ProductEnvelope, ProductOut, SystemsOut, ChainStep, ItemSummary, InventoryItem, ItemPort } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -254,8 +254,11 @@ export const api = {
   itemUsage: (itemId: string) => request<{ item: string; version: string; project: string; part: string }[]>(`/inventory/items/${encodeURIComponent(itemId)}/usage`),
   bearingLife: (itemId: string, load_kN: number, rpm: number) =>
     post<{ L10_Mrev: number; L10_hours: number; exponent: number }>(`/inventory/items/${encodeURIComponent(itemId)}/bearing-life`, { load_kN, rpm }),
-  installItem: (id: string, item: string, at: { x: number; y: number; z: number }) =>
-    post<PartOut>(`/projects/${id}/inventory/install`, { item, at }),
+  installItem: (id: string, item: string, at: { x: number; y: number; z: number },
+    mate?: { part: string; port: string; own_port: string }) =>
+    post<PartOut>(`/projects/${id}/inventory/install`, { item, at, mate }),
+  installedItems: (id: string) =>
+    request<{ part: string; name: string; item: string; version: string; ports: ItemPort[] }[]>(`/projects/${id}/inventory/installed`),
   publishPart: (id: string, partId: string) => post<InventoryItem>(`/projects/${id}/parts/${partId}/publish`, {}),
   systemChain: (id: string, fn: string) => request<ChainStep[]>(`/projects/${id}/systems/chain/${encodeURIComponent(fn)}`),
   allocate: (id: string, requirement: string, fn: string) =>
