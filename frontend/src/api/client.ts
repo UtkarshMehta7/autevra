@@ -257,6 +257,7 @@ export const api = {
     post<PartOut>(`/projects/${id}/parts/${part}/reorder`, { order }),
   undoPart: (id: string, part: string) => post<PartOut>(`/projects/${id}/parts/${part}/undo`),
   redoPart: (id: string, part: string) => post<PartOut>(`/projects/${id}/parts/${part}/redo`),
+  partDrawingUrl: (id: string, part: string) => `${API}/projects/${id}/parts/${part}/drawing.svg`,
   partTableUrl: (id: string, part: string) => `${API}/projects/${id}/parts/${part}/design-table.csv`,
   setPartTable: (id: string, part: string, csv: string) =>
     request<PartOut>(`/projects/${id}/parts/${part}/design-table`,

@@ -482,6 +482,9 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
               <button disabled={busy || !part.can_undo} onClick={() => run(() => api.undoPart(projectId, part.id))}>Undo</button>
               <button disabled={busy || !part.can_redo} onClick={() => run(() => api.redoPart(projectId, part.id))}>Redo</button>
               <button disabled={busy} onClick={() => run(() => api.deletePart(projectId, part.id), part.id)}>Delete part</button>
+              {part.volume != null && (
+                <DownloadLink className="button" href={api.partDrawingUrl(projectId, part.id)}>Drawing (A3 SVG)</DownloadLink>
+              )}
               <span className="hint">
                 {part.volume != null ? `${(part.volume / 1e3).toFixed(1)} cm³` : "nothing built"}
                 {part.bounds && ` · ${part.bounds[1].map((v, i) => (v - part.bounds![0][i]).toFixed(0)).join(" × ")} mm`}

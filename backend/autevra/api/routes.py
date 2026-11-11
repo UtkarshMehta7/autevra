@@ -699,6 +699,24 @@ def reorder_part(project_id: str, part_id: str, body: ReorderIn,
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
+@router.get("/projects/{project_id}/parts/{part_id}/drawing.svg")
+def part_drawing(project_id: str, part_id: str, ws: WorkspaceDep) -> Response:
+    """An A3 engineering drawing of the part: third-angle views with hidden lines,
+    overall dimensions, hole diameters and a title block."""
+    from autevra.api import model_service
+    from autevra.part import drawing
+
+    doc = dict(ws._part_docs(project_id)).get(part_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="no such part")
+    _, report = model_service.build_part(doc, ws.cache)
+    if report.shape is None:
+        raise HTTPException(status_code=422, detail="the part has no solid to draw")
+    svg = drawing.drawing_svg(report.shape, doc.name)
+    return Response(svg, media_type="image/svg+xml", headers={
+        "Content-Disposition": f'attachment; filename="{part_id}-drawing.svg"'})
+
+
 @router.get("/projects/{project_id}/parts/{part_id}/design-table.csv")
 def part_table(project_id: str, part_id: str, ws: WorkspaceDep) -> Response:
     try:
