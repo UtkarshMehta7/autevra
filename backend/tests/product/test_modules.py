@@ -27,7 +27,8 @@ def _rolled(module_id: str, values: dict, override: dict | None = None):  # type
 def test_modules_are_separate() -> None:
     assert modules.for_domain("automotive").id == "land"
     assert modules.for_domain("aerospace").id == "aircraft"
-    assert modules.for_domain("marine") is None
+    assert modules.for_domain("marine").id == "marine"
+    assert modules.for_domain("space") is None
     land, air = set(templates.of("land")), set(templates.of("aircraft"))
     assert len(land) > 60 and len(air) > 45
 
