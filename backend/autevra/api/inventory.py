@@ -7,7 +7,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from autevra import dmu, routing
+from autevra import dmu, routing, tooling
 from autevra.api import access, schemas
 from autevra.api.routes import WorkspaceDep
 from autevra.api.service import Workspace
@@ -248,3 +248,18 @@ def add_route(project_id: str, body: dict, ws: WorkspaceDep) -> schemas.PartOut:
         return ws.create_part(project_id, PartDoc.model_validate(out["part"]))
     except (KeyError, ValueError, CommandError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.get("/projects/{project_id}/parts/{part_id}/draft", response_model=tooling.DraftReport)
+def part_draft(project_id: str, part_id: str, ws: WorkspaceDep, min_draft: float = Query(
+        1.0, ge=0.0, le=45.0), pull: str = Query("z", pattern="^[+-]?[xyz]$")) -> tooling.DraftReport:  # fmt: skip
+    """Draft analysis of a part against a pull direction (tooling check)."""
+    doc = dict(ws._part_docs(project_id)).get(part_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"no part '{part_id}'")
+    built = build_part(doc)
+    if built.shape is None:
+        raise HTTPException(status_code=422, detail="the part does not build")
+    sign = -1.0 if pull.startswith("-") else 1.0
+    axis = {"x": (sign, 0.0, 0.0), "y": (0.0, sign, 0.0), "z": (0.0, 0.0, sign)}[pull[-1]]
+    return tooling.draft(built.shape, axis, min_draft)
