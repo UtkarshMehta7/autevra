@@ -30,6 +30,7 @@ import { BreakdownPanel } from "./BreakdownPanel";
 import { FunctionsPanel } from "./FunctionsPanel";
 import { InventoryPanel } from "./InventoryPanel";
 import { EnginePanel } from "./EnginePanel";
+import { VesselPanel } from "./VesselPanel";
 import { LoadsPanel } from "./LoadsPanel";
 import { ProductionPanel } from "./ProductionPanel";
 import { ReviewsPanel } from "./ReviewsPanel";
@@ -585,6 +586,9 @@ function StudioView({ projectId, workspace, navigate }: {
         )}
         {project && !collapsed && workspace === "reviews" && (
           <ReviewsPanel key={project.id} projectId={project.id} version={history.cursor} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "vessel" && (
+          <VesselPanel key={project.id} projectId={project.id} onModelChanged={() => refresh(project.id)} />
         )}
         {project && !collapsed && workspace === "part-design" && (
           <PartDesignPanel projectId={project.id} onModelChanged={() => refresh(project.id)} />

@@ -245,6 +245,11 @@ export const api = {
   getAircraftSpec: (id: string) => request<AircraftSpec>(`/projects/${id}/aircraft/spec`),
   analyseEngine: (spec: EngineSpec) => post<EngineAnalysis>("/engines/analyse", spec),
   getEngineSpec: (id: string) => request<EngineSpec>(`/projects/${id}/engine/spec`),
+  analyseVessel: (spec: unknown) => post<unknown>("/marine/analyse", spec),
+  getVesselSpec: (id: string) => request<unknown>(`/projects/${id}/vessel/spec`),
+  saveVesselSpec: (id: string, spec: unknown) =>
+    request<unknown>(`/projects/${id}/vessel/spec`, { method: "PUT", body: JSON.stringify(spec) }),
+  buildVessel: (id: string, spec: unknown) => post<unknown>(`/projects/${id}/vessel`, spec),
   saveEngineSpec: (id: string, spec: EngineSpec) =>
     request<EngineSpec>(`/projects/${id}/engine/spec`, { method: "PUT", body: JSON.stringify(spec) }),
   buildEngine: (id: string, spec: EngineSpec) => post<PartOut[]>(`/projects/${id}/engine`, spec),

@@ -4,7 +4,7 @@ import { WORKSPACES } from "./workspaces";
 describe("studio workspaces", () => {
   it("covers the routed workspaces of the brief, once each", () => {
     expect(WORKSPACES.map((w) => w.id)).toEqual([
-      "design", "engine", "breakdown", "functions", "loads", "production", "reviews", "inventory", "styling", "part-design", "surfaces", "structures", "aircraft", "package", "assembly", "simulation", "ai-engineering", "optimization",
+      "design", "engine", "vessel", "breakdown", "functions", "loads", "production", "reviews", "inventory", "styling", "part-design", "surfaces", "structures", "aircraft", "package", "assembly", "simulation", "ai-engineering", "optimization",
       "requirements",
       "systems", "manufacturing", "digital-engineering",
     ]);
@@ -19,6 +19,6 @@ describe("engineering modules", () => {
     expect(air.workspaces).not.toContain("design");
     expect(air.workspaces[0]).toBe("aircraft");
     expect(moduleOf(undefined).id).toBe("automotive");
-    expect(MODULES.filter((m) => m.planned).map((m) => m.id)).toEqual(["marine"]);
+    expect(MODULES.filter((m) => m.planned).map((m) => m.id)).toEqual([]);
   });
 });

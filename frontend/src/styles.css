@@ -664,3 +664,6 @@ textarea.json.bad { border-color: var(--bad); }
 .reviews .bl, .reviews .ecr, .reviews .diff { border-bottom: 1px solid var(--line); padding: 5px 0; }
 .reviews .bl button { margin-left: 8px; }
 .impact { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 3px; } .impact .bad { color: var(--bad); }
+.gz { width: 100%; max-width: 500px; } .gz text { fill: var(--muted); font-size: 10px; }
+.gz .axis, .gz .grid { stroke: var(--line); } .gz .curve { fill: none; stroke: #3fc1b0; stroke-width: 2; }
+.gz .gm { stroke: var(--muted); stroke-dasharray: 4 4; } .gz .limit { stroke: var(--warn); stroke-dasharray: 3 5; }

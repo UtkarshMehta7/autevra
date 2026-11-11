@@ -16,6 +16,7 @@ from autevra import manufacturing, materials, modules, quality
 from autevra.api import access
 from autevra.api.aerospace import get_spec
 from autevra.api.installs import engine_values
+from autevra.api.marine import get_spec as vessel_spec
 from autevra.api.mechanical import get_spec as engine_spec
 from autevra.api.routes import WorkspaceDep
 from autevra.api.service import Workspace
@@ -72,6 +73,8 @@ def _module(ws: Workspace, project_id: str) -> tuple[modules.ModuleDef, dict[str
         values: dict[str, Any] = get_spec(project_id, ws).model_dump()
     elif module.id == "mechanical":
         values = engine_spec(project_id, ws).model_dump()
+    elif module.id == "marine":
+        values = vessel_spec(project_id, ws).model_dump()
     else:
         values = dict(ws.project(project_id).values)
     if module.id in ("land", "aircraft"):
@@ -300,7 +303,7 @@ def project_loads(project_id: str, ws: WorkspaceDep) -> dict:
 # --- manufacturing and quality -------------------------------------------------------
 
 
-TAKT = {"land": 60.0, "mechanical": 90.0, "aircraft": 4 * 3600.0}  # s, typical rates
+TAKT = {"land": 60.0, "mechanical": 90.0, "aircraft": 4 * 3600.0, "marine": 86_400.0}  # s
 
 
 @router.get("/projects/{project_id}/manufacturing")

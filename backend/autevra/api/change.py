@@ -253,6 +253,13 @@ def _apply(ws: Workspace, project_id: str, record: dict) -> None:
         spec = get_spec(project_id, ws)
         put_spec(project_id, spec.model_validate({**spec.model_dump(), **record["changes"]}), ws)
         return
+    if module.id == "marine":
+        from autevra.api.marine import get_spec as vessel_spec
+        from autevra.api.marine import put_spec as put_vessel
+
+        vs = vessel_spec(project_id, ws)
+        put_vessel(project_id, vs.model_validate({**vs.model_dump(), **record["changes"]}), ws)
+        return
     from autevra.api.mechanical import get_spec as engine_spec
     from autevra.api.mechanical import put_spec as put_engine
 

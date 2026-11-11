@@ -67,8 +67,6 @@ _PLANNED: tuple[tuple[str, str, str, list[str]], ...] = (
      ["multi-axle templates", "payload and axle-load checks"]),
     ("space", "Space systems and propulsion", "Spacecraft structures and propulsion.",
      ["mass and delta-v budgets", "propulsion sizing"]),
-    ("marine", "Marine engineering", "Hulls and marine propulsion.",
-     ["hull form parameters", "hydrostatics"]),
     ("robotics", "Robotics", "Manipulators and mobile robots.",
      ["kinematic chains and joints", "reach and payload checks"]),
     ("manufacturing", "Advanced manufacturing", "Manufacturing processes and planning.",
@@ -132,13 +130,32 @@ def _machinery() -> DomainDef:
     )  # fmt: skip
 
 
+def _marine() -> DomainDef:
+    from autevra import __version__
+
+    return DomainDef(
+        id="marine", name="Marine",
+        description="Small displacement vessels: parametric hull form, hydrostatics, the GZ "
+        "curve against the IMO intact stability criteria, viscous resistance, the SFI-style "
+        "breakdown, architecture, loads and production.",
+        status="experimental", version=__version__, component_library=["displacement hulls"],
+        operations=["parametric hull", "build as parts", "Part Design"],
+        simulations=["hydrostatics", "large-angle stability (GZ) and IMO IS Code criteria",
+                     "ITTC-1957 friction with form factor"],
+        formats=["STEP AP214 export"], dependencies=["cadquery 2.8 / OCCT 7.9"],
+        roadmap=["wave-making resistance (Holtrop-Mennen)", "planing hulls (Savitsky)",
+                 "ISO 12215 scantlings", "weather criterion"],
+        evidence="covered by tests/marine (box-barge and GM checks) and the workspace",
+    )  # fmt: skip
+
+
 def registry() -> list[DomainDef]:
     planned = [
         DomainDef(id=i, name=n, description=d, status="unavailable", roadmap=r,
                   evidence="not implemented: roadmap only")
         for i, n, d, r in _PLANNED
     ]  # fmt: skip
-    return [_automotive(), _aerospace(), _machinery(), *planned]
+    return [_automotive(), _aerospace(), _machinery(), _marine(), *planned]
 
 
 def get(domain_id: str) -> DomainDef | None:
