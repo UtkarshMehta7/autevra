@@ -650,3 +650,17 @@ textarea.json.bad { border-color: var(--bad); }
 .stack-bar .wc { position: absolute; top: 3px; height: 6px; border-radius: 2px; }
 .stack-bar .wc.ok { background: rgba(92,191,138,0.6); } .stack-bar .wc.bad { background: rgba(224,163,58,0.7); }
 .stack-bar .rss { position: absolute; top: 11px; height: 6px; border-radius: 2px; background: #5aa8f0; }
+
+/* Reviews workspace */
+.reviews { padding: 8px 12px; overflow-y: auto; flex: 1; min-height: 0; font-size: 12px; }
+.reviews .muted { color: var(--muted); } .reviews .small { font-size: 11px; }
+.reviews h4 { margin: 10px 0 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.gates { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); gap: 8px; }
+.gate { border: 1px solid var(--line); border-top: 3px solid var(--warn); border-radius: 4px; padding: 6px 8px; }
+.gate.ok { border-top-color: var(--good); }
+.crit { font-size: 11px; margin-top: 3px; } .crit.met { color: var(--good); } .crit.unmet { color: var(--text); }
+.rev-grid { display: grid; grid-template-columns: 1fr 1.3fr; gap: 16px; }
+.reviews .row { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
+.reviews .bl, .reviews .ecr, .reviews .diff { border-bottom: 1px solid var(--line); padding: 5px 0; }
+.reviews .bl button { margin-left: 8px; }
+.impact { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 3px; } .impact .bad { color: var(--bad); }

@@ -1,5 +1,5 @@
 export type WorkspaceId =
-  | "design" | "engine" | "breakdown" | "functions" | "loads" | "production" | "inventory" | "styling" | "part-design" | "surfaces" | "structures" | "aircraft" | "package" | "assembly" | "simulation" | "ai-engineering" | "optimization" | "requirements"
+  | "design" | "engine" | "breakdown" | "functions" | "loads" | "production" | "reviews" | "inventory" | "styling" | "part-design" | "surfaces" | "structures" | "aircraft" | "package" | "assembly" | "simulation" | "ai-engineering" | "optimization" | "requirements"
   | "systems" | "manufacturing" | "digital-engineering";
 
 export const WORKSPACES: { id: WorkspaceId; label: string; description: string }[] = [
@@ -9,6 +9,7 @@ export const WORKSPACES: { id: WorkspaceId; label: string; description: string }
   { id: "functions", label: "Functions", description: "Requirements → functions → logical blocks → parts: function chains, typed flows, interfaces, design FMEA and trace gaps" },
   { id: "loads", label: "Loads", description: "Load cases from the design (road g-cases, V-n and gust, landing, firing), the compliance matrix and the materials database" },
   { id: "production", label: "Production", description: "MBOM by station, process plan, takt and operators, unit cost and CO2, reconciliation, tolerance stack-ups" },
+  { id: "reviews", label: "Reviews", description: "Review gates computed from the model, baselines and comparisons, engineering change requests with impact before approval" },
   { id: "inventory", label: "Inventory", description: "Shared library: ISO fasteners, bearings, hollow sections and published parts, with their ports and performance; add to the project" },
   { id: "styling", label: "Styling", description: "Draw the body: silhouette, underbody and plan curves of the styled skin" },
   { id: "part-design", label: "Part Design", description: "Your own parts from a feature tree: sketches, revolves, lofts, sweeps, shells, patterns" },
@@ -34,13 +35,13 @@ const SHARED: WorkspaceId[] = ["part-design", "inventory", "surfaces", "structur
 
 export const MODULES: ModuleDef[] = [
   { id: "automotive", label: "Land vehicles", noun: "Vehicle", description: "Cars, SUVs, pickups and trucks",
-    workspaces: ["design", "breakdown", "functions", "loads", "production", "styling", ...SHARED, "package", "assembly", "simulation", "ai-engineering",
+    workspaces: ["design", "breakdown", "functions", "loads", "production", "reviews", "styling", ...SHARED, "package", "assembly", "simulation", "ai-engineering",
       "optimization", "requirements", "systems", "manufacturing", "digital-engineering"] },
   { id: "aerospace", label: "Aircraft", noun: "Aircraft", description: "Fixed-wing aircraft",
-    workspaces: ["aircraft", "breakdown", "functions", "loads", "production", ...SHARED] },
+    workspaces: ["aircraft", "breakdown", "functions", "loads", "production", "reviews", ...SHARED] },
   { id: "marine", label: "Marine", noun: "Vessel", description: "Hulls and marine propulsion (planned)", workspaces: [], planned: true },
   { id: "machinery", label: "Mechanical", noun: "Engine", description: "Engines category by category (piston engines first)",
-    workspaces: ["engine", "breakdown", "functions", "loads", "production", ...SHARED] },
+    workspaces: ["engine", "breakdown", "functions", "loads", "production", "reviews", ...SHARED] },
 ];
 
 export function moduleOf(domain: string | undefined): ModuleDef {

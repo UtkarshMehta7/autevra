@@ -258,6 +258,15 @@ export const api = {
   materials: () => request<unknown[]>("/materials"),
   manufacturing: (id: string, takt?: number) => request<unknown>(`/projects/${id}/manufacturing${takt ? `?takt=${takt}` : ""}`),
   stackup: (stack: unknown) => post<unknown>("/quality/stackup", stack),
+  reviews: (id: string) => request<unknown[]>(`/projects/${id}/reviews`),
+  baselines: (id: string) => request<unknown[]>(`/projects/${id}/baselines`),
+  takeBaseline: (id: string, name: string, gate: string) => post<unknown>(`/projects/${id}/baselines`, { name, gate }),
+  compareBaseline: (id: string, bl: string) => request<unknown>(`/projects/${id}/baselines/${bl}/compare`),
+  changes: (id: string) => request<unknown[]>(`/projects/${id}/changes`),
+  requestChange: (id: string, title: string, changes: Record<string, unknown>) =>
+    post<unknown>(`/projects/${id}/changes`, { title, changes }),
+  decideChange: (id: string, change: string, decision: "approve" | "reject") =>
+    post<unknown>(`/projects/${id}/changes/${change}/${decision}`, {}),
   inventory: (q: string, category: string) =>
     request<ItemSummary[]>(`/inventory?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`),
   inventoryItem: (itemId: string) => request<InventoryItem>(`/inventory/items/${encodeURIComponent(itemId)}`),
