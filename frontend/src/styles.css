@@ -241,7 +241,7 @@ tr.selected-row td { background: #2b4366; }
 /* Command bar (studio header) */
 .app header .command-bar { flex: 1; display: flex; align-items: center; gap: 8px; position: relative; min-width: 0; }
 .command-bar form { flex: 1; display: flex; gap: 6px; min-width: 0; }
-.command-bar input { flex: 1; min-width: 120px; }
+.command-bar input { flex: 1; min-width: 70px; }
 .command-status { color: var(--muted); white-space: nowrap; font-size: 11px; }
 .command-bar .attention { color: #ffc94a; }
 .command-popover { position: absolute; top: calc(100% + 6px); left: 0; right: 0; max-height: 50vh; overflow: auto;
@@ -490,8 +490,8 @@ textarea.json.bad { border-color: var(--bad); }
 .drag-table th:first-child, .drag-table td:first-child { text-align: left; }
 
 /* Engineering modules switcher */
-.modules { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-.modules button { border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 4px 10px; font-size: 12px; }
+.modules { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+.modules button { border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 4px 8px; font-size: 12px; white-space: nowrap; }
 .modules button + button { border-left: 1px solid var(--line); }
 .modules button.on { background: #24406a; color: #fff; }
 .modules button:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -604,3 +604,5 @@ textarea.json.bad { border-color: var(--bad); }
 .inventory .check { font-size: 12px; padding: 3px 8px; border-radius: 4px; border-left: 3px solid; background: rgba(255,255,255,0.03); margin: 3px 0; }
 .inventory .check.pass { border-color: var(--good); } .inventory .check.warn { border-color: var(--warn); } .inventory .check.fail { border-color: var(--bad); }
 .inv-engine button { margin-left: 8px; }
+.app header .command-bar { min-width: 150px; }
+.app header button { white-space: nowrap; }

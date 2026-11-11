@@ -44,7 +44,8 @@ export function CommandBar({ turns, busy, llm, onSend, onDecide }: Props) {
         </datalist>
         <button type="submit" disabled={!text.trim()}>{busy ? "Queue" : "Run"}</button>
       </form>
-      <small className="command-status" title={llm?.detail || llm?.url}>{llmLabel(llm)}</small>
+      <small className="command-status" title={`${llmLabel(llm)}${llm?.detail ? ` — ${llm.detail}` : ""}`}>
+        {llm?.available ? "AI ✓" : "parser"}</small>
       {turns.length > 0 && (
         <button className={`subtle${pending ? " attention" : ""}`} onClick={() => setOpen(!open)}
           title="Show the last reply and the history">{pending ? "Confirm…" : `Replies (${turns.length})`}</button>
