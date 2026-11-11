@@ -56,8 +56,9 @@ def test_energy_chain_end_to_end() -> None:
 
 
 @pytest.mark.cad
-@pytest.mark.parametrize("kw", [{"layout": "V", "cylinders": 8}, {"layout": "boxer", "cylinders": 4},
-                                {"cylinders": 6}])  # fmt: skip
+@pytest.mark.parametrize(
+    "kw", [{"layout": "V", "cylinders": 8}, {"layout": "boxer", "cylinders": 4}, {"cylinders": 6}]
+)
 def test_concept_geometry_builds_with_the_exhaust_outboard(kw: dict) -> None:
     from autevra.modules.mechanical.geometry import parts
     from autevra.part.build import build_part
