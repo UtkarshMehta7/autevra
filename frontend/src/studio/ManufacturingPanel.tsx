@@ -22,6 +22,7 @@ export function ManufacturingPanel({ projectId, version, stepUrl, reqifUrl }: {
         <strong>Outputs</strong>
         <ul className="plain">
           <li><DownloadLink className="button" href={stepUrl}>STEP AP214 assembly</DownloadLink> <span className="hint">named, coloured, placed solids</span></li>
+          <li><DownloadLink className="button" href={`${stepUrl}?schema=AP242`}>STEP AP242 assembly</DownloadLink> <span className="hint">the managed model-based 3D engineering schema</span></li>
           <li><DownloadLink className="button" href={reqifUrl}>ReqIF requirements</DownloadLink></li>
           <li><DownloadLink className="button" href={api.bomUrl(projectId)}>Bill of materials (CSV)</DownloadLink></li>
         </ul>

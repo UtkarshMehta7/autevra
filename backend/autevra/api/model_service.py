@@ -140,8 +140,9 @@ def mesh_payload(model: VehicleModel, cache: GeometryCache, skip: Iterable[str] 
     }
 
 
-def export_step(model: VehicleModel, path: Path) -> Path:
+def export_step(model: VehicleModel, path: Path, schema: str = "AP214") -> Path:
     return kernel.export_step(
         [kernel.Part(p.id, model.shapes[p.geometry], p.matrix, p.color) for p in model.parts],
         path,
+        schema=schema,
     )

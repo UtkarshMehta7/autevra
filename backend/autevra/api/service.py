@@ -1343,10 +1343,12 @@ class Workspace:
         with self._lock:
             return model_service.mesh_payload(self._full_model(project_id), self.cache, skip=known)
 
-    def export_step(self, project_id: str) -> Path:
+    def export_step(self, project_id: str, schema: str = "AP214") -> Path:
         with self._lock:
             return model_service.export_step(
-                self._full_model(project_id), self.data_dir / "exports" / f"{project_id}.step"
+                self._full_model(project_id),
+                self.data_dir / "exports" / f"{project_id}-{schema.lower()}.step",
+                schema,
             )
 
     def package(self, project_id: str) -> list:

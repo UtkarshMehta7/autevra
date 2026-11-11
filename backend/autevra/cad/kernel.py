@@ -7,6 +7,7 @@ Units are millimetres; axes follow ISO 8855 (X forward, Y left, Z up).
 """
 
 import math
+import threading
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,8 @@ from OCP.BRepExtrema import BRepExtrema_DistShapeShape
 from OCP.BRepMesh import BRepMesh_IncrementalMesh
 from OCP.BRepTools import BRepTools
 from OCP.gp import gp_Trsf
+from OCP.Interface import Interface_Static
+from OCP.STEPControl import STEPControl_Controller
 from OCP.TopAbs import TopAbs_FACE, TopAbs_REVERSED
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopLoc import TopLoc_Location
@@ -316,15 +319,29 @@ class Part:
     color: tuple[float, float, float]
 
 
-def export_step(parts: Iterable[Part], path: Path, name: str = "vehicle") -> Path:
-    """Write an assembly STEP file: one named, placed and coloured solid per part."""
+STEP_SCHEMAS = {"AP214": "AP214IS", "AP242": "AP242DIS"}
+_STEP_LOCK = threading.Lock()  # the schema is a process-wide OCCT setting
+
+
+def export_step(parts: Iterable[Part], path: Path, name: str = "vehicle",
+                schema: str = "AP214") -> Path:  # fmt: skip
+    """Write an assembly STEP file: one named, placed and coloured solid per part, in
+    AP214 (automotive design) or AP242 (managed model-based 3D engineering)."""
+    if schema not in STEP_SCHEMAS:
+        raise ValueError(f"unknown STEP schema '{schema}'")
     assembly = cq.Assembly(name=name)
     for part in parts:
         assembly.add(
             part.shape, name=part.name, loc=location(part.matrix), color=cq.Color(*part.color)
         )
     path.parent.mkdir(parents=True, exist_ok=True)
-    assembly.export(str(path), exportType="STEP")
+    with _STEP_LOCK:
+        STEPControl_Controller.Init_s()
+        Interface_Static.SetCVal_s("write.step.schema", STEP_SCHEMAS[schema])
+        try:
+            assembly.export(str(path), exportType="STEP")
+        finally:
+            Interface_Static.SetCVal_s("write.step.schema", STEP_SCHEMAS["AP214"])
     return path
 
 

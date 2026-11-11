@@ -1,6 +1,6 @@
 """HTTP routes. Thin: validation by Pydantic, logic in ``Workspace``."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -254,8 +254,11 @@ def model(
 
 
 @router.get("/projects/{project_id}/export.step")
-def export_step(project_id: str, ws: WorkspaceDep) -> FileResponse:
-    path = ws.export_step(project_id)
+def export_step(
+    project_id: str, ws: WorkspaceDep, schema: Literal["AP214", "AP242"] = "AP214"
+) -> FileResponse:
+    """The project's geometry as a STEP assembly, in AP214 or AP242."""
+    path = ws.export_step(project_id, schema)
     name = ws.project(project_id).name
     safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in name).strip("-") or "vehicle"
     return FileResponse(path, media_type="application/step", filename=f"{safe}.step")

@@ -435,6 +435,7 @@ function StudioView({ projectId, workspace, navigate }: {
               action: () => navigate(`/studio/${p.id}/${workspace}`) })),
             { label: "", separator: true },
             { label: "Export STEP (B-rep assembly)", disabled: !project, action: project ? downloadAction(api.stepUrl(project.id)) : undefined },
+            { label: "Export STEP AP242", disabled: !project, action: project ? downloadAction(`${api.stepUrl(project.id)}?schema=AP242`) : undefined },
             { label: "Export bill of materials (CSV)", disabled: !project, action: project ? downloadAction(api.bomUrl(project.id)) : undefined },
             { label: "Export package drawing (SVG)", disabled: !project, action: project ? downloadAction(api.packageSvgUrl(project.id)) : undefined },
             { label: "Export requirements (ReqIF)", disabled: !project, action: project ? downloadAction(api.reqifUrl(project.id)) : undefined },
