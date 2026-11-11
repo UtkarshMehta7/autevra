@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { toCreasedNormals } from "three/addons/utils/BufferGeometryUtils.js";
+import { creasedAngleNormals } from "./normals";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { ModelPayload } from "../api/types";
@@ -50,13 +50,10 @@ const FOV = 35;
 const CREASE = (30 * Math.PI) / 180; // facets meeting at less than this shade smoothly
 
 function toGeometry(vertices: number[], indices: number[]): THREE.BufferGeometry {
-  const indexed = new THREE.BufferGeometry();
-  indexed.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-  indexed.setIndex(indices);
   // Smooth shading across the facets of curved surfaces (and across B-rep face seams),
-  // crisp at real edges: the usual CAD display.
-  const g = toCreasedNormals(indexed, CREASE);
-  indexed.dispose();
+  // crisp at real edges: the usual CAD display. Angle-weighted, so thin ruled facets shade
+  // evenly whichever way their quads were split.
+  const g = creasedAngleNormals(vertices, indices, CREASE);
   g.computeBoundingSphere();
   return g;
 }

@@ -15,6 +15,8 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+import cadquery as cq
+
 from autevra.cad import kernel as k
 from autevra.domains.automotive.derived import AXLE_RADIUS, SPRING_ACTIVE_COILS, SPRING_SEAT_OFFSET
 
@@ -401,7 +403,20 @@ def build_body(p: Inputs) -> k.Shape:
         *details.vent_tools(p),
         *details.door_tools(p, layout),
     ]
-    return k.cut(body, *wells, *lamps, cabin, *roof, *trims)  # one boolean for all openings
+    # one boolean for all openings; a long cabin can leave a thin strip standing alone
+    # between the cavity and the bonnet line, which is dropped
+    return main_solids(k.cut(body, *wells, *lamps, cabin, *roof, *trims), 1e-2)
+
+
+def main_solids(shape: k.Shape, share: float) -> k.Shape:
+    """The solids of ``shape`` holding at least ``share`` of the largest one's volume
+    (slivers that cuts leave between neighbouring openings are dropped)."""
+    solids = shape.Solids()
+    if len(solids) <= 1:
+        return shape
+    volumes = [k.volume(s_) for s_ in solids]
+    keep = [s_ for s_, v in zip(solids, volumes, strict=True) if v >= share * max(volumes)]
+    return keep[0] if len(keep) == 1 else cq.Compound.makeCompound(keep)
 
 
 build_body.mesh_angular = 0.12  # type: ignore[attr-defined]  (smooth highlights on the curves)

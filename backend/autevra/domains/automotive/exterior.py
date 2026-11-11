@@ -117,8 +117,9 @@ def build_mirrors(p: Inputs) -> k.Shape:
         else:  # a slim stalk and a teardrop housing, flat glass face to the rear
             parts.append(_rounded(k.box((xm - 25.0, xm + 25.0), y(side - 40.0, side + 70.0),
                                         (belt + 45.0, belt + 75.0)), 10.0))  # fmt: skip
-            parts.append(_pod(xm, s * (2.0 * side + 40.0 + reach) / 2.0, belt + 105.0,
-                              (reach - 40.0) / 2.0, 75.0))  # fmt: skip
+            # wide and flat (about 170 x 110 mm), as GT mirror housings are, not a ball
+            parts.append(_pod(xm, s * (2.0 * side + 40.0 + reach) / 2.0, belt + 95.0,
+                              (reach - 40.0) / 2.0, 55.0))  # fmt: skip
     return k.fuse(*parts)
 
 

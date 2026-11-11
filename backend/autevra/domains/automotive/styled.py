@@ -254,11 +254,18 @@ def section_points(p: Inputs, g: Guides, x: float, inset: float = 0.0) -> list[t
     # A shallow section (near the tail or the nose) must not fold back on itself: keep the
     # points rising from the sill to the wing crown and the widths positive; the valley
     # may then fall to the centre line.
+    # Past the crown: while the bonnet dips the points stay at or below the crown; where the
+    # dip runs out (near the nose) they rise no lower than the point before. The two rules
+    # blend over the last 40 mm of dip, so the centre does not jump up to the crown in one
+    # station (a ridge across the bonnet).
     crown = len(half) - 4
+    blend = 1.0 - _smoothstep(0.0, 40.0, dip)
     fixed = [half[0], half[1]]
     for i, (y, z) in enumerate(half[2:], start=2):
         if i > crown and dip > 0.0:
-            fixed.append((y, min(z, fixed[crown][1])))
+            held = min(z, fixed[crown][1])
+            rising = max(z, fixed[-1][1])
+            fixed.append((y, held + blend * (rising - held)))
             continue
         step = 4.0 if i <= crown else 0.0  # past the crown: no overshoot above the roof
         fixed.append((max(y, 1.0), max(z, fixed[-1][1] + step)))
@@ -511,12 +518,7 @@ def build_styled_body(p: Inputs) -> k.Shape:
 def _main_solids(shape: k.Shape) -> k.Shape:
     """Drop slivers (under 0.1 % of the body's volume) that the cuts can leave between
     neighbouring openings."""
-    solids = shape.Solids()
-    if len(solids) <= 1:
-        return shape
-    volumes = [k.volume(s_) for s_ in solids]
-    keep = [s_ for s_, v in zip(solids, volumes, strict=True) if v >= 1e-3 * max(volumes)]
-    return keep[0] if len(keep) == 1 else cq.Compound.makeCompound(keep)
+    return b.main_solids(shape, 1e-3)
 
 
 def build_styled_glass(p: Inputs) -> k.Shape | None:
