@@ -510,7 +510,7 @@ fleet impact is part of the change's impact analysis.
 - **Correlation** reports prediction vs. measurement per quantity (stiffness, frequency,
   strain, drag, range) with error metrics; persistent bias is fed back as model
   calibration factors, each with its source.
-- An analysis's credibility level (section 21) rises from "checked against reference
+- An analysis's credibility level (section 22) rises from "checked against reference
   cases" to "validated" only through correlated test data.
 
 ## 18. Sustainability
@@ -542,7 +542,55 @@ Every AI-originated change is marked as such in the history, with the prompt and
 model used, and is reviewable and reversible like any command. The rule-based parser
 remains the fallback when no model is available (exists today).
 
-## 20. Data model
+## 20. Desktop applications (macOS and Windows)
+
+Autevra ships as a browser application today and is built so the same code becomes a
+native desktop application on macOS (Apple silicon and Intel) and Windows without a
+rewrite.
+
+```
+┌──────────── Native shell (Tauri 2) ─────────────┐
+│ window, menus, file dialogs, auto-update,       │
+│ code signing / notarisation, installer          │
+│  ┌─ system web view (WKWebView / WebView2) ───┐ │
+│  │  the same React studio (built bundle)      │ │
+│  └───────────────▲────────────────────────────┘ │
+│                  │ http://127.0.0.1:<free port> │
+│  ┌───────────────┴────────────────────────────┐ │
+│  │ sidecar: Python backend + OCCT, frozen by  │ │
+│  │ PyInstaller per OS/arch (autevra.desktop)  │ │
+│  └────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────┘
+   data: ~/Library/Application Support/Autevra  |  %APPDATA%\Autevra
+```
+
+- **One process, one origin.** `python -m autevra.desktop --static <dist>` (exists today)
+  starts the backend on a free localhost port, serves the built studio and the API from
+  the same origin (no CORS), stores data in the OS's per-user folder, and prints
+  `AUTEVRA_READY <url>` for the shell.
+- **Why Tauri over Electron:** the system web view keeps the installer small (the
+  bundled Python and OCCT dominate its size either way) and the shell's Rust side is
+  minimal; Electron remains the fallback if a web-view difference blocks us (WebGL
+  behaviour is the one to watch).
+- **Local-first.** Projects, the inventory and geometry caches live on disk (SQLite);
+  the local language model is optional. The same backend can still be hosted for
+  teams, so desktop and web share one code base and one data format.
+
+Rules that keep this cheap, checked in review and by tests where possible:
+
+1. The studio calls a relative `/api` (or a configured base URL); never a fixed host.
+2. No runtime CDN: fonts, scripts and icons are bundled.
+3. Files through `pathlib` and configured folders only; no POSIX-only paths, no shell
+   commands, no symlinks assumed; file names safe on Windows (no `:` `?` `*` `<` `>` `|`).
+4. Every dependency must have wheels or binaries for macOS arm64/x86_64 and Windows
+   x86_64 (OCCT via `cadquery-ocp` does).
+5. Long work runs in the backend's job queue, never in the UI thread, so a native window
+   stays responsive.
+6. Native features (open/save dialogs, menus, drag and drop of STEP files) go through one
+   small studio adapter with a browser implementation, so the web build keeps working.
+7. CI builds and tests on macOS and Windows runners before the first desktop release.
+
+## 21. Data model
 
 ```
 Organisation
@@ -568,7 +616,7 @@ Organisation
 Rules: a project belongs to exactly one module; released item versions and baselines are
 immutable; geometry is never the source of truth.
 
-## 21. Technical architecture
+## 22. Technical architecture
 
 | Layer | Today | Target |
 |---|---|---|
@@ -584,7 +632,7 @@ module; modules import no other module; a project's API calls reach only its own
 every template passes its reference cases; every analysis declares its credibility level
 (estimate, concept method, checked against reference cases, validated against test data).
 
-## 22. Delivery strategy
+## 23. Delivery strategy
 
 The catalogue is about a thousand templates; the order matters more than the count.
 
@@ -612,7 +660,7 @@ owns the model, the workflow and the glass-box methods, and integrates the rest.
 team: one vertical slice, its reference cases, its studio views, and its performance
 targets measured. A milestone that grows beyond that is split, not stretched.
 
-## 23. Milestones
+## 24. Milestones
 
 | # | Milestone | Delivers | Proof |
 |---|---|---|---|
@@ -630,6 +678,7 @@ targets measured. A milestone that grows beyond that is split, not stretched.
 | M11 | **Electric machines and gas turbines** | motor and turbine breakdowns and maps | textbook cycle examples |
 | M12 | **DMU, routing, safety depth** | mechanisms, swept envelopes, harness and pipe routing, fault trees, process FMEA | mechanism, clearance and fault-tree reference cases |
 | M13 | **Composites, tooling, exchange, sustainability** | plies and laminate theory, mould splits; STEP AP242 import/export with PMI, glTF, supplier interface-only items; life-cycle assessment | laminate examples; STEP round trip within tolerance; LCA of a reference product |
+| D1 | **Desktop preview** (alongside any milestone) | Tauri shell + PyInstaller sidecar, macOS and Windows installers, native file dialogs, CI on both | installers open, build a car and an aircraft, and save to the user data folder on both systems |
 | M14 | **Lifecycle, test correlation, security** | as-built and as-maintained views per serial, life-limited parts, digital-twin life update; test import and correlation; classification labels and export-control access rules | correlation reports on a reference test; access-rule tests on every export path |
 
 Each milestone ends green (tests, lint, live check in the studio) and is committed

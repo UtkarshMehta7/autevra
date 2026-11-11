@@ -1,10 +1,12 @@
 """FastAPI application factory."""
 
 import threading
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse
 
 from autevra import __version__, domains, extensions
 from autevra.ai.llm.clients import LLMClient, make_client
@@ -55,7 +57,27 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None) -
     def health() -> dict[str, str]:
         return {"status": "ok", "version": __version__}
 
+    if settings.static_dir is not None:
+        _serve_studio(app, settings.static_dir)
     return app
+
+
+def _serve_studio(app: FastAPI, root: Path) -> None:
+    """Serve the built studio from ``root``: files as they are, and ``index.html`` for every
+    other non-API path (client-side routes such as /studio/<id>/aircraft)."""
+    root = root.resolve()
+    index = root / "index.html"
+    if not index.is_file():
+        raise RuntimeError(f"no built studio at {root} (run the frontend build first)")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def studio(path: str) -> FileResponse:
+        if path.startswith("api/"):
+            raise HTTPException(status_code=404)
+        target = (root / path).resolve()
+        if path and target.is_file() and target.is_relative_to(root):
+            return FileResponse(target)
+        return FileResponse(index)
 
 
 def app() -> FastAPI:

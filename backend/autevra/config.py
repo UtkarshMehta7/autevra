@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # 200 MB above the draft surface). When off, every body uses the draft surface.
     styled_surface: str = "auto"
 
+    # The built studio (frontend/dist) served by the backend itself, so one local process is
+    # the whole application: used by the desktop build (autevra.desktop); unset in development.
+    static_dir: Path | None = None
+
     # Plugins: comma-separated module paths, e.g. "autevra.contrib.brake_discs", plus any
     # installed package that declares the "autevra.plugins" entry-point group.
     plugins: str = ""
