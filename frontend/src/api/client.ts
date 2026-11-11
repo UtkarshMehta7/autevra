@@ -246,6 +246,17 @@ export const api = {
   analyseEngine: (spec: EngineSpec) => post<EngineAnalysis>("/engines/analyse", spec),
   getEngineSpec: (id: string) => request<EngineSpec>(`/projects/${id}/engine/spec`),
   analyseVessel: (spec: unknown) => post<unknown>("/marine/analyse", spec),
+  engineCategory: (id: string) => request<{ category: string }>(`/projects/${id}/engine/category`),
+  setEngineCategory: (id: string, category: string) =>
+    request<{ category: string }>(`/projects/${id}/engine/category`, { method: "PUT", body: JSON.stringify({ category }) }),
+  analyseMotor: (spec: unknown) => post<unknown>("/motors/analyse", spec),
+  analyseTurbine: (spec: unknown) => post<unknown>("/turbines/analyse", spec),
+  getMotorSpec: (id: string) => request<unknown>(`/projects/${id}/motor/spec`),
+  saveMotorSpec: (id: string, spec: unknown) => request<unknown>(`/projects/${id}/motor/spec`, { method: "PUT", body: JSON.stringify(spec) }),
+  getTurbineSpec: (id: string) => request<unknown>(`/projects/${id}/turbine/spec`),
+  saveTurbineSpec: (id: string, spec: unknown) => request<unknown>(`/projects/${id}/turbine/spec`, { method: "PUT", body: JSON.stringify(spec) }),
+  buildMachine: (id: string) => post<unknown>(`/projects/${id}/machine`, {}),
+  publishMotor: (id: string) => post<unknown>(`/projects/${id}/motor/publish`, {}),
   getVesselSpec: (id: string) => request<unknown>(`/projects/${id}/vessel/spec`),
   saveVesselSpec: (id: string, spec: unknown) =>
     request<unknown>(`/projects/${id}/vessel/spec`, { method: "PUT", body: JSON.stringify(spec) }),

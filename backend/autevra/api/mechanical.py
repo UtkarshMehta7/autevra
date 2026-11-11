@@ -6,6 +6,7 @@ Engines live only in Mechanical projects: the modules are kept apart."""
 import json
 import re
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -15,8 +16,10 @@ from autevra.api.service import Workspace
 from autevra.core.commands import CommandError
 from autevra.inventory.model import Item, Port
 from autevra.inventory.store import Inventory, InventoryError
+from autevra.mech import electric as em
 from autevra.mech import piston as pk
-from autevra.modules.mechanical import geometry
+from autevra.mech import turbine as gt
+from autevra.modules.mechanical import geometry, machines
 from autevra.part.features import PartDoc
 
 router = APIRouter(tags=["mechanical"], dependencies=[Depends(access.guard_project)])
@@ -133,6 +136,155 @@ def publish(project_id: str, ws: WorkspaceDep) -> Item:
     spec = get_spec(project_id, ws)
     slug = re.sub(r"[^a-z0-9]+", "-", spec.name.lower()).strip("-")[:40] or "engine"
     item = engine_item(spec, f"engine-{project_id[:8]}-{slug}", f"Mechanical project {project_id}")
+    try:
+        return Inventory(ws.data_dir).publish(item)
+    except InventoryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+# --- engine categories: electric machines and gas turbines ---------------------------
+
+Category = Literal["piston", "electric", "turbine"]
+
+
+def _cat_path(ws: Workspace, project_id: str) -> Path:
+    return _spec_path(ws, project_id).with_suffix(".category")
+
+
+def category(ws: Workspace, project_id: str) -> str:
+    path = _cat_path(ws, project_id)
+    return path.read_text().strip() if path.exists() else "piston"
+
+
+@router.get("/projects/{project_id}/engine/category")
+def get_category(project_id: str, ws: WorkspaceDep) -> dict[str, str]:
+    _engine_project(ws, project_id)
+    return {"category": category(ws, project_id)}
+
+
+@router.put("/projects/{project_id}/engine/category")
+def set_category(project_id: str, body: dict[str, Category], ws: WorkspaceDep) -> dict[str, str]:
+    _engine_project(ws, project_id)
+    _cat_path(ws, project_id).write_text(body["category"])
+    return {"category": body["category"]}
+
+
+@router.post("/motors/analyse")
+def analyse_motor(spec: em.MotorSpec) -> dict:
+    return em.analyse(spec)
+
+
+@router.post("/turbines/analyse")
+def analyse_turbine(spec: gt.TurbineSpec) -> dict:
+    try:
+        out = gt.cycle(spec)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    return {**out, "mass_kg": machines.turbine_mass(spec)}
+
+
+def _other_path(ws: Workspace, project_id: str, kind: str) -> Path:
+    path = Path(ws.data_dir) / kind / f"{project_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+@router.get("/projects/{project_id}/motor/spec")
+def get_motor(project_id: str, ws: WorkspaceDep) -> em.MotorSpec:
+    _engine_project(ws, project_id)
+    path = _other_path(ws, project_id, "motors")
+    return em.MotorSpec.model_validate_json(path.read_text()) if path.exists() else \
+        em.MotorSpec(name=ws.project(project_id).name)  # fmt: skip
+
+
+@router.put("/projects/{project_id}/motor/spec")
+def put_motor(project_id: str, spec: em.MotorSpec, ws: WorkspaceDep) -> em.MotorSpec:
+    _engine_project(ws, project_id)
+    _other_path(ws, project_id, "motors").write_text(spec.model_dump_json(indent=1))
+    return spec
+
+
+@router.get("/projects/{project_id}/turbine/spec")
+def get_turbine(project_id: str, ws: WorkspaceDep) -> gt.TurbineSpec:
+    _engine_project(ws, project_id)
+    path = _other_path(ws, project_id, "turbines")
+    return gt.TurbineSpec.model_validate_json(path.read_text()) if path.exists() else \
+        gt.TurbineSpec(name=ws.project(project_id).name)  # fmt: skip
+
+
+@router.put("/projects/{project_id}/turbine/spec")
+def put_turbine(project_id: str, spec: gt.TurbineSpec, ws: WorkspaceDep) -> gt.TurbineSpec:
+    _engine_project(ws, project_id)
+    _other_path(ws, project_id, "turbines").write_text(spec.model_dump_json(indent=1))
+    return spec
+
+
+def values(ws: Workspace, project_id: str) -> dict:
+    """The design values of the project's engine, whatever its category."""
+    cat = category(ws, project_id)
+    spec = {"electric": get_motor, "turbine": get_turbine}.get(cat, get_spec)(project_id, ws)
+    return {**spec.model_dump(), "category": cat}
+
+
+@router.post("/projects/{project_id}/machine", response_model=list[schemas.PartOut])
+def build_machine(project_id: str, ws: WorkspaceDep) -> list[schemas.PartOut]:
+    """Build the project's electric machine or gas turbine as coloured parts."""
+    cat = category(ws, project_id)
+    if cat == "electric":
+        docs = machines.electric_parts(get_motor(project_id, ws))
+    elif cat == "turbine":
+        docs = machines.turbine_parts(get_turbine(project_id, ws))
+    else:
+        return build(project_id, get_spec(project_id, ws), ws)
+    try:
+        existing = {d.name.split(": ", 1)[-1]: pid for pid, d in ws._part_docs(project_id)
+                    if ": " in d.name}  # fmt: skip
+        out = []
+        for d in docs:
+            doc = PartDoc.model_validate(d)
+            pid = existing.pop(doc.name.split(": ", 1)[-1], None)
+            out.append(ws.update_part(project_id, pid, doc) if pid
+                       else ws.create_part(project_id, doc))  # fmt: skip
+        for pid in existing.values():
+            ws.delete_part(project_id, pid)
+        return out
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.post("/projects/{project_id}/motor/publish", response_model=Item)
+def publish_motor(project_id: str, ws: WorkspaceDep) -> Item:
+    """Release the project's electric machine to the inventory (category Engines), with
+    its torque curve and the shaft and mount interfaces."""
+    s = get_motor(project_id, ws)
+    out = em.analyse(s)
+    slug = re.sub(r"[^a-z0-9]+", "-", s.name.lower()).strip("-")[:40] or "motor"
+    length = s.stack_length * 1.35
+    item = Item(
+        id=f"motor-{project_id[:8]}-{slug}", kind="product", family="Electric machine",
+        category="Engines", name=f"{s.name} ({out['peak_power_kw']:.0f} kW PMSM)",
+        standard="Autevra Mechanical module", status="working",
+        parameters={k: v for k, v in s.model_dump().items() if isinstance(v, int | float | str)
+                    and not isinstance(v, bool)} | {"rpm_max": s.max_rpm},
+        properties={"mass_kg": round(out["mass_kg"], 1), "type": "PMSM",
+                    "voltage": s.voltage},
+        performance={"peak_power_kw": round(out["peak_power_kw"], 1),
+                     "peak_torque_nm": round(out["peak_torque_nm"], 1),
+                     "continuous_power_kw": round(out["continuous_power_kw"], 1),
+                     "peak_efficiency": out["peak_efficiency"]},
+        maps={"torque_curve": [{"rpm": p["rpm"], "torque_nm": round(p["torque_nm"], 2),
+                                "power_kw": round(p["power_kw"], 3)} for p in out["curve"]]},
+        ports=[Port(name="crank_output", kind="mechanical.shaft", at={"x": -length / 2},
+                    attributes={"diameter": round(s.stator_diameter * 0.16, 1),
+                                "speed_max": s.max_rpm,
+                                "torque_max": round(out["peak_torque_nm"], 1)}),
+               *[Port(name=f"mount_{i}", kind="mechanical.mount",
+                      at={"y": sy * s.stator_diameter * 0.6})
+                 for i, sy in enumerate((-1, 1))]],
+        definition={"name": s.name, "color": [0.62, 0.64, 0.67], "finish": "metal",
+                    "features": [f for d in machines.electric_parts(s) for f in d["features"]]},
+        provenance=f"Mechanical project {project_id}",
+    )  # fmt: skip
     try:
         return Inventory(ws.data_dir).publish(item)
     except InventoryError as exc:

@@ -17,7 +17,7 @@ from autevra.api import access
 from autevra.api.aerospace import get_spec
 from autevra.api.installs import engine_values
 from autevra.api.marine import get_spec as vessel_spec
-from autevra.api.mechanical import get_spec as engine_spec
+from autevra.api.mechanical import values as mechanical_values
 from autevra.api.routes import WorkspaceDep
 from autevra.api.service import Workspace
 from autevra.product import templates
@@ -72,7 +72,7 @@ def _module(ws: Workspace, project_id: str) -> tuple[modules.ModuleDef, dict[str
     if module.id == "aircraft":
         values: dict[str, Any] = get_spec(project_id, ws).model_dump()
     elif module.id == "mechanical":
-        values = engine_spec(project_id, ws).model_dump()
+        values = mechanical_values(ws, project_id)  # the engine of the project's category
     elif module.id == "marine":
         values = vessel_spec(project_id, ws).model_dump()
     else:

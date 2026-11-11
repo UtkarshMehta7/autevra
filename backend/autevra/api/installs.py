@@ -76,6 +76,8 @@ def _engine(ws: Workspace, item_id: str, version: str | None) -> Item:
 
 def _length_mm(item: Item) -> float:
     p = item.parameters
+    if "stack_length" in p:  # an electric machine: housing plus shaft ends
+        return float(p["stack_length"]) * 1.35 + 60
     n, b = float(p.get("cylinders", 4)), float(p.get("bore", 86))
     banks = 1 if p.get("layout", "inline") == "inline" else 2
     return (n / banks) * 1.2 * b + 0.35 * b + 0.75 * b  # block + flywheel and pulley
@@ -147,19 +149,22 @@ def install_engine(project_id: str, body: InstallEngineIn, ws: WorkspaceDep) -> 
     kw = float(item.performance["peak_power_kw"])
     if domain == "automotive":
         values = dict(ws.project(project_id).values)
-        n = int(item.parameters.get("cylinders", 4))
-        cyl = 0 if n <= 3 else 1 if n <= 5 else 2 if n <= 6 else 3
-        changes = [
-            Change(
-                parameter="peak_power",
-                operation=Operation.SET,
-                value=round(min(max(kw, 20.0), 1000.0), 1),
-            ),
-            Change(parameter="engine_cylinders", operation=Operation.SET, value=cyl),
-        ]
-        if values.get("powertrain_type", 0) == 2:  # electric: becomes a combustion car
-            changes.append(Change(parameter="powertrain_type", operation=Operation.SET,
-                                  value=0))  # fmt: skip
+        power = Change(
+            parameter="peak_power",
+            operation=Operation.SET,
+            value=round(min(max(kw, 20.0), 1000.0), 1),
+        )
+        if item.family == "Electric machine":  # the car becomes battery electric
+            changes = [power, Change(parameter="powertrain_type", operation=Operation.SET,
+                                     value=2)]  # fmt: skip
+        else:
+            n = int(item.parameters.get("cylinders", 4))
+            cyl = 0 if n <= 3 else 1 if n <= 5 else 2 if n <= 6 else 3
+            changes = [power, Change(parameter="engine_cylinders", operation=Operation.SET,
+                                     value=cyl)]  # fmt: skip
+            if values.get("powertrain_type", 0) == 2:  # electric: becomes a combustion car
+                changes.append(Change(parameter="powertrain_type", operation=Operation.SET,
+                                      value=0))  # fmt: skip
         command = SetParameters(
             changes=tuple(changes),
             source=Source.API,

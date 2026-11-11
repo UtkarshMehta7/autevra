@@ -260,8 +260,11 @@ def _apply(ws: Workspace, project_id: str, record: dict) -> None:
         vs = vessel_spec(project_id, ws)
         put_vessel(project_id, vs.model_validate({**vs.model_dump(), **record["changes"]}), ws)
         return
-    from autevra.api.mechanical import get_spec as engine_spec
-    from autevra.api.mechanical import put_spec as put_engine
+    from autevra.api import mechanical as mech
 
-    spec = engine_spec(project_id, ws)
-    put_engine(project_id, spec.model_validate({**spec.model_dump(), **record["changes"]}), ws)
+    cat = mech.category(ws, project_id)
+    getter, putter = {"electric": (mech.get_motor, mech.put_motor),
+                      "turbine": (mech.get_turbine, mech.put_turbine)}.get(
+        cat, (mech.get_spec, mech.put_spec))  # fmt: skip
+    spec = getter(project_id, ws)
+    putter(project_id, spec.model_validate({**spec.model_dump(), **record["changes"]}), ws)  # type: ignore[arg-type]
