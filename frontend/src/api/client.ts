@@ -256,6 +256,8 @@ export const api = {
   systems: (id: string) => request<SystemsOut>(`/projects/${id}/systems`),
   projectLoads: (id: string) => request<unknown>(`/projects/${id}/loads`),
   materials: () => request<unknown[]>("/materials"),
+  manufacturing: (id: string, takt?: number) => request<unknown>(`/projects/${id}/manufacturing${takt ? `?takt=${takt}` : ""}`),
+  stackup: (stack: unknown) => post<unknown>("/quality/stackup", stack),
   inventory: (q: string, category: string) =>
     request<ItemSummary[]>(`/inventory?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`),
   inventoryItem: (itemId: string) => request<InventoryItem>(`/inventory/items/${encodeURIComponent(itemId)}`),

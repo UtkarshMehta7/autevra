@@ -627,3 +627,26 @@ textarea.json.bad { border-color: var(--bad); }
 .status.not-shown { background: rgba(224,106,90,0.2); color: var(--bad); }
 .status.open { background: rgba(224,163,58,0.16); color: var(--warn); }
 .loads .bd-table td { white-space: normal; vertical-align: top; }
+
+/* Production workspace */
+.production { padding: 8px 12px; overflow-y: auto; flex: 1; min-height: 0; font-size: 12px; }
+.production .figures { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.production .figures div { display: grid; } .production .figures b { font-size: 16px; }
+.production .figures span { font-size: 11px; color: var(--muted); max-width: 260px; }
+.production .figures input { width: 80px; }
+.production .muted { color: var(--muted); } .production .small { font-size: 11px; }
+.production h4 { margin: 10px 0 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.prod-grid { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(380px, 1.3fr); gap: 16px; }
+.station { display: grid; grid-template-columns: 170px 1fr 250px; align-items: center; gap: 8px; margin: 2px 0; }
+.station .bar { height: 10px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.station .bar i { display: block; height: 100%; background: var(--accent); }
+.production .check { padding: 3px 8px; border-radius: 4px; border-left: 3px solid; background: rgba(255,255,255,0.03); }
+.production .check.pass { border-color: var(--good); } .production .check.fail { border-color: var(--bad); }
+.stack { border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; margin-bottom: 8px; }
+.stack table { width: 100%; border-collapse: collapse; } .stack td, .stack th { padding: 1px 4px; text-align: left; }
+.stack .num { text-align: right; } .stack input { width: 64px; }
+.stack-bar { position: relative; height: 20px; background: rgba(255,255,255,0.03); margin: 6px 0; border-radius: 3px; }
+.stack-bar .limit { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--bad); }
+.stack-bar .wc { position: absolute; top: 3px; height: 6px; border-radius: 2px; }
+.stack-bar .wc.ok { background: rgba(92,191,138,0.6); } .stack-bar .wc.bad { background: rgba(224,163,58,0.7); }
+.stack-bar .rss { position: absolute; top: 11px; height: 6px; border-radius: 2px; background: #5aa8f0; }

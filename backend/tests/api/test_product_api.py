@@ -66,3 +66,15 @@ def test_loads_and_materials_for_each_module(client: TestClient, project: str) -
     assert client.get(f"/api/projects/{engine}/loads").json()["cases"][0]["id"] == "firing"
     mats = client.get("/api/materials").json()
     assert {"s355", "2024_t3", "ti6al4v"} <= {m["id"] for m in mats}
+
+
+def test_manufacturing_plan_and_stackup_api(client: TestClient, project: str) -> None:
+    out = client.get(f"/api/projects/{project}/manufacturing").json()
+    assert out["plan"]["takt_s"] == 60 and out["plan"]["reconciliation"] == []
+    assert {s["name"] for s in out["plan"]["stations"]} >= {"Body shop", "Trim"}
+    assert out["stackups"][0]["result"]["worst_case_ok"] is False  # door gap: RSS only
+    plane = client.post("/api/projects", json={"name": "p", "domain": "aerospace"}).json()["id"]
+    assert client.get(f"/api/projects/{plane}/manufacturing").json()["plan"]["takt_s"] == 14400
+    r = client.post("/api/quality/stackup", json={"name": "s", "contributors": [
+        {"name": "a", "nominal": 5, "plus": 0.1, "minus": 0.1}]}).json()  # fmt: skip
+    assert r["worst_case"] == [4.9, 5.1]

@@ -16,6 +16,7 @@ from autevra.domains.automotive import tests as vt
 from autevra.domains.automotive.sim import longitudinal as lon
 from autevra.modules import Values
 from autevra.product.loads import Compliance, LoadAt, LoadCase
+from autevra.quality import Contributor, Stack
 
 G = 9.80665
 DRIVER = 75.0
@@ -93,3 +94,23 @@ def compliance(values: Values) -> list[Compliance]:
                    means="inspection", evidence="lamp positions exist; photometric zones "
                    "not yet checked", status="open"),
     ]  # fmt: skip
+
+
+STATIONS = (("body.biw", "Body shop"), ("body.closures", "Body shop"),
+            ("chassis.frame", "Body shop"), ("chassis", "Chassis and powertrain"),
+            ("powertrain", "Chassis and powertrain"), ("driveline", "Chassis and powertrain"),
+            ("energy", "Chassis and powertrain"), ("exhaust", "Chassis and powertrain"),
+            ("thermal", "Chassis and powertrain"), ("interior", "Trim"),
+            ("electrical", "Trim"), ("body.glazing", "Trim"), ("body.lighting", "Trim"),
+            ("body.exterior", "Final assembly"))  # fmt: skip
+ORDER = ("Body shop", "Trim", "Chassis and powertrain", "Final assembly")
+
+
+def stackups(values: Values) -> list[Stack]:
+    """Front door to body-side gap at the B-pillar (typical contributors and tolerances)."""
+    return [Stack(name="Door gap at the B-pillar", lsl=3.0, usl=5.0, contributors=[
+        Contributor(name="body-side aperture (B-pillar)", nominal=1000.0, plus=0.5, minus=0.5),
+        Contributor(name="hinge position on the A-pillar", nominal=-20.0, plus=0.3, minus=0.3),
+        Contributor(name="door outer panel length", nominal=-976.0, plus=0.5, minus=0.5),
+        Contributor(name="hinge to door fixing", nominal=0.0, plus=0.4, minus=0.4),
+    ])]  # fmt: skip

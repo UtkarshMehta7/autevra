@@ -14,6 +14,7 @@ from autevra import materials
 from autevra.mech import piston as pk
 from autevra.modules import Values
 from autevra.product.loads import Compliance, LoadAt, LoadCase
+from autevra.quality import Contributor, Stack
 
 
 def _spec(values: Values) -> pk.EngineSpec:
@@ -69,3 +70,29 @@ def compliance(values: Values) -> list[Compliance]:
             status="open",
         )
     ]
+
+
+STATIONS = (("engine.structure", "Short block"), ("engine.cranktrain", "Short block"),
+            ("engine.valvetrain", "Cylinder head sub-assembly"),
+            ("engine.timing", "Long block"), ("engine.lubrication", "Long block"),
+            ("engine.cooling", "Long block"))  # fmt: skip
+ORDER = ("Short block", "Cylinder head sub-assembly", "Long block", "Dress and test")
+
+
+def stackups(values: Values) -> list[Stack]:
+    """Piston-to-deck clearance at TDC from the engine's own geometry: deck height less
+    crank radius, rod length and piston compression height (typical machining tolerances).
+    The concept geometry puts the crown 0.3 mm below the deck."""
+    s = _spec(values)
+    ch = 0.55 * s.bore
+    rod = s.rod_ratio * s.stroke
+    deck = s.stroke / 2 + rod + ch + 0.3
+    return [Stack(name="Piston-to-deck clearance at TDC", lsl=0.05, usl=0.6, contributors=[
+        Contributor(name="block deck height", nominal=round(deck, 3), plus=0.05, minus=0.05),
+        Contributor(name="crank throw (radius)", nominal=s.stroke / 2, plus=0.03, minus=0.03,
+                    direction=-1),
+        Contributor(name="connecting rod length", nominal=round(rod, 3), plus=0.04, minus=0.04,
+                    direction=-1),
+        Contributor(name="piston compression height", nominal=round(ch, 3), plus=0.03,
+                    minus=0.03, direction=-1),
+    ])]  # fmt: skip

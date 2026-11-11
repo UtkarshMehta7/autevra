@@ -10,6 +10,7 @@ MODULE = ModuleDef(
     frame="x rearward from the front axle, y to the left, z up from the ground; metres",
     options=bd.options, current=bd.current, configure=bd.configure,
     breakdown=bd.breakdown, checks=bd.checks, architecture=systems.architecture,
-    loads=loads.cases, compliance=loads.compliance,
+    loads=loads.cases, compliance=loads.compliance, stations=loads.STATIONS,
+    station_order=loads.ORDER, stackups=loads.stackups,
 )  # fmt: skip
 register(MODULE)

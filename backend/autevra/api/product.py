@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from autevra import materials, modules
+from autevra import manufacturing, materials, modules, quality
 from autevra.api import access
 from autevra.api.aerospace import get_spec
 from autevra.api.installs import engine_values
@@ -293,3 +293,34 @@ def project_loads(project_id: str, ws: WorkspaceDep) -> dict:
 
         out["envelope"] = envelope(values)
     return out
+
+
+# --- manufacturing and quality -------------------------------------------------------
+
+
+TAKT = {"land": 60.0, "mechanical": 90.0, "aircraft": 4 * 3600.0}  # s, typical rates
+
+
+@router.get("/projects/{project_id}/manufacturing")
+def manufacturing_plan(project_id: str, ws: WorkspaceDep,
+                       takt: float | None = Query(None, ge=5, le=86_400),
+                       config: str = Query("", max_length=2000)) -> dict:  # fmt: skip
+    """The MBOM by station with a process plan, line balance at the takt time, cost and CO2,
+    the reconciliation against the design breakdown, and the design's tolerance stack-ups."""
+    module, values = _module(ws, project_id)
+    chosen = _chosen(module, values, config)
+    root = root_node(module, values, chosen)
+    order = list(module.station_order)
+    final = next((st for st in order if st.startswith("Final")), order[-1] if order else
+                 "Final assembly")  # fmt: skip
+    plan = manufacturing.plan(root, dict(module.stations), order,
+                              takt or TAKT.get(module.id, 60.0), final)  # fmt: skip
+    stacks = module.stackups(module.configure(values, chosen)) if module.stackups else []
+    return {"module": module.id, "plan": plan.model_dump(),
+            "stackups": [{"stack": s.model_dump(), "result": quality.analyse(s)}
+                         for s in stacks]}  # fmt: skip
+
+
+@router.post("/quality/stackup")
+def stackup(stack: quality.Stack) -> dict:
+    return quality.analyse(stack)

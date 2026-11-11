@@ -25,6 +25,7 @@ from autevra.aero import aircraft as ac
 from autevra.modules import Values
 from autevra.modules.aircraft.breakdown import CATEGORIES, group_masses
 from autevra.product.loads import Compliance, LoadAt, LoadCase
+from autevra.quality import Contributor, Stack
 
 KN = 1.943844  # kn per m/s
 LB, FT = 2.20462, 3.28084
@@ -152,3 +153,28 @@ def compliance(values: Values) -> list[Compliance]:
     ]  # fmt: skip
     del s
     return rows
+
+
+STATIONS = (("ATA 53", "Fuselage assembly"), ("ATA 52", "Fuselage assembly"),
+            ("ATA 56", "Fuselage assembly"), ("ATA 57", "Wing assembly"),
+            ("ATA 55", "Empennage assembly"), ("ATA 7", "Powerplant installation"),
+            ("ATA 61", "Powerplant installation"),
+            ("ATA 32", "Final assembly and systems"))  # fmt: skip
+ORDER = (
+    "Wing assembly",
+    "Fuselage assembly",
+    "Empennage assembly",
+    "Final assembly and systems",
+    "Powerplant installation",
+)
+
+
+def stackups(values: Values) -> list[Stack]:
+    """Elevator to stabiliser hinge gap (typical riveted light-alloy structure)."""
+    return [Stack(name="Elevator leading-edge gap", lsl=4.0, usl=9.0, contributors=[
+        Contributor(name="stabiliser rear spar position", nominal=1000.0, plus=0.8, minus=0.8),
+        Contributor(name="hinge bracket offset", nominal=-30.0, plus=0.5, minus=0.5),
+        Contributor(name="elevator nose radius to hinge line", nominal=-963.5, plus=0.6,
+                    minus=0.6),
+        Contributor(name="hinge bolt clearance", nominal=0.0, plus=0.15, minus=0.15),
+    ])]  # fmt: skip
