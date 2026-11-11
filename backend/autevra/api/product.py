@@ -366,10 +366,14 @@ def _use_phase(module: modules.ModuleDef, values: dict, grid: float, life: float
         perf = ac.analyse(spec)["performance"]
         kw = float(perf["power_required"])  # shaft kW at cruise (D V / eta_prop)
         fuel = kw * spec.bsfc / 1000  # kg per hour
-        return sustainability.UsePhase(unit="flight hour", energy_per_unit_kwh=kw,
-                                       carrier="avgas", co2_per_unit_kg=fuel * 3.1,
-                                       life_units=life or 10_000,
-                                       basis="cruise shaft power x BSFC, avgas 3.1 kg/kg")  # fmt: skip
+        return sustainability.UsePhase(
+            unit="flight hour",
+            energy_per_unit_kwh=kw,
+            carrier="avgas",
+            co2_per_unit_kg=fuel * 3.1,
+            life_units=life or 10_000,
+            basis="cruise shaft power x BSFC, avgas 3.1 kg/kg",
+        )
     if module.id == "marine":
         from autevra.marine import hull as hk
 

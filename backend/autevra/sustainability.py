@@ -58,8 +58,15 @@ def assess(plan: Plan, use: UsePhase | None) -> Assessment:
     eol = end_of_life_credit(plan)
     total = production + use_kg + eol
     gross = production + use_kg
-    return Assessment(production_kg=round(production, 1), use_kg=round(use_kg, 1),
-                      end_of_life_kg=round(eol, 1), total_kg=round(total, 1), use=use,
-                      shares={"production": production / gross if gross else 0.0,
-                              "use": use_kg / gross if gross else 0.0},
-                      notes=["indicative factors; a certified LCA uses licensed datasets"])  # fmt: skip
+    return Assessment(
+        production_kg=round(production, 1),
+        use_kg=round(use_kg, 1),
+        end_of_life_kg=round(eol, 1),
+        total_kg=round(total, 1),
+        use=use,
+        shares={
+            "production": production / gross if gross else 0.0,
+            "use": use_kg / gross if gross else 0.0,
+        },
+        notes=["indicative factors; a certified LCA uses licensed datasets"],
+    )
