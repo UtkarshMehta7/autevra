@@ -4,7 +4,7 @@ part, publish a project's part as an item, and see where an item is used."""
 
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from autevra.api import access, schemas
@@ -12,8 +12,9 @@ from autevra.api.routes import WorkspaceDep
 from autevra.api.service import Workspace
 from autevra.core.commands import CommandError
 from autevra.inventory import calc, mating
-from autevra.inventory.model import Item, ItemSummary, summary
+from autevra.inventory.model import Item, ItemSummary, Port, summary
 from autevra.inventory.store import Inventory, InventoryError
+from autevra.part import imports
 from autevra.part.features import PartDoc, Placement
 
 router = APIRouter(tags=["inventory"], dependencies=[Depends(access.guard_project)])
@@ -167,3 +168,39 @@ def installed(project_id: str, ws: WorkspaceDep) -> list[dict]:
                     "version": item.version,
                     "ports": [p.model_dump() for p in item.ports]})  # fmt: skip
     return out
+
+
+@router.post("/projects/{project_id}/import-step", response_model=schemas.PartOut)
+async def import_step(project_id: str, request: Request, ws: WorkspaceDep,
+                      name: str = Query("Imported part", min_length=1, max_length=80)
+                      ) -> schemas.PartOut:  # fmt: skip
+    """Import a STEP file (raw body) as a part of any module's project. The file is kept in
+    the import store by its SHA-256, so the part regenerates exactly."""
+    try:
+        sha, solids = imports.store(await request.body())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    doc = PartDoc.model_validate({"name": name, "color": [0.6, 0.62, 0.66], "finish": "metal",
+                                  "features": [{"id": "imported", "name": f"STEP ({solids} "
+                                                f"solid{'s' if solids > 1 else ''})",
+                                                "type": "imported", "file": sha}]})  # fmt: skip
+    try:
+        return ws.create_part(project_id, doc)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.post("/inventory/items/{item_id}/ports", response_model=Item)
+def add_port(item_id: str, port: Port, ws: WorkspaceDep) -> Item:
+    """Add an interface to a published (user) item, released as a new version: how an
+    imported part gets the ports it mates and installs by."""
+    item = _item(ws, item_id)
+    if item.kind == "standard":
+        raise HTTPException(status_code=422, detail="standard items have fixed interfaces")
+    if any(p.name == port.name for p in item.ports):
+        raise HTTPException(status_code=422, detail=f"'{item.name}' already has a port "
+                            f"'{port.name}'")  # fmt: skip
+    try:
+        return _inventory(ws).publish(item.model_copy(update={"ports": [*item.ports, port]}))
+    except InventoryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None

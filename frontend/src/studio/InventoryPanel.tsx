@@ -105,6 +105,17 @@ export function InventoryPanel({ projectId, onModelChanged }: { projectId: strin
           {rows.length === 0 && <p className="muted small">Nothing matches.</p>}
         </div>
         <p className="muted small">{rows.length} items · standard library plus parts published from projects</p>
+        <h4>Import a STEP file</h4>
+        <input type="file" accept=".step,.stp" onChange={async (e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          try {
+            const part = await api.importStep(projectId, f);
+            setMessage(`Imported “${part.document.name}” as a part (kept by its hash). Publish it from Part Design, then add its ports here.`);
+            onModelChanged();
+          } catch (err) { setMessage(err instanceof Error ? err.message : String(err)); }
+          e.target.value = "";
+        }} />
       </div>
       <div className="bench-detail">
         {engine && (
@@ -162,6 +173,25 @@ export function InventoryPanel({ projectId, onModelChanged }: { projectId: strin
                   <tr key={p.name}><td>{p.name}</td><td className="muted">{p.kind}</td>
                     <td className="muted small">{Object.entries(p.attributes).map(([k, v]) => `${k} ${fmt(v)}`).join(", ")}</td></tr>
                 ))}</tbody></table>
+                {item.kind !== "standard" && (
+                  <form className="place" onSubmit={async (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(e.currentTarget);
+                    try {
+                      const v = await api.addPort(item.id, { name: String(fd.get("name")), kind: String(fd.get("kind")),
+                        at: { x: Number(fd.get("x")), y: Number(fd.get("y")), z: Number(fd.get("z")) },
+                        attributes: fd.get("d") ? { diameter: Number(fd.get("d")) } : {} });
+                      setItem(v as InventoryItem); setMessage(`Released v${(v as InventoryItem).version} with the new port.`);
+                    } catch (err) { setMessage(err instanceof Error ? err.message : String(err)); }
+                  }}>
+                    <h4>Add a port (new version)</h4>
+                    <label>name <input name="name" required /></label>
+                    <label>kind <select name="kind">{["mechanical.bore", "mechanical.shaft", "mechanical.thread", "mechanical.mount", "mechanical.seat", "mechanical.end"].map((k) => <option key={k}>{k}</option>)}</select></label>
+                    <label>x <input name="x" type="number" defaultValue={0} /> y <input name="y" type="number" defaultValue={0} /> z <input name="z" type="number" defaultValue={0} /> mm</label>
+                    <label>diameter <input name="d" type="number" step={0.1} /> mm</label>
+                    <button type="submit">Add port</button>
+                  </form>
+                )}
                 <h4>Add to this project</h4>
                 <div className="place">
                   {(["x", "y", "z"] as const).map((k) => (

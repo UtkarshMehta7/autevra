@@ -16,6 +16,7 @@ from autevra.cad import kernel as k
 from autevra.cad import topology as topo
 from autevra.part import expressions as ex
 from autevra.part import features as f
+from autevra.part import imports
 from autevra.part import sketch as sk
 
 _AXIS = {f.Axis.X: cq.Vector(1, 0, 0), f.Axis.Y: cq.Vector(0, 1, 0), f.Axis.Z: cq.Vector(0, 0, 1)}
@@ -135,6 +136,9 @@ def _solid(feat: f.Box | f.Cylinder | f.Sphere | f.Extrude | f.Revolve | f.Loft 
             return _wing(feat)
         case f.SheetMetal():
             return _sheet(feat)[0]
+        case f.Imported():
+            shape = imports.shape(feat.file)
+            return shape.scale(feat.scale) if feat.scale != 1.0 else shape
     raise ValueError(f"unknown feature type {feat.type}")
 
 

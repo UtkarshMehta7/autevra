@@ -23,6 +23,7 @@ from autevra.api.service import Workspace
 from autevra.api.structures import router as structures_router
 from autevra.api.surfaces import router as surfaces_router
 from autevra.config import Settings
+from autevra.part import imports
 from autevra.storage.database import Database, migrate
 
 
@@ -35,6 +36,7 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None) -
     extensions.load(settings.plugin_modules(), use_entry_points=settings.plugin_entry_points)
     url = settings.resolved_database_url()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
+    imports.configure(settings.data_dir / "imports")  # STEP files kept by their hash
     migrate(url)
 
     app = FastAPI(title="Autevra", version=__version__)

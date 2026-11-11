@@ -288,6 +288,15 @@ class Wing(_Solid):
         return self
 
 
+class Imported(_Solid):
+    """A B-rep imported from a STEP file kept in the import store, referenced by the file's
+    SHA-256 (so the part stays reproducible); optionally scaled."""
+
+    type: Literal["imported"] = "imported"
+    file: str = Field(pattern=r"^[0-9a-f]{64}$")
+    scale: float = Field(1.0, gt=0.0, le=1000.0)
+
+
 Feature = Annotated[
     Box
     | Cylinder
@@ -300,6 +309,7 @@ Feature = Annotated[
     | Sweep
     | Wing
     | SheetMetal
+    | Imported
     | Shell
     | Fillet
     | Chamfer
@@ -310,7 +320,7 @@ Feature = Annotated[
 ]
 SOLID_TYPES = (
     "box", "cylinder", "sphere", "extrude", "revolve", "pad", "shaft", "loft", "sweep", "wing",
-    "sheet_metal",
+    "sheet_metal", "imported",
 )  # fmt: skip
 FEATURE_TYPES = (*SOLID_TYPES, "shell", "fillet", "chamfer", "mirror", "linear_pattern",
                  "circular_pattern")  # fmt: skip
