@@ -20,7 +20,9 @@ released, manufacturable item. No parity with, or affiliation to, any other vend
    system/subsystem tree for road vehicles, and functional groups for engines and machines.
 4. **Skeleton first, then parts.** The module's product model is the skeleton (hardpoints,
    axes, surfaces, zones). Parts read the skeleton through published interfaces, never
-   another part's raw faces, so they rebuild robustly when the skeleton changes.
+   another part's raw faces, so they rebuild robustly when the skeleton changes. Inside a
+   part, picked edges and faces use generated names and semantic selectors (architecture,
+   section 5.4).
 5. **Process-aware geometry.** A part knows how it is made (sheet metal, casting, forging,
    machining, moulding, composite lay-up, extrusion, welding, additive). The process
    decides the features it may use and the checks it must pass, like draft, bend radius,
@@ -28,6 +30,14 @@ released, manufacturable item. No parity with, or affiliation to, any other vend
 6. **Shared parts are shared once.** Fasteners, bearings, seals, gears, springs, tyres,
    cables, hoses and profiles are inventory standard parts used by every module. Engines and
    motors are Mechanical-module products installed everywhere.
+7. **Every part serves a function and a configuration.** A part instance links to the
+   functions it realises and carries an applicability expression over the product's
+   options, so one 150 % breakdown serves every variant.
+8. **Sized by traced loads and stated allowables.** Sizing inputs come from named load
+   cases distributed to the part's interfaces, and strength from the materials database
+   (typical or design-allowable values, labelled).
+9. **Built as designed.** Joints are objects; each part has its place in the MBOM, its
+   operations and its inspection characteristics by L3.
 
 ## 2. Part maturity ladder
 
@@ -38,8 +48,8 @@ labels.
 |---|---|---|---|
 | **L0** | Allocation | envelope (box or swept volume), mass and CG estimate, interfaces at their skeleton frames | in the breakdown; mass from a statistical or parametric estimate with its source |
 | **L1** | Concept | parametric concept geometry from the template; main dimensions driven by the skeleton | no clash with neighbours at the stated clearance; mass within the L0 allocation band |
-| **L2** | Engineered | sized by its analyses (loads, stress, stiffness, thermal, flow); material chosen | every sizing analysis passes with its margin; results stored with the version |
-| **L3** | Manufacturable | process features (draft, bend reliefs, fillets, ply book, weld preps), tolerances and PMI, drawing | process checks pass; tolerance stack-ups at its interfaces close |
+| **L2** | Engineered | sized by its analyses against traced load cases and allowables; material chosen; failure modes rated | every sizing analysis passes with its margin; results stored with the version |
+| **L3** | Manufacturable | process features (draft, bend reliefs, fillets, ply book, weld preps), joints, tolerances and PMI, drawing, MBOM placement, inspection characteristics | process and DFM checks pass; tolerance stack-ups at its interfaces close |
 | **L4** | Released | immutable item version in the inventory, where-used tracked | review sign-off; regeneration from source reproduces the geometry hash |
 
 The product's maturity is shown as a heat map over the breakdown, so reviews ask "what is
@@ -54,14 +64,24 @@ PartTemplate
 ├── id, module, breakdown code (e.g. ATA 57-10, SFI 1xx, LV body.closures.door)
 ├── inputs          typed parameters with units, limits and defaults
 ├── skeleton reads  the published skeleton entities it consumes (hardpoints, axes, zones)
-├── interfaces      ports it offers and consumes (mount, shaft, flange, hardpoint, fluid, …)
+├── interfaces      ports it offers and consumes, with flows (mechanical, electrical
+│                   power, signal, fluid, thermal)
+├── functions       the functions it realises (links into the logical architecture)
+├── applicability   option rules deciding in which configurations it exists, and its
+│                   own variants (design-table rows)
 ├── process         sheet metal | casting | forging | machining | moulding | composite |
 │                   extrusion | weldment | tube | additive | standard (bought)
-├── rules           design rules (knowledge) checked continuously, each with its reference
+├── joints          the joints it is designed for (welds, rivets, bolts, adhesive)
+├── rules           design and DFM rules checked continuously, each with its reference
+├── load cases      the module load cases it consumes, as loads at its interfaces
+├── materials       candidate materials, with typical or design-allowable values
+├── failure modes   modes, effects and default ratings feeding the FMEA and fault trees
 ├── generators      L0 envelope → L1 concept → L2 sized → L3 detailed geometry
 ├── analyses        the sizing and verification methods, with credibility and limits
-├── estimators      mass, cost and CO2e models used before the geometry exists
-└── outputs         geometry, mass properties, BOM line, drawing views, inventory item
+├── estimators      mass, cost (from process time) and CO2e before the geometry exists
+├── manufacturing   default MBOM placement, operations, inspection characteristics
+└── outputs         geometry (with display LODs), mass properties, BOM line, drawing
+                    views, inventory item
 ```
 
 Templates are code plus data. They are unit-tested against closed-form or published
@@ -245,3 +265,29 @@ thickness and buckling, rocket equation, mass budget.
 The template SDK (section 3) and the maturity ladder (section 2) are what make these
 numbers possible: each new template is a small generator plus tests, and every product is
 complete at L0 before the first template is detailed.
+
+## 12. Function libraries (top level)
+
+Each module ships a standard function decomposition; projects refine it. Parts link to
+the functions they realise (section 3), so trace, FMEA and fault trees start pre-filled.
+
+| Module | Top-level functions (each decomposes further) |
+|---|---|
+| Land vehicles | carry occupants and cargo · protect occupants and road users · propel · store and supply energy · decelerate and hold · steer · support and isolate from the road · manage heat · provide vision and visibility · provide comfort and climate · inform and control (HMI) · sense the environment · connect and communicate |
+| Aircraft | generate lift · provide thrust · control attitude and trajectory · carry structural loads · support on the ground and absorb landing · store and supply fuel or energy · supply electrical and hydraulic power · navigate and communicate · protect occupants (environment, crashworthiness) · indicate and alert |
+| Marine | provide buoyancy · remain stable · resist sea loads · propel · manoeuvre · supply power · handle fluids (fuel, water, bilge, ballast) · navigate · moor and anchor · accommodate crew and passengers |
+| Engines | convert fuel or electrical energy to shaft power or thrust · contain pressure · transmit and balance forces · admit and expel working fluid · reject heat · lubricate · control and monitor · mount to the consumer |
+| Machinery | transmit motion and power · position and guide · support loads · contain pressure · convey material · protect operators (guarding, safe stop) |
+
+## 13. Load cases per module (sizing inputs)
+
+Template sizing reads these named cases (architecture, section 9.1); the module computes
+them from its product model and distributes them to interfaces.
+
+| Module | Cases | Typical consumers |
+|---|---|---|
+| Land vehicles | vertical bump (multiple g), braking, cornering, pothole, kerb strike, towing, jacking, door slam, durability spectra, crash pulses | suspension arms, knuckles, subframes, body rails, hinges, mounts |
+| Aircraft | V-n manoeuvre and gust envelope corners, landing (level, tail-down, one-wheel), ground handling, control surface hinge loads, engine mount (thrust, torque, inertia), emergency landing | spars, ribs, frames, fittings, gear legs, engine mount truss |
+| Marine | bottom slamming, side and deck pressure, still-water and wave bending, rig loads, grounding, lifting | plating, frames, longitudinals, keel bolts, chainplates |
+| Engines | peak firing pressure, inertia at maximum speed, overspeed, thermal cycles, mount reactions | pistons, rods, crank, block bulkheads, head bolts, discs |
+| Machinery | rated and peak torque, start-up, emergency stop, fatigue spectra | gears, shafts, bearings, frames, welds |
