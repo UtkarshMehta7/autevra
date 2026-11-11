@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from autevra import modules
+from autevra import materials, modules
 from autevra.api import access
 from autevra.api.aerospace import get_spec
 from autevra.api.installs import engine_values
@@ -267,3 +267,29 @@ def allocate(project_id: str, body: AllocationIn, ws: WorkspaceDep) -> dict[str,
         allocations.pop(body.requirement, None)
     _allocations_path(ws, project_id).write_text(json.dumps(allocations, indent=1))
     return allocations
+
+
+# --- loads, regulations and materials ------------------------------------------------
+
+
+@router.get("/materials")
+def list_materials() -> list[materials.Material]:
+    """The materials database: minimum (standard) or typical values, with their source."""
+    return list(materials.MATERIALS.values())
+
+
+@router.get("/projects/{project_id}/loads")
+def project_loads(project_id: str, ws: WorkspaceDep) -> dict:
+    """The module's load cases for the design, its compliance rows (clause references with
+    our own wording) and, for aircraft, the V-n envelope."""
+    module, values = _module(ws, project_id)
+    if module.loads is None:
+        raise HTTPException(status_code=422, detail=f"no load cases for '{module.name}'")
+    out: dict = {"module": module.id, "cases": [c.model_dump() for c in module.loads(values)],
+                 "compliance": [c.model_dump() for c in module.compliance(values)]
+                 if module.compliance else []}  # fmt: skip
+    if module.id == "aircraft":
+        from autevra.modules.aircraft.loads import envelope
+
+        out["envelope"] = envelope(values)
+    return out

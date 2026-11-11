@@ -16,6 +16,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 from autevra.product.breakdown import Node, RolledNode
+from autevra.product.loads import Compliance, LoadCase
 from autevra.product.options import Configuration, Options
 from autevra.product.systems import Architecture
 
@@ -41,6 +42,8 @@ class ModuleDef:
     breakdown: Callable[[Values], Node]  # the 150 % breakdown from (configured) values
     checks: Callable[[Values, RolledNode], list[Check]]
     architecture: Callable[[Values], Architecture] | None = None  # functions, blocks, flows
+    loads: Callable[[Values], list[LoadCase]] | None = None  # the module's load cases
+    compliance: Callable[[Values], list[Compliance]] | None = None  # regulation clauses
 
 
 _MODULES: dict[str, ModuleDef] = {}

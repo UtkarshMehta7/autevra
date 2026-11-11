@@ -254,6 +254,8 @@ export const api = {
       ? `?config=${encodeURIComponent(JSON.stringify(config))}` : ""}`),
   productEnvelope: (id: string) => request<ProductEnvelope>(`/projects/${id}/product/envelope`),
   systems: (id: string) => request<SystemsOut>(`/projects/${id}/systems`),
+  projectLoads: (id: string) => request<unknown>(`/projects/${id}/loads`),
+  materials: () => request<unknown[]>("/materials"),
   inventory: (q: string, category: string) =>
     request<ItemSummary[]>(`/inventory?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`),
   inventoryItem: (itemId: string) => request<InventoryItem>(`/inventory/items/${encodeURIComponent(itemId)}`),

@@ -53,3 +53,16 @@ def test_systems_view_and_requirement_allocation(client: TestClient, project: st
     assert bad.status_code == 422
     steps = client.get(f"/api/projects/{project}/systems/chain/decelerate").json()
     assert [s["block"] for s in steps][0] == "driver"
+
+
+def test_loads_and_materials_for_each_module(client: TestClient, project: str) -> None:
+    land = client.get(f"/api/projects/{project}/loads").json()
+    assert {c["id"] for c in land["cases"]} == {"bump", "braking", "cornering", "pothole"}
+    assert any("R13-H" in r["clause"] for r in land["compliance"])
+    plane = client.post("/api/projects", json={"name": "p", "domain": "aerospace"}).json()["id"]
+    air = client.get(f"/api/projects/{plane}/loads").json()
+    assert air["envelope"]["n_pos"] == 3.8 and any(c["id"] == "landing" for c in air["cases"])
+    engine = client.post("/api/projects", json={"name": "e", "domain": "machinery"}).json()["id"]
+    assert client.get(f"/api/projects/{engine}/loads").json()["cases"][0]["id"] == "firing"
+    mats = client.get("/api/materials").json()
+    assert {"s355", "2024_t3", "ti6al4v"} <= {m["id"] for m in mats}
