@@ -93,10 +93,8 @@ def cylinders(spec: EngineSpec) -> list[dict[str, float]]:
         return out
     pairs = n // 2
     if spec.layout == "V":
-        if pairs == 4 and not spec.flat_plane:
-            row = [0.0, 90.0, 270.0, 180.0]  # cross-plane V8
-        else:
-            row = _pins(pairs)
+        cross_plane = pairs == 4 and not spec.flat_plane  # V8: pins at 0, 90, 270, 180
+        row = [0.0, 90.0, 270.0, 180.0] if cross_plane else _pins(pairs)
         half = spec.bank_angle / 2
         for i, pin in enumerate(row):  # two cylinders share each crank pin
             for bank in (-1.0, 1.0):
