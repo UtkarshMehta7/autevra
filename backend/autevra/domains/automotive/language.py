@@ -516,6 +516,7 @@ LANGUAGE = Language(
             "Aero disc": ("aero", "aero disc", "aerodynamic", "covered", "turbine", "disc"),
             "Steel": ("steelies", "steel wheels", "plain steel", "basic"),
             "Y-spoke": ("y spoke", "y-spoke", "forked spoke", "forked spokes"),
+            "Ten twin-spoke": ("ten twin spoke", "10 twin spoke", "twenty spoke", "20 spoke"),
         },
         "rim_finish": {
             "Silver": ("silver", "bright silver", "painted silver"),
@@ -524,6 +525,7 @@ LANGUAGE = Language(
             "Diamond cut": ("diamond-cut", "machined", "polished", "two-tone", "two tone"),
             "Bronze": ("gold", "satin bronze", "champagne"),
             "White": ("white", "matte white"),
+            "Satin black": ("satin black", "matte black", "dark wheels", "black wheels"),
         },
         "head_lamp_style": {
             "LED strip": ("strip", "slim", "led strips", "light strip", "light line"),

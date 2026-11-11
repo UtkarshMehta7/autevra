@@ -43,8 +43,8 @@ export const LOOKS: Record<Look, LookSpec> = {
     backdrop: [["#3a414b", 0], ["#15181c", 0.62], ["#15181c", 1]],
   },
   outdoor: { // late-afternoon sun by the sea: blue sky, warm low sun, stone paving
-    exposure: 0.95, environment: 0.85,
-    key: { color: 0xffe2b8, intensity: 2.4, elevation: 32, azimuth: -55 },
+    exposure: 0.88, environment: 0.7,
+    key: { color: 0xffe2b8, intensity: 2.1, elevation: 32, azimuth: -55 },
     fill: { sky: 0x9fb8d8, ground: 0x6a6258, intensity: 0.55 },
     ground: { color: 0x8a8174, roughness: 0.92, specular: 0.3, env: 0.35 },
     horizon: 0xb9c3cc, fog: [14000, 60000],

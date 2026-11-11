@@ -928,7 +928,7 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=0,
         min=0,
-        max=6,
+        max=7,
         step=1,
         options=(
             "Five-spoke",
@@ -938,6 +938,7 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
             "Aero disc",
             "Steel",
             "Y-spoke",
+            "Ten twin-spoke",
         ),  # fmt: skip
         description="Rim face design (styling; the ride models use the tyre size only).",
         aliases=("wheel design", "rim design", "wheel style", "rim style", "alloy design"),
@@ -949,9 +950,17 @@ DEFINITIONS: tuple[ParameterDef, ...] = (
         unit=Unit.NONE,
         default=0,
         min=0,
-        max=5,
+        max=6,
         step=1,
-        options=("Silver", "Gunmetal", "Gloss black", "Diamond cut", "Bronze", "White"),
+        options=(
+            "Silver",
+            "Gunmetal",
+            "Gloss black",
+            "Diamond cut",
+            "Bronze",
+            "White",
+            "Satin black",
+        ),
         description="Rim colour and finish (appearance only).",
         aliases=(
             "rim finish",

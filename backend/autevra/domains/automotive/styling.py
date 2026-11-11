@@ -18,7 +18,9 @@ Inputs = Mapping[str, float]
 RIM_BARREL = 12.0  # radial thickness of the rim barrel, mm
 FACE_THICKNESS = 18.0  # mm
 FACE_SET = 15.0  # dish: the face sits this far inboard of the rim's outer edge, mm
-WHEEL_DESIGNS = ("five_spoke", "multi_spoke", "twin_spoke", "mesh", "aero", "steel", "y_spoke")
+WHEEL_DESIGNS = (
+    "five_spoke", "multi_spoke", "twin_spoke", "mesh", "aero", "steel", "y_spoke", "ten_twin",
+)  # fmt: skip
 HEAD_LAMP_STYLES = ("strip", "matrix", "round", "split", "swept")
 TAIL_LAMP_STYLES = ("bar", "clusters", "vertical", "swept")
 LAMP_DEPTH = 15.0  # lamps sit in recesses this deep, flush with the body face, mm
@@ -63,8 +65,8 @@ def _holes(count: int, pitch: float, radius: float, y: tuple[float, float],
 
 def build_rim(p: Inputs) -> k.Shape:
     """Rim barrel and a face by design: five spokes, ten slim spokes, five twin spokes, a
-    mesh (inner and outer spoke sets joined by a ring), a closed aero disc with small vents,
-    or a plain steel disc with round holes and a hub cap."""
+    mesh (inner and outer spoke sets joined by a ring), ten slim spoke pairs, a closed aero
+    disc with small vents, or a plain steel disc with round holes and a hub cap."""
     rim_r, half = p["rim_radius"], p["tyre_width"] / 2.0
     face_r = rim_r - RIM_BARREL
     y0 = half * 0.95 - FACE_THICKNESS - FACE_SET
@@ -97,6 +99,9 @@ def build_rim(p: Inputs) -> k.Shape:
             for fork in (-11.0, 11.0):
                 spokes.append(_spoke(72.0 * i + fork, 0.52 * face_r, reach, 0.085 * face_r,
                                      0.07 * face_r, y))  # fmt: skip
+    elif design == "ten_twin":  # ten slim spoke pairs: a dense, dark GT wheel face
+        spokes = [_spoke(36.0 * i + s, 0.8 * hub_r, reach, 0.085 * face_r, 0.06 * face_r, y)
+                  for i in range(10) for s in (-4.5, 4.5)]  # fmt: skip
     elif design == "twin_spoke":
         spokes = [_spoke(72.0 * i + s, 0.8 * hub_r, reach, 0.13 * face_r, 0.09 * face_r, y)
                   for i in range(5) for s in (-7.0, 7.0)]  # fmt: skip

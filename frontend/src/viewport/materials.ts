@@ -25,7 +25,7 @@ export function materialFor(finish: string | undefined, color: [number, number, 
       return new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, metalness: 0.05 });
     case "screen": // glossy black glass with a faint backlight, as a display reads by day
       return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.06, metalness: 0.2,
-        clearcoat: 1, emissive: new THREE.Color(0.03, 0.07, 0.13), emissiveIntensity: 0.7 });
+        clearcoat: 1, emissive: new THREE.Color(0.03, 0.07, 0.13), emissiveIntensity: 0.25 });
     case "lamp":
       return new THREE.MeshStandardMaterial({ color: c, roughness: 0.2, metalness: 0,
         emissive: c, emissiveIntensity: 3.2 }); // lit: well above 1 in HDR, so lamps bloom in Render
@@ -38,9 +38,9 @@ export function materialFor(finish: string | undefined, color: [number, number, 
     case "paint_metallic":
       return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.32, metalness: 0.65,
         clearcoat: 1, clearcoatRoughness: 0.08 });
-    case "paint_matte":
-      return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.78, metalness: 0.05,
-        clearcoat: 0 });
+    case "paint_matte": // satin: no gloss, but a broad soft sheen along the curvature
+      return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.58, metalness: 0.05,
+        clearcoat: 0.25, clearcoatRoughness: 0.5 });
     case "paint_pearl":
       return new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.3, metalness: 0.3,
         clearcoat: 1, clearcoatRoughness: 0.05, iridescence: 0.35, iridescenceIOR: 1.5,
