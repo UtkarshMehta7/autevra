@@ -7,7 +7,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from autevra import dmu
+from autevra import dmu, routing
 from autevra.api import access, schemas
 from autevra.api.routes import WorkspaceDep
 from autevra.api.service import Workspace
@@ -223,3 +223,28 @@ def clearance(project_id: str, ws: WorkspaceDep,
         raise HTTPException(status_code=422, detail="the clearance matrix is limited to 40 "
                             "parts (run it on a sub-assembly)")  # fmt: skip
     return dmu.matrix(placed, required)
+
+
+# --- routing -------------------------------------------------------------------------
+
+
+@router.post("/routing/harness")
+def route_harness(body: routing.HarnessIn) -> dict:
+    return routing.harness(body)
+
+
+@router.post("/routing/pipe")
+def route_pipe(body: routing.PipeIn) -> dict:
+    return routing.pipe(body)
+
+
+@router.post("/projects/{project_id}/routes", response_model=schemas.PartOut)
+def add_route(project_id: str, body: dict, ws: WorkspaceDep) -> schemas.PartOut:
+    """Add a harness or pipe route to a project as a part (body: {"harness": ...} or
+    {"pipe": ...})."""
+    try:
+        out = (routing.harness(routing.HarnessIn.model_validate(body["harness"])) if "harness"
+               in body else routing.pipe(routing.PipeIn.model_validate(body["pipe"])))  # fmt: skip
+        return ws.create_part(project_id, PartDoc.model_validate(out["part"]))
+    except (KeyError, ValueError, CommandError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None

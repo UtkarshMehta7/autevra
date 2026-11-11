@@ -48,3 +48,20 @@ def test_install_by_mating_ports(client: TestClient, project: str) -> None:
         "item": "iso4032-m12",
         "mate": {"part": bolt["id"], "port": "thread", "own_port": "thread"}})  # fmt: skip
     assert wrong.status_code == 422 and "does not fit" in wrong.json()["detail"]
+
+
+def test_route_added_as_a_part(client: TestClient, project: str) -> None:
+    body = {
+        "pipe": {
+            "name": "Fuel line",
+            "points": [[0, 0, 300], [800, 0, 300], [800, 400, 300]],
+            "fluid": "diesel",
+            "flow_lpm": 2,
+        }
+    }
+    part = client.post(f"/api/projects/{project}/routes", json=body).json()
+    assert part["document"]["features"][0]["type"] == "sweep" and not part["errors"]
+    wire = {"name": "a", "area_mm2": 1, "current_a": 5}
+    harness = {"points": [[0, 0, 0], [500, 0, 0]], "conductors": [wire]}
+    out = client.post("/api/routing/harness", json=harness).json()
+    assert out["checks"][1]["id"] == "drop"
