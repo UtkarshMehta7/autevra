@@ -678,5 +678,6 @@ def checks(values: Values, root: RolledNode) -> list[Check]:
     out.append(Check(id="cg", label="Centre of gravity", status=status,
                      message=f"breakdown CG at MTOW {root.rollup.cg[0]:.2f} m vs "
                      f"{s.x_cg:.2f} m in the specification ({dx:+.2f} m, {pct:.0%} MAC); "
-                     "part positions are level-0 estimates; the stability analysis uses the specification's value"))  # fmt: skip
+                     "part positions are level-0 estimates; the stability analysis uses "
+                     "the specification's value"))  # fmt: skip
     return out

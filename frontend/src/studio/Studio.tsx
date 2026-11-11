@@ -26,6 +26,7 @@ import { PackagePanel } from "./PackagePanel";
 import { StylingPanel } from "./StylingPanel";
 import { PartDesignPanel } from "./PartDesignPanel";
 import { AircraftPanel } from "./AircraftPanel";
+import { BreakdownPanel } from "./BreakdownPanel";
 import { StructuresWorkspace } from "./StructuresPanel";
 import { SurfacesPanel } from "./SurfacesPanel";
 import { SystemsPanel } from "./SystemsPanel";
@@ -557,6 +558,9 @@ function StudioView({ projectId, workspace, navigate }: {
         {!collapsed && workspace === "structures" && <StructuresWorkspace projectId={project?.id} />}
         {!collapsed && workspace === "aircraft" && project && (
           <AircraftPanel key={project.id} projectId={project.id} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "breakdown" && (
+          <BreakdownPanel key={project.id} projectId={project.id} version={history.cursor} />
         )}
         {project && !collapsed && workspace === "part-design" && (
           <PartDesignPanel projectId={project.id} onModelChanged={() => refresh(project.id)} />

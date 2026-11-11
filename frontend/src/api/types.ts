@@ -769,3 +769,30 @@ export interface AircraftAnalysis {
   checks: { name: string; value: number; range: [number, number]; unit: string; status: "pass" | "warn" | "fail"; why: string }[];
   assumptions: string[];
 }
+
+/** Product structure (backend product/ and modules/): one module's breakdown with
+ * maturity, mass and CG roll-ups for one configuration. */
+export interface Rollup {
+  mass: number; cg: [number, number, number]; parts: number; instances: number;
+  maturity: number[]; min_maturity: number; over_budget: string[];
+}
+export interface BreakdownNode {
+  id: string; name: string; kind: "product" | "system" | "subsystem" | "part"; code: string;
+  template: string; process: string; functions: string[]; applicability: string; instances: number;
+  maturity: number; mass: number; mass_source: "allocated" | "estimated" | "computed"; basis: string;
+  budget: number | null; cg: [number, number, number]; envelope: [number, number, number];
+  geometry: string; rollup: Rollup; children: BreakdownNode[];
+}
+export interface OptionFamily { id: string; label: string; choices: string[]; applies: string; affects_mass: boolean; description: string }
+export interface OptionRule { id: string; when: string; then: string; message: string }
+export interface ProductCheck { id: string; label: string; status: "pass" | "warn" | "fail"; message: string }
+export interface ProductOut {
+  module: string; module_name: string; frame: string; levels: string[];
+  families: OptionFamily[]; rules: OptionRule[];
+  design_configuration: Record<string, string>; configuration: Record<string, string>;
+  violations: string[]; breakdown: BreakdownNode; checks: ProductCheck[]; templates: number;
+}
+export interface ProductEnvelope {
+  configurations: number; mass_min: number; mass_max: number;
+  lightest: Record<string, string>; heaviest: Record<string, string>; cg_x_min: number; cg_x_max: number;
+}

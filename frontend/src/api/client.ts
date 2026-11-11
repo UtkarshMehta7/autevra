@@ -1,5 +1,5 @@
 import type {
-  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult, AircraftSpec, AircraftAnalysis } from "./types";
+  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult, AircraftSpec, AircraftAnalysis, ProductEnvelope, ProductOut } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -243,6 +243,10 @@ export const api = {
   aircraftSpec: () => request<{ defaults: AircraftSpec }>("/aero/spec"),
   analyseAircraft: (spec: AircraftSpec) => post<AircraftAnalysis>("/aero/analyse", spec),
   getAircraftSpec: (id: string) => request<AircraftSpec>(`/projects/${id}/aircraft/spec`),
+  product: (id: string, config?: Record<string, string>) =>
+    request<ProductOut>(`/projects/${id}/product${config && Object.keys(config).length
+      ? `?config=${encodeURIComponent(JSON.stringify(config))}` : ""}`),
+  productEnvelope: (id: string) => request<ProductEnvelope>(`/projects/${id}/product/envelope`),
   saveAircraftSpec: (id: string, spec: AircraftSpec) =>
     request<AircraftSpec>(`/projects/${id}/aircraft/spec`, { method: "PUT", body: JSON.stringify(spec) }),
   buildAircraft: (id: string, spec: AircraftSpec) => post<PartOut>(`/projects/${id}/aircraft`, spec),
