@@ -414,6 +414,13 @@ textarea.json.bad { border-color: var(--bad); }
 .structures .legend input[type="range"] { width: 100%; }
 .lab-busy { position: absolute; inset: auto 0 50% 0; text-align: center; color: #fff; font-size: 13px; text-shadow: 0 1px 3px #000; }
 .structures .math.results { border-color: #2d4a6e; }
+.structures-workspace { display: grid; gap: 6px; }
+.structures .lab-view { height: 320px; min-height: 0; align-self: start; position: sticky; top: 0; }
+.mode-switch { display: flex; gap: 2px; }
+.mode-switch button { font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 4px; }
+.mode-switch button.on { color: #fff; background: #24406a; }
+.density-canvas { position: absolute; left: 12px; top: 16px; width: calc(100% - 24px); height: auto;
+  image-rendering: pixelated; background: #fff; border-radius: 2px; box-shadow: 0 2px 10px rgba(0,0,0,0.4); }
 .math.continuity .level { font-weight: 700; font-size: 13px; }
 .level-G2, .level-G3 { color: var(--good); }
 .level-G1 { color: #ffc94a; }

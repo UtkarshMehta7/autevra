@@ -705,3 +705,23 @@ export interface FeaCatalogue {
   materials: Record<string, { name: string; youngs: number; poisson: number; density: number; yield_strength: number }>;
   regions: string[];
 }
+
+/** SIMP topology optimisation (backend fea/simp.py). */
+export interface TopologyRequest {
+  case: "mbb" | "cantilever" | "bridge" | "bracket";
+  nx: number; ny: number; nz: number; volfrac: number; penal: number; rmin: number; max_iter: number;
+}
+
+export interface TopologyResult {
+  shape: number[];
+  description: string;
+  density: number[];
+  snapshots: number[][];
+  snapshot_iters: number[];
+  history: { iter: number; compliance: number; volume: number; change: number; grey: number; lambda: number }[];
+  stats: { elements: number; dofs: number; free_dofs: number; k_nnz_per_element: number; iterations: number;
+    converged: boolean; final_change: number; final_compliance: number; initial_compliance: number;
+    volume_fraction: number; grey_fraction: number; filter_neighbours: number; time_solve: number;
+    time_total: number; solver: string };
+  equations: string[];
+}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import type { FeaCatalogue, FeaRequest, FeaResult, PartOut } from "../api/types";
 import { type FeaField, FeaView, rainbow } from "./FeaView";
+import { TopologyPanel } from "./TopologyPanel";
 
 /** Structures workspace: linear static finite element analysis of a demo geometry or a Part
  * Design part, with the computation on show: mesh statistics and quality, the size and
@@ -195,5 +196,19 @@ function Residuals({ values, total }: { values: number[]; total: number }) {
       <path className="series" d={ys.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("")} />
       <text x={W - 4} y={H - 3} textAnchor="end" className="tick">{total > values.length ? `last ${values.length} of ${total}` : total} iterations</text>
     </svg>
+  );
+}
+
+/** The Structures workspace: static analysis of a part, or topology optimisation. */
+export function StructuresWorkspace({ projectId }: { projectId?: string }) {
+  const [mode, setMode] = useState<"analysis" | "topology">("analysis");
+  return (
+    <div className="structures-workspace">
+      <div className="mode-switch">
+        <button className={mode === "analysis" ? "on" : ""} onClick={() => setMode("analysis")}>Static analysis (FEA)</button>
+        <button className={mode === "topology" ? "on" : ""} onClick={() => setMode("topology")}>Topology optimisation (SIMP)</button>
+      </div>
+      {mode === "analysis" ? <StructuresPanel projectId={projectId} /> : <TopologyPanel />}
+    </div>
   );
 }

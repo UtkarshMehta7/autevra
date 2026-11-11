@@ -12,6 +12,7 @@ from autevra.api import access
 from autevra.api.routes import WorkspaceDep
 from autevra.cad import kernel as k
 from autevra.fea import mesh as fm
+from autevra.fea import simp
 from autevra.fea import solver as fs
 
 # Project paths are guarded like the rest of the API (a visitor's own projects only).
@@ -164,3 +165,51 @@ def _analyse(shape: k.Shape, body: RunIn) -> dict:
             "substitute for a validated FEA code (CalculiX, Abaqus, ANSYS) on real designs.",
         ],
     }  # fmt: skip
+
+
+# --- Topology optimisation (SIMP) ---
+
+
+class TopologyIn(BaseModel):
+    case: Literal["mbb", "cantilever", "bridge", "bracket"] = "mbb"
+    nx: Annotated[int, Field(ge=4, le=200)] = 60
+    ny: Annotated[int, Field(ge=2, le=100)] = 20
+    nz: Annotated[int, Field(ge=0, le=40)] = 0  # 0: a 2D (plane stress) problem
+    volfrac: Annotated[float, Field(gt=0.05, lt=0.95)] = 0.5
+    penal: Annotated[float, Field(ge=1.0, le=5.0)] = 3.0
+    rmin: Annotated[float, Field(ge=1.0, le=6.0)] = 1.5
+    max_iter: Annotated[int, Field(ge=1, le=300)] = 120
+
+
+@router.get("/structures/topology/catalogue")
+def topology_catalogue() -> dict:
+    return {"cases": simp.PRESETS}
+
+
+@router.post("/structures/topology")
+def topology(body: TopologyIn) -> dict:
+    """Minimum-compliance topology by SIMP on a grid domain; returns the density history."""
+    shape = (body.nx, body.ny) if body.nz == 0 else (body.nx, body.ny, body.nz)
+    try:
+        problem = simp.preset(body.case, shape)
+        result = simp.optimise(problem, body.volfrac, body.penal, body.rmin, body.max_iter,
+                               snapshot_every=max(1, body.max_iter // 40))  # fmt: skip
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    return {
+        "shape": list(shape),
+        "description": problem.description,
+        "density": _r(result.density, 3),
+        "snapshots": [_r(s, 2) for s in result.snapshots],
+        "snapshot_iters": result.snapshot_iters,
+        "history": result.history,
+        "stats": result.stats,
+        "equations": [
+            "E(x_e) = E_min + x_e^p (E_0 - E_min)",
+            "min c(x) = F^T u = sum_e E(x_e) u_e^T k_0 u_e",
+            "s.t. K(x) u = F,  sum_e x_e = f N,  x_min <= x_e <= 1",
+            "dc/dx_e = -p x_e^(p-1) (E_0 - E_min) u_e^T k_0 u_e",
+            "filter: dc_e <- sum_f H_ef x_f dc_f / (x_e sum_f H_ef),  H_ef = max(0, r_min - d_ef)",
+            "OC: x_e <- clamp(x_e sqrt(-dc_e / lambda), x_e - m, x_e + m), lambda by bisection",
+        ],
+    }
