@@ -278,6 +278,7 @@ export const api = {
   stackup: (stack: unknown) => post<unknown>("/quality/stackup", stack),
   lca: (id: string, grid: number) => request<unknown>(`/projects/${id}/lca?grid=${grid}`),
   reviews: (id: string) => request<unknown[]>(`/projects/${id}/reviews`),
+  clearance: (id: string, required: number) => request<unknown[]>(`/projects/${id}/clearance?required=${required}`),
   baselines: (id: string) => request<unknown[]>(`/projects/${id}/baselines`),
   takeBaseline: (id: string, name: string, gate: string) => post<unknown>(`/projects/${id}/baselines`, { name, gate }),
   compareBaseline: (id: string, bl: string) => request<unknown>(`/projects/${id}/baselines/${bl}/compare`),

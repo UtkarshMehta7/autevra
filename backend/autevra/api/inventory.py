@@ -7,6 +7,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from autevra import dmu
 from autevra.api import access, schemas
 from autevra.api.routes import WorkspaceDep
 from autevra.api.service import Workspace
@@ -15,6 +16,7 @@ from autevra.inventory import calc, mating
 from autevra.inventory.model import Item, ItemSummary, Port, summary
 from autevra.inventory.store import Inventory, InventoryError
 from autevra.part import imports
+from autevra.part.build import build_part, placement_matrix
 from autevra.part.features import PartDoc, Placement
 
 router = APIRouter(tags=["inventory"], dependencies=[Depends(access.guard_project)])
@@ -204,3 +206,20 @@ def add_port(item_id: str, port: Port, ws: WorkspaceDep) -> Item:
         return _inventory(ws).publish(item.model_copy(update={"ports": [*item.ports, port]}))
     except InventoryError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.get("/projects/{project_id}/clearance", response_model=list[dmu.Pair])
+def clearance(project_id: str, ws: WorkspaceDep,
+              required: float = Query(5.0, ge=0.0, le=1000.0)) -> list[dmu.Pair]:  # fmt: skip
+    """Clearance matrix of the project's parts (digital mock-up)."""
+    placed = []
+    for pid, doc in ws._part_docs(project_id):
+        built = build_part(doc)
+        if built.shape is None:
+            continue
+        placed.append(dmu.Placed(id=pid, name=doc.name, shape=built.shape,
+                                 matrix=placement_matrix(doc.at)))  # fmt: skip
+    if len(placed) > 40:
+        raise HTTPException(status_code=422, detail="the clearance matrix is limited to 40 "
+                            "parts (run it on a sub-assembly)")  # fmt: skip
+    return dmu.matrix(placed, required)

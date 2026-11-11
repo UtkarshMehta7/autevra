@@ -32,6 +32,8 @@ export function ReviewsPanel({ projectId, version, onModelChanged }: { projectId
   const [form, setForm] = useState({ title: "", key: "", value: "" });
   const [blName, setBlName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [required, setRequired] = useState(5);
+  const [pairs, setPairs] = useState<{ a_name: string; b_name: string; status: string; distance_mm: number; interference_mm3: number }[] | null>(null);
   const load = useCallback(() => {
     api.reviews(projectId).then((g) => setGates(g as Gate[])).catch((e) => setError(String(e.message ?? e)));
     api.baselines(projectId).then((b) => setBaselines(b as Baseline[])).catch(() => undefined);
@@ -101,6 +103,25 @@ export function ReviewsPanel({ projectId, version, onModelChanged }: { projectId
           ))}
         </section>
       </div>
+      <section>
+        <h4>Clearance (digital mock-up)</h4>
+        <div className="row">
+          <label>required clearance <input type="number" value={required} min={0} step={1} onChange={(e) => setRequired(Number(e.target.value))} /> mm</label>
+          <button onClick={() => act(async () => setPairs((await api.clearance(projectId, required)) as never))}>Check every pair of parts</button>
+        </div>
+        {pairs && (
+          <>
+            <p className="small">{pairs.filter((p) => p.status === "clear").length} of {pairs.length} pairs clear; parts designed to overlap are listed too — judge them as intended or not.</p>
+            <table className="bd-table"><tbody>
+              {pairs.filter((p) => p.status !== "clear").map((p, i) => (
+                <tr key={i}><td>{p.a_name}</td><td>{p.b_name}</td>
+                  <td><span className={`status ${p.status === "too close" ? "open" : "not-shown"}`}>{p.status}</span></td>
+                  <td className="num">{p.status === "interference" ? `${(p.interference_mm3 / 1000).toFixed(1)} cm³` : `${p.distance_mm.toFixed(1)} mm`}</td></tr>
+              ))}
+            </tbody></table>
+          </>
+        )}
+      </section>
       {error && <p className="error">{error}</p>}
     </div>
   );
