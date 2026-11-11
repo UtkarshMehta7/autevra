@@ -273,12 +273,24 @@ def solve(mesh: Mesh, material: Material, supports: list[str], loads: list[Load]
     history: list[float] = []
     norm_b = float(np.linalg.norm(rhs)) or 1.0
 
+    class _StalledError(Exception):
+        pass
+
+    latest = np.zeros(len(free))
+
     def track(xk: np.ndarray) -> None:
+        latest[:] = xk
         history.append(float(np.linalg.norm(rhs - kff @ xk)) / norm_b)
+        # stagnation: under one decade of progress in the last 500 iterations
+        if len(history) >= 1000 and history[-1] > 0.1 * history[-500]:
+            raise _StalledError
 
     jacobi = sp.diags(1.0 / kff.diagonal())
     t1 = time.perf_counter()
-    uf, info = spla.cg(kff, rhs, rtol=tol, maxiter=max_iter, M=jacobi, callback=track)
+    try:
+        uf, info = spla.cg(kff, rhs, rtol=tol, maxiter=max_iter, M=jacobi, callback=track)
+    except _StalledError:
+        uf, info = latest.copy(), 1
     t_cg = time.perf_counter() - t1
     direct_diff = None
     method = "Jacobi-preconditioned conjugate gradient on the reduced K (supports eliminated)"
@@ -290,7 +302,7 @@ def solve(mesh: Mesh, material: Material, supports: list[str], loads: list[Load]
         if info != 0:
             uf = ud
             method = (
-                f"conjugate gradient stopped at {max_iter} iterations without converging "
+                f"conjugate gradient stalled after {len(history)} iterations without converging "
                 "(ill-conditioned K: refine or coarsen the mesh); displacements from the "
                 "sparse direct (LU) solve"
             )

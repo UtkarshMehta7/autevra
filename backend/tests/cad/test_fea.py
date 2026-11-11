@@ -122,3 +122,14 @@ def test_pieces_hinged_at_a_corner_are_dropped() -> None:
     assert mesh.stats["elements"] == 64 and mesh.stats["dropped_fragments"] == 1
     out = fs.solve(mesh, STEEL, ["x-min"], [fs.Load("x-max", force=(0, 0, -10))])
     assert out.stats["cg_converged"]
+
+
+def test_winding_numbers_separate_inside_from_outside() -> None:
+    shape = k.cut(k.box((0, 100), (0, 100), (0, 100)), k.box((40, 60), (40, 60), (-1, 101)))
+    surf = k.tessellate(shape, tolerance=0.5, angular=0.3)
+    closed = (np.asarray(surf.vertices, float).reshape(-1, 3),
+              np.asarray(surf.indices, int).reshape(-1, 3))  # fmt: skip
+    pts = np.array([[10.0, 10, 10], [50, 50, 50], [150, 50, 50], [90, 90, 5]])
+    w = np.abs(fm.winding_numbers(pts, *closed))
+    assert w == pytest.approx([1, 0, 0, 1], abs=1e-6)  # (50,50,50) is in the square hole
+    assert fm._inside_many(shape, pts, closed).tolist() == [True, False, False, True]

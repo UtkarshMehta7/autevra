@@ -52,6 +52,40 @@ def _classifier(shape: k.Shape):  # type: ignore[no-untyped-def]
     return inside
 
 
+def winding_numbers(points: np.ndarray, vertices: np.ndarray, triangles: np.ndarray,
+                    chunk: int = 256) -> np.ndarray:  # fmt: skip
+    """Generalised winding number of each point with respect to a closed triangle mesh:
+    the sum of the triangles' signed solid angles over 4 pi (Van Oosterom and Strackee),
+    1 inside, 0 outside, near 1/2 on the surface. Vectorised over points and triangles."""
+    tri = vertices[triangles]  # (T, 3, 3)
+    out = np.empty(len(points))
+    for s in range(0, len(points), chunk):
+        a = tri[None, :, 0] - points[s : s + chunk, None]
+        b = tri[None, :, 1] - points[s : s + chunk, None]
+        c = tri[None, :, 2] - points[s : s + chunk, None]
+        la, lb, lc = (np.linalg.norm(v, axis=2) for v in (a, b, c))
+        dot = lambda u, v: np.einsum("ptk,ptk->pt", u, v)  # noqa: E731
+        det = dot(a, np.cross(b, c))
+        den = la * lb * lc + dot(a, b) * lc + dot(b, c) * la + dot(c, a) * lb
+        out[s : s + chunk] = np.arctan2(det, den).sum(axis=1) / (2.0 * np.pi)
+    return out
+
+
+def _inside_many(shape: k.Shape, points: np.ndarray, surface: tuple[np.ndarray, np.ndarray]
+                 ) -> np.ndarray:  # fmt: skip
+    """Inside-or-on mask: the winding number of the tessellation decides clear cases; points
+    it leaves ambiguous (near the surface) go to the kernel's exact solid classifier."""
+    if len(points) == 0:
+        return np.zeros(0, dtype=bool)
+    w = np.abs(winding_numbers(points, *surface))
+    mask = w > 0.5
+    unsure = np.flatnonzero(np.abs(w - 0.5) < 0.3)
+    if len(unsure):
+        exact = _classifier(shape)
+        mask[unsure] = [exact(points[i]) for i in unsure]
+    return mask
+
+
 def tet_volumes(nodes: np.ndarray, tets: np.ndarray) -> np.ndarray:
     x = nodes[tets]
     return (
@@ -169,10 +203,10 @@ def tet_mesh(shape: k.Shape, size: float) -> Mesh:
             f"an element size of {size:g} mm is too fine for this part; try a larger one"
         )
     surf = k.tessellate(shape, tolerance=max(size / 8.0, 0.05), angular=0.35)
-    surface = _sample_surface(np.asarray(surf.vertices, dtype=float).reshape(-1, 3),
-                              np.asarray(surf.indices, dtype=int).reshape(-1, 3), size)  # fmt: skip
+    closed = (np.asarray(surf.vertices, dtype=float).reshape(-1, 3),
+              np.asarray(surf.indices, dtype=int).reshape(-1, 3))  # fmt: skip
+    surface = _sample_surface(*closed, size)
     pts = [surface]
-    inside = _classifier(shape)
     # interior body-centred cubic lattice, kept off the surface to avoid slivers: a cubic
     # lattice is cospherical everywhere (Delaunay then splits each cube into flat slivers);
     # the BCC lattice tetrahedralises into well-shaped tetrahedra. Cube edge 2^(1/3) size
@@ -188,9 +222,9 @@ def tet_mesh(shape: k.Shape, size: float) -> Mesh:
         grid = grid[np.all(grid < hi, axis=1)]
         near, _ = cKDTree(surface).query(grid)
         grid = grid[near > 0.6 * size]
-        keep = [p for p in grid if inside(p)]
-        if keep:
-            pts.append(np.asarray(keep))
+        keep = grid[_inside_many(shape, grid, closed)]
+        if len(keep):
+            pts.append(keep)
     nodes = np.unique(np.round(np.concatenate(pts), 6), axis=0)
     if len(nodes) > MAX_NODES:
         raise MeshError(
@@ -201,7 +235,7 @@ def tet_mesh(shape: k.Shape, size: float) -> Mesh:
     tets[vol < 0] = tets[vol < 0][:, [0, 2, 1, 3]]  # positive orientation
     vol = np.abs(vol)
     centroids = nodes[tets].mean(axis=1)
-    keep = np.array([v > 1e-9 * size**3 and inside(c) for v, c in zip(vol, centroids, strict=True)])
+    keep = (vol > 1e-9 * size**3) & _inside_many(shape, centroids, closed)
     tets = tets[keep]
     if len(tets) == 0:
         raise MeshError("no elements inside the part; try a smaller size")
@@ -239,10 +273,13 @@ def hex_mesh(shape: k.Shape, size: float) -> Mesh:
             f"an element size of {size:g} mm is too fine for this part; try a larger one"
         )
     h = np.array([x1 - x0, y1 - y0, z1 - z0]) / n
-    inside = _classifier(shape)
-    cells = [(i, j, kk) for i in range(n[0]) for j in range(n[1]) for kk in range(n[2])
-             if inside(np.array([x0, y0, z0]) + (np.array([i, j, kk]) + 0.5) * h)]  # fmt: skip
-    if not cells:
+    surf = k.tessellate(shape, tolerance=max(size / 8.0, 0.05), angular=0.35)
+    closed = (np.asarray(surf.vertices, dtype=float).reshape(-1, 3),
+              np.asarray(surf.indices, dtype=int).reshape(-1, 3))  # fmt: skip
+    ijk = np.stack(np.meshgrid(*[np.arange(c) for c in n], indexing="ij"), -1).reshape(-1, 3)
+    centres = np.array([x0, y0, z0]) + (ijk + 0.5) * h
+    cells = ijk[_inside_many(shape, centres, closed)]
+    if len(cells) == 0:
         raise MeshError("no voxels inside the part; try a smaller size")
     return voxel_mesh(np.array([x0, y0, z0]), h, np.asarray(cells), k.volume(shape))
 
