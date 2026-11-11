@@ -1,5 +1,5 @@
 import type {
-  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult, AircraftSpec, AircraftAnalysis, ProductEnvelope, ProductOut, SystemsOut, ChainStep, ItemSummary, InventoryItem, ItemPort } from "./types";
+  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue, FeaMesh, TopologyRequest, TopologyResult, AircraftSpec, AircraftAnalysis, ProductEnvelope, ProductOut, SystemsOut, ChainStep, ItemSummary, InventoryItem, ItemPort, EngineSpec, EngineAnalysis } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -243,6 +243,12 @@ export const api = {
   aircraftSpec: () => request<{ defaults: AircraftSpec }>("/aero/spec"),
   analyseAircraft: (spec: AircraftSpec) => post<AircraftAnalysis>("/aero/analyse", spec),
   getAircraftSpec: (id: string) => request<AircraftSpec>(`/projects/${id}/aircraft/spec`),
+  analyseEngine: (spec: EngineSpec) => post<EngineAnalysis>("/engines/analyse", spec),
+  getEngineSpec: (id: string) => request<EngineSpec>(`/projects/${id}/engine/spec`),
+  saveEngineSpec: (id: string, spec: EngineSpec) =>
+    request<EngineSpec>(`/projects/${id}/engine/spec`, { method: "PUT", body: JSON.stringify(spec) }),
+  buildEngine: (id: string, spec: EngineSpec) => post<PartOut[]>(`/projects/${id}/engine`, spec),
+  publishEngine: (id: string) => post<InventoryItem>(`/projects/${id}/engine/publish`, {}),
   product: (id: string, config?: Record<string, string>) =>
     request<ProductOut>(`/projects/${id}/product${config && Object.keys(config).length
       ? `?config=${encodeURIComponent(JSON.stringify(config))}` : ""}`),

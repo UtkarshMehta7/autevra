@@ -13,6 +13,7 @@ from autevra.ai.llm.clients import LLMClient, make_client
 from autevra.api import access
 from autevra.api.aerospace import router as aerospace_router
 from autevra.api.inventory import router as inventory_router
+from autevra.api.mechanical import router as mechanical_router
 from autevra.api.product import router as product_router
 from autevra.api.routes import EXCEPTION_HANDLERS, router
 from autevra.api.service import Workspace
@@ -56,6 +57,7 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None) -
     app.include_router(aerospace_router, prefix="/api")
     app.include_router(product_router, prefix="/api")
     app.include_router(inventory_router, prefix="/api")
+    app.include_router(mechanical_router, prefix="/api")
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

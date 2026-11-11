@@ -1,9 +1,10 @@
 export type WorkspaceId =
-  | "design" | "breakdown" | "functions" | "inventory" | "styling" | "part-design" | "surfaces" | "structures" | "aircraft" | "package" | "assembly" | "simulation" | "ai-engineering" | "optimization" | "requirements"
+  | "design" | "engine" | "breakdown" | "functions" | "inventory" | "styling" | "part-design" | "surfaces" | "structures" | "aircraft" | "package" | "assembly" | "simulation" | "ai-engineering" | "optimization" | "requirements"
   | "systems" | "manufacturing" | "digital-engineering";
 
 export const WORKSPACES: { id: WorkspaceId; label: string; description: string }[] = [
   { id: "design", label: "Design", description: "Specification, parameters and the 3D model" },
+  { id: "engine", label: "Engine", description: "Piston engine: bore, stroke, layout and boost; cycle, torque and power, kinematics and balance; built as parts and published to the inventory" },
   { id: "breakdown", label: "Breakdown", description: "The whole product as systems and parts: every part from day one, mass and CG roll-ups, maturity heat map, configurations" },
   { id: "functions", label: "Functions", description: "Requirements → functions → logical blocks → parts: function chains, typed flows, interfaces, design FMEA and trace gaps" },
   { id: "inventory", label: "Inventory", description: "Shared library: ISO fasteners, bearings, hollow sections and published parts, with their ports and performance; add to the project" },
@@ -36,7 +37,8 @@ export const MODULES: ModuleDef[] = [
   { id: "aerospace", label: "Aircraft", noun: "Aircraft", description: "Fixed-wing aircraft",
     workspaces: ["aircraft", "breakdown", "functions", ...SHARED] },
   { id: "marine", label: "Marine", noun: "Vessel", description: "Hulls and marine propulsion (planned)", workspaces: [], planned: true },
-  { id: "machinery", label: "Mechanical", noun: "Machine", description: "Engines, machinery and mechanisms (planned)", workspaces: [], planned: true },
+  { id: "machinery", label: "Mechanical", noun: "Engine", description: "Engines category by category (piston engines first)",
+    workspaces: ["engine", "breakdown", "functions", ...SHARED] },
 ];
 
 export function moduleOf(domain: string | undefined): ModuleDef {

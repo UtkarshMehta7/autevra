@@ -10,8 +10,9 @@ def test_domain_registry_is_honest(client: TestClient) -> None:
     assert any("Quarter-car" in s for s in domains["automotive"]["simulations"])
     air = domains["aerospace"]  # the aircraft module: usable, partially tested
     assert air["status"] == "experimental" and any("lifting-line" in s for s in air["simulations"])
-    others = [d for k, d in domains.items() if k not in ("automotive", "aerospace")]
-    assert len(others) == 7 and all(d["status"] == "unavailable" for d in others)
+    assert domains["machinery"]["status"] == "experimental"  # the Mechanical module
+    others = [d for k, d in domains.items() if k not in ("automotive", "aerospace", "machinery")]
+    assert len(others) == 6 and all(d["status"] == "unavailable" for d in others)
     assert all(d["simulations"] == [] for d in others)
 
 

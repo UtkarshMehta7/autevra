@@ -71,8 +71,6 @@ _PLANNED: tuple[tuple[str, str, str, list[str]], ...] = (
      ["hull form parameters", "hydrostatics"]),
     ("robotics", "Robotics", "Manipulators and mobile robots.",
      ["kinematic chains and joints", "reach and payload checks"]),
-    ("machinery", "Industrial machinery", "Machines, mechanisms and drives.",
-     ["mechanism templates", "drive sizing"]),
     ("manufacturing", "Advanced manufacturing", "Manufacturing processes and planning.",
      ["manufacturability checks", "process plans"]),
 )  # fmt: skip
@@ -112,13 +110,35 @@ def _aerospace() -> DomainDef:
     )  # fmt: skip
 
 
+def _machinery() -> DomainDef:
+    from autevra import __version__
+
+    return DomainDef(
+        id="machinery", name="Mechanical",
+        description="Engines designed category by category, starting with piston engines "
+        "(inline, V and opposed; petrol and diesel; natural and turbocharged): cycle, torque "
+        "and power, kinematics, balance, mass, the full part breakdown and concept geometry, "
+        "published to the shared inventory.",
+        status="experimental", version=__version__,
+        component_library=["piston engines"],
+        operations=["parametric engine", "build as parts", "publish to the inventory",
+                    "Part Design", "structures (FEA)"],
+        simulations=["air-standard Otto and Diesel cycles", "BMEP torque and power curves",
+                     "slider-crank kinematics", "primary and secondary balance"],
+        formats=["STEP AP214 export"],
+        dependencies=["cadquery 2.8 / OCCT 7.9"],
+        roadmap=["electric machines", "gas turbines", "gearboxes and mechanisms"],
+        evidence="covered by tests/mech (balance against textbook results) and the workspace",
+    )  # fmt: skip
+
+
 def registry() -> list[DomainDef]:
     planned = [
         DomainDef(id=i, name=n, description=d, status="unavailable", roadmap=r,
                   evidence="not implemented: roadmap only")
         for i, n, d, r in _PLANNED
     ]  # fmt: skip
-    return [_automotive(), _aerospace(), *planned]
+    return [_automotive(), _aerospace(), _machinery(), *planned]
 
 
 def get(domain_id: str) -> DomainDef | None:

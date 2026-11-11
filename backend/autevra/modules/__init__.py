@@ -50,7 +50,7 @@ def register(module: ModuleDef) -> None:
     _MODULES[module.id] = module
 
 
-BUILTIN = ("autevra.modules.land", "autevra.modules.aircraft")
+BUILTIN = ("autevra.modules.land", "autevra.modules.aircraft", "autevra.modules.mechanical")
 
 
 def _load() -> None:

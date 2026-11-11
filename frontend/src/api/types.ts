@@ -820,3 +820,19 @@ export interface InventoryItem extends ItemSummary {
   status: string; parameters: Record<string, number | string>; properties: Record<string, number | string>;
   performance: Record<string, number>; ports: ItemPort[]; notes: string[]; provenance: string;
 }
+
+/** Mechanical module: piston engines (backend mech/piston.py). */
+export interface EngineSpec {
+  name: string; fuel: "petrol" | "diesel"; layout: "inline" | "V" | "boxer"; cylinders: number;
+  bank_angle: number; flat_plane: boolean; bore: number; stroke: number; rod_ratio: number;
+  compression_ratio: number; turbo: boolean; bmep_max: number; rpm_peak_torque: number;
+  rpm_max: number; rpm_idle: number;
+}
+export interface EngineAnalysis {
+  displacement_l: number; firing_order: string; peak_torque_nm: number; peak_torque_rpm: number;
+  peak_power_kw: number; peak_power_rpm: number; specific_power_kw_per_l: number;
+  mean_piston_speed_ms: number; efficiency: { air_standard: number; fuel_air_approx: number };
+  kinematics: Record<string, number>; balance: Record<string, number>; balance_n: Record<string, number>;
+  mass_kg: number; curve: { rpm: number; torque_nm: number; power_kw: number; bmep_bar: number }[];
+  checks: { id: string; label: string; status: "pass" | "warn" | "fail"; message: string }[];
+}

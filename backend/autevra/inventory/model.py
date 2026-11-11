@@ -30,6 +30,7 @@ class Item(BaseModel):
     parameters: dict[str, float | str] = {}
     properties: dict[str, float | str] = {}  # mass_kg, material, ...
     performance: dict[str, float] = {}
+    maps: dict[str, list[dict[str, float]]] = {}  # published curves (e.g. torque vs speed)
     ports: list[Port] = []
     definition: dict[str, Any] = Field(default_factory=dict)  # Part Design document
     notes: list[str] = []  # stated sources and limits

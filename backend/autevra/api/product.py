@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from autevra import modules
 from autevra.api import access
 from autevra.api.aerospace import get_spec
+from autevra.api.mechanical import get_spec as engine_spec
 from autevra.api.routes import WorkspaceDep
 from autevra.api.service import Workspace
 from autevra.product import templates
@@ -68,6 +69,8 @@ def _module(ws: Workspace, project_id: str) -> tuple[modules.ModuleDef, dict[str
         raise HTTPException(status_code=422, detail=f"no product structure for '{domain}'")
     if module.id == "aircraft":
         values: dict[str, Any] = get_spec(project_id, ws).model_dump()
+    elif module.id == "mechanical":
+        values = engine_spec(project_id, ws).model_dump()
     else:
         values = dict(ws.project(project_id).values)
     return module, values
