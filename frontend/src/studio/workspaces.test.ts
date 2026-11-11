@@ -10,3 +10,15 @@ describe("studio workspaces", () => {
     ]);
   });
 });
+
+describe("engineering modules", () => {
+  it("keep their workspaces apart: aircraft tools are not in land vehicles and vice versa", async () => {
+    const { MODULES, moduleOf } = await import("./workspaces");
+    const land = moduleOf("automotive"), air = moduleOf("aerospace");
+    expect(land.workspaces).not.toContain("aircraft");
+    expect(air.workspaces).not.toContain("design");
+    expect(air.workspaces[0]).toBe("aircraft");
+    expect(moduleOf(undefined).id).toBe("automotive");
+    expect(MODULES.filter((m) => m.planned).map((m) => m.id)).toEqual(["marine", "machinery"]);
+  });
+});

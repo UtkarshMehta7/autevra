@@ -242,6 +242,9 @@ export const api = {
     post<{ surface: Required<NurbsSurface> }>("/surfaces/join", { surface, target, bend }),
   aircraftSpec: () => request<{ defaults: AircraftSpec }>("/aero/spec"),
   analyseAircraft: (spec: AircraftSpec) => post<AircraftAnalysis>("/aero/analyse", spec),
+  getAircraftSpec: (id: string) => request<AircraftSpec>(`/projects/${id}/aircraft/spec`),
+  saveAircraftSpec: (id: string, spec: AircraftSpec) =>
+    request<AircraftSpec>(`/projects/${id}/aircraft/spec`, { method: "PUT", body: JSON.stringify(spec) }),
   buildAircraft: (id: string, spec: AircraftSpec) => post<PartOut>(`/projects/${id}/aircraft`, spec),
   topology: (body: TopologyRequest) => post<TopologyResult>("/structures/topology", body),
   topologyCases: () => request<{ cases: Record<string, string> }>("/structures/topology/catalogue"),

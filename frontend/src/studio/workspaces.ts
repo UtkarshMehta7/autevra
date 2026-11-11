@@ -19,3 +19,23 @@ export const WORKSPACES: { id: WorkspaceId; label: string; description: string }
   { id: "manufacturing", label: "Manufacturing", description: "Exports and manufacturability checks" },
   { id: "digital-engineering", label: "Digital thread", description: "Revisions, runs and studies over time" },
 ];
+
+/** Engineering modules: each project belongs to one, and the studio shows only that
+ * module's workspaces (domains are kept apart; shared tools act on the module's parts). */
+export interface ModuleDef { id: string; label: string; noun: string; workspaces: WorkspaceId[]; planned?: boolean; description: string }
+
+const SHARED: WorkspaceId[] = ["part-design", "surfaces", "structures"];
+
+export const MODULES: ModuleDef[] = [
+  { id: "automotive", label: "Land vehicles", noun: "Vehicle", description: "Cars, SUVs, pickups and trucks",
+    workspaces: ["design", "styling", ...SHARED, "package", "assembly", "simulation", "ai-engineering",
+      "optimization", "requirements", "systems", "manufacturing", "digital-engineering"] },
+  { id: "aerospace", label: "Aircraft", noun: "Aircraft", description: "Fixed-wing aircraft",
+    workspaces: ["aircraft", ...SHARED] },
+  { id: "marine", label: "Marine", noun: "Vessel", description: "Hulls and marine propulsion (planned)", workspaces: [], planned: true },
+  { id: "machinery", label: "Mechanical", noun: "Machine", description: "Engines, machinery and mechanisms (planned)", workspaces: [], planned: true },
+];
+
+export function moduleOf(domain: string | undefined): ModuleDef {
+  return MODULES.find((m) => m.id === (domain ?? "automotive")) ?? MODULES[0];
+}

@@ -8,15 +8,19 @@ def test_domain_registry_is_honest(client: TestClient) -> None:
     assert domains["automotive"]["status"] == "available"
     assert "suspension" in domains["automotive"]["component_library"]
     assert any("Quarter-car" in s for s in domains["automotive"]["simulations"])
-    others = [d for k, d in domains.items() if k != "automotive"]
-    assert len(others) == 8 and all(d["status"] == "unavailable" for d in others)
+    air = domains["aerospace"]  # the aircraft module: usable, partially tested
+    assert air["status"] == "experimental" and any("lifting-line" in s for s in air["simulations"])
+    others = [d for k, d in domains.items() if k not in ("automotive", "aerospace")]
+    assert len(others) == 7 and all(d["status"] == "unavailable" for d in others)
     assert all(d["simulations"] == [] for d in others)
 
 
 def test_projects_only_in_available_domains(client: TestClient) -> None:
     ok = client.post("/api/projects", json={"name": "car", "domain": "automotive"})
     assert ok.status_code == 201 and ok.json()["domain"] == "automotive"
-    refused = client.post("/api/projects", json={"name": "plane", "domain": "aerospace"})
+    plane = client.post("/api/projects", json={"name": "plane", "domain": "aerospace"})
+    assert plane.status_code == 201 and plane.json()["domain"] == "aerospace"
+    refused = client.post("/api/projects", json={"name": "boat", "domain": "marine"})
     assert refused.status_code == 409
     assert client.post("/api/projects", json={"name": "x", "domain": "nope"}).status_code == 409
 

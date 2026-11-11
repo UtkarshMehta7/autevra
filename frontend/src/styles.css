@@ -488,3 +488,10 @@ textarea.json.bad { border-color: var(--bad); }
 .drag-table { font-size: 11px; border-collapse: collapse; width: 100%; }
 .drag-table th, .drag-table td { padding: 2px 6px; border-bottom: 1px solid var(--line); text-align: right; }
 .drag-table th:first-child, .drag-table td:first-child { text-align: left; }
+
+/* Engineering modules switcher */
+.modules { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.modules button { border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 4px 10px; font-size: 12px; }
+.modules button + button { border-left: 1px solid var(--line); }
+.modules button.on { background: #24406a; color: #fff; }
+.modules button:disabled { opacity: 0.45; cursor: not-allowed; }

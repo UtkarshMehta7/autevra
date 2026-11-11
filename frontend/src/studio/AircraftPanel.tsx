@@ -24,7 +24,7 @@ const GROUPS: { title: string; fields: Field[] }[] = [
     ["cruise_speed", "cruise speed (TAS)", "m/s", 1], ["cruise_altitude", "cruise altitude", "m", 100]] },
 ];
 
-export function AircraftPanel({ projectId, onModelChanged }: { projectId?: string; onModelChanged: () => void }) {
+export function AircraftPanel({ projectId, onModelChanged }: { projectId: string; onModelChanged: () => void }) {
   const [spec, setSpec] = useState<AircraftSpec | null>(null);
   const [out, setOut] = useState<AircraftAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,20 +32,25 @@ export function AircraftPanel({ projectId, onModelChanged }: { projectId?: strin
   const [built, setBuilt] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
 
-  useEffect(() => { api.aircraftSpec().then((s) => setSpec(s.defaults)).catch((e) => setError(String(e.message ?? e))); }, []);
+  // the project's own aircraft specification, saved as it is edited
+  const loaded = useRef(false);
+  useEffect(() => {
+    api.getAircraftSpec(projectId).then((s) => { setSpec(s); loaded.current = true; })
+      .catch((e) => setError(String(e.message ?? e)));
+  }, [projectId]);
   useEffect(() => {
     if (!spec) return;
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       api.analyseAircraft(spec).then((r) => { setOut(r); setError(null); })
         .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      if (loaded.current) api.saveAircraftSpec(projectId, spec).catch(() => undefined);
     }, 250);
-  }, [spec]);
+  }, [spec, projectId]);
 
   if (!spec) return <div className="bench wide">{error ?? "Loading the aircraft…"}</div>;
   const set = (key: keyof AircraftSpec, value: number | boolean | string) => setSpec({ ...spec, [key]: value });
   const build = async () => {
-    if (!projectId) return;
     setBusy(true);
     try {
       const part = await api.buildAircraft(projectId, spec);
@@ -86,7 +91,7 @@ export function AircraftPanel({ projectId, onModelChanged }: { projectId?: strin
           </fieldset>
         ))}
         <div className="row">
-          <button className="primary" disabled={busy || !projectId} onClick={build}>{busy ? "Building…" : "Build as a part"}</button>
+          <button className="primary" disabled={busy} onClick={build}>{busy ? "Building…" : "Build as a part"}</button>
           {built && <span className="good-text">{built}</span>}
         </div>
         {error && <div className="error">{error}</div>}

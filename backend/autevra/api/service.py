@@ -1330,8 +1330,11 @@ class Workspace:
     def _full_model(self, project_id: str) -> model_service.VehicleModel:
         from autevra.domains.automotive import styling_curves as sc
 
-        values = self.project(project_id).values
+        project = self.project(project_id)
         parts = self._part_docs(project_id)
+        if project.domain != "automotive":  # other domains hold only their own parts
+            return model_service.add_parts(model_service.VehicleModel([], {}), parts, self.cache)
+        values = project.values
         doc, _, _ = self._styling_doc(project_id)
         model = model_service.build_model(values, self.cache, styling=sc.to_inputs(doc))
         return model_service.add_parts(model, parts, self.cache)

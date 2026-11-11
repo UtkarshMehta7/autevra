@@ -65,8 +65,6 @@ _PLANNED: tuple[tuple[str, str, str, list[str]], ...] = (
      "Two-wheelers, scooters and micromobility.", ["frame and fork geometry", "rider model"]),
     ("commercial", "Commercial transportation", "Trucks, buses and trailers.",
      ["multi-axle templates", "payload and axle-load checks"]),
-    ("aerospace", "Aerospace and aviation", "Airframes, wings and aircraft systems.",
-     ["parametric wing and fuselage", "aerodynamic and structural estimates"]),
     ("space", "Space systems and propulsion", "Spacecraft structures and propulsion.",
      ["mass and delta-v budgets", "propulsion sizing"]),
     ("marine", "Marine engineering", "Hulls and marine propulsion.",
@@ -91,13 +89,36 @@ def load_builtin() -> None:
         importlib.import_module(module)
 
 
+def _aerospace() -> DomainDef:
+    from autevra import __version__
+
+    return DomainDef(
+        id="aerospace", name="Aircraft",
+        description="Fixed-wing aircraft: a parametric light aircraft (fuselage, NACA wing and "
+        "tails, propeller, landing gear) with lifting-line aerodynamics, drag build-up, "
+        "stability and performance; Part Design, surfaces and structures for its parts.",
+        status="experimental", version=__version__,
+        component_library=["fuselage", "wing", "horizontal tail", "fin", "propeller",
+                           "landing gear"],
+        operations=["parametric aircraft", "build as a Part Design part", "Part Design",
+                    "structures (FEA, topology optimisation)", "drawings"],
+        simulations=["lifting-line theory (Glauert)", "component drag build-up (Raymer)",
+                     "static stability (neutral point)", "Breguet range and endurance"],
+        formats=["STEP AP214 export", "SVG drawings"],
+        dependencies=["cadquery 2.8 / OCCT 7.9"],
+        roadmap=["control surfaces and hinges", "engine nacelles and turbofans",
+                 "mass and balance build-up", "V-n diagram and structural loads"],
+        evidence="covered by tests/aero (closed-form lifting-line checks) and the workspace",
+    )  # fmt: skip
+
+
 def registry() -> list[DomainDef]:
     planned = [
         DomainDef(id=i, name=n, description=d, status="unavailable", roadmap=r,
                   evidence="not implemented: roadmap only")
         for i, n, d, r in _PLANNED
     ]  # fmt: skip
-    return [_automotive(), *planned]
+    return [_automotive(), _aerospace(), *planned]
 
 
 def get(domain_id: str) -> DomainDef | None:

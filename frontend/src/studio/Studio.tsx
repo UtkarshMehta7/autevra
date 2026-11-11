@@ -29,7 +29,7 @@ import { AircraftPanel } from "./AircraftPanel";
 import { StructuresWorkspace } from "./StructuresPanel";
 import { SurfacesPanel } from "./SurfacesPanel";
 import { SystemsPanel } from "./SystemsPanel";
-import { WORKSPACES, type WorkspaceId } from "./workspaces";
+import { MODULES, moduleOf, WORKSPACES, type WorkspaceId } from "./workspaces";
 import { clampDock, clampSide, DEFAULT_LAYOUT, type Layout, useLayout } from "./layout";
 import { Splitter } from "./Splitter";
 import { ReferencePanel } from "./Reference";
@@ -112,6 +112,12 @@ function StudioView({ projectId, workspace, navigate }: {
     setCollapsed(false);
     navigate(`/studio/${projectId}/${ws}`);
   }, [navigate, projectId]);
+  // stay inside the project's module: a tab of another module redirects to this one's first
+  useEffect(() => {
+    if (!project || project.id !== projectId) return;
+    const m = moduleOf(project.domain);
+    if (!m.workspaces.includes(workspace)) navigate(`/studio/${projectId}/${m.workspaces[0]}`, { replace: true });
+  }, [project, projectId, workspace, navigate]);
   const [specState, setSpecState] = useState<SpecState | null>(null);
   const [specDesign, setSpecDesign] = useState<SpecDesign | null>(null);
   const [requirements, setRequirements] = useState<RequirementRow[]>([]);
@@ -362,8 +368,9 @@ function StudioView({ projectId, workspace, navigate }: {
   };
 
   const newProject = async () => {
-    const name = `Vehicle ${projects.length + 1}`;
-    const created = await api.createProject(name);
+    const m = moduleOf(project?.domain);
+    const count = projects.filter((p) => moduleOf(p.domain).id === m.id).length;
+    const created = await api.createProject(`${m.noun} ${count + 1}`, m.id);
     setProjects(await api.listProjects());
     startup = null;
     navigate(`/studio/${created.id}/${workspace}`);
@@ -390,9 +397,23 @@ function StudioView({ projectId, workspace, navigate }: {
     );
   }
 
+  // Engineering module of this project: only its workspaces and its projects are shown.
+  const mod = moduleOf(project?.domain);
+  const tabs = mod.workspaces.map((id) => WORKSPACES.find((w) => w.id === id)!).filter(Boolean);
+  const siblings = projects.filter((p) => moduleOf(p.domain).id === mod.id);
+  const land = mod.id === "automotive";
+  const openModule = async (id: string) => {
+    const target = MODULES.find((m) => m.id === id);
+    if (!target || target.planned || target.id === mod.id) return;
+    const existing = projects.filter((p) => moduleOf(p.domain).id === id)
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+    const dest = existing ?? await api.createProject(`${target.noun} 1`, target.id);
+    if (!existing) { setProjects(await api.listProjects()); startup = null; }
+    navigate(`/studio/${dest.id}/${target.workspaces[0]}`);
+  };
   return (
     <div className={`app${layout.focus ? " focus" : ""}`} style={layout.focus ? undefined : {
-      gridTemplateColumns: `${layout.left}px 5px minmax(0, 1fr) 5px ${layout.right}px`,
+      gridTemplateColumns: `${layout.left}px 5px minmax(0, 1fr) 5px ${land ? layout.right : 0}px`,
       gridTemplateRows: `auto minmax(0, 1fr) 5px ${collapsed ? "auto" : `${layout.dock}px`}`,
     }}>
       <header>
@@ -402,7 +423,7 @@ function StudioView({ projectId, workspace, navigate }: {
             { label: "New project", action: newProject },
             { label: "Projects, models and runs…", action: () => navigate("/app") },
             { label: "", separator: true },
-            ...projects.slice(0, 12).map((p) => ({ label: `Open: ${p.name}`, checked: p.id === project?.id,
+            ...siblings.slice(0, 12).map((p) => ({ label: `Open: ${p.name}`, checked: p.id === project?.id,
               action: () => navigate(`/studio/${p.id}/${workspace}`) })),
             { label: "", separator: true },
             { label: "Export STEP (B-rep assembly)", disabled: !project, action: project ? downloadAction(api.stepUrl(project.id)) : undefined },
@@ -423,13 +444,20 @@ function StudioView({ projectId, workspace, navigate }: {
             { label: "Focus view", shortcut: "F", checked: layout.focus, action: () => setLayout({ focus: !layout.focus }) },
             { label: "X-ray body", checked: xray, action: () => setXray(!xray) },
           ] },
-          { label: "Workspace", items: WORKSPACES.map((w) => ({ label: w.label, checked: w.id === workspace, action: () => go(w.id) })) },
+          { label: "Workspace", items: tabs.map((w) => ({ label: w.label, checked: w.id === workspace, action: () => go(w.id) })) },
           { label: "Help", items: [{ label: "Keyboard shortcuts", action: () => setHelp(true) }] },
         ]} />
+        <nav className="modules" aria-label="Engineering modules">
+          {MODULES.map((m) => (
+            <button key={m.id} className={m.id === mod.id ? "on" : ""} disabled={m.planned}
+              title={m.planned ? `${m.description}: coming as its own module` : m.description}
+              onClick={() => openModule(m.id)}>{m.label}{m.planned ? " ·" : ""}</button>
+          ))}
+        </nav>
         <select value={project?.id ?? ""} onChange={(e) => navigate(`/studio/${e.target.value}/${workspace}`)}>
-          {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {siblings.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        <CommandBar turns={turns} busy={busy} llm={llm} onSend={send} onDecide={decide} />
+        {land && <CommandBar turns={turns} busy={busy} llm={llm} onSend={send} onDecide={decide} />}
         <button onClick={undo} disabled={!project?.can_undo || busy} title="Undo (⌘Z)">Undo</button>
         <button onClick={redo} disabled={!project?.can_redo || busy} title="Redo (⇧⌘Z)">Redo</button>
         <span className="layout-buttons" role="group" aria-label="Panels">
@@ -437,8 +465,8 @@ function StudioView({ projectId, workspace, navigate }: {
             disabled={layout.focus} title="Show or hide the component tree">Tree</button>
           <button className={!collapsed && !layout.focus ? "on" : ""} onClick={() => setCollapsed(!collapsed)}
             disabled={layout.focus} title="Show or hide the workspace tabs panel">Tabs</button>
-          <button className={layout.right > 0 && !layout.focus ? "on" : ""} onClick={() => toggleSide("right")}
-            disabled={layout.focus} title="Show or hide the parameters">Parameters</button>
+          <button className={layout.right > 0 && !layout.focus && land ? "on" : ""} onClick={() => toggleSide("right")}
+            disabled={layout.focus || !land} title="Show or hide the parameters">Parameters</button>
           <button className={reference ? "on" : ""} onClick={() => showReference(!reference)}
             title="Show a reference photo beside the 3D view (paste, drop or load)">Reference</button>
           <button className={layout.focus ? "on" : ""} onClick={() => setLayout({ focus: !layout.focus })}
@@ -481,17 +509,17 @@ function StudioView({ projectId, workspace, navigate }: {
       </main>
       <section className={`dock${collapsed ? " closed" : ""}`}>
         <nav className="tabs" aria-label="Studio workspaces">
-          {WORKSPACES.map((w) => (
+          {tabs.map((w) => (
             <button key={w.id} className={workspace === w.id ? "active" : ""} onClick={() => go(w.id)}
               title={w.description}>
               {w.label}{w.id === "requirements" ? ` (${requirements.length})` : ""}
             </button>
           ))}
           <span className="spacer" />
-          <label className="toggle" title="Rerun tests already run on this project after every change">
+          {land && <label className="toggle" title="Rerun tests already run on this project after every change">
             <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
             Live simulation
-          </label>
+          </label>}
           <button onClick={() => setCollapsed(!collapsed)}>{collapsed ? "Show" : "Hide"}</button>
           <button onClick={() => setLayout({ focus: true })} title="Give the 3D view the whole window (F)">Focus view</button>
         </nav>
@@ -527,8 +555,8 @@ function StudioView({ projectId, workspace, navigate }: {
         )}
         {!collapsed && workspace === "surfaces" && <SurfacesPanel />}
         {!collapsed && workspace === "structures" && <StructuresWorkspace projectId={project?.id} />}
-        {!collapsed && workspace === "aircraft" && (
-          <AircraftPanel projectId={project?.id} onModelChanged={() => project && refresh(project.id)} />
+        {!collapsed && workspace === "aircraft" && project && (
+          <AircraftPanel key={project.id} projectId={project.id} onModelChanged={() => refresh(project.id)} />
         )}
         {project && !collapsed && workspace === "part-design" && (
           <PartDesignPanel projectId={project.id} onModelChanged={() => refresh(project.id)} />
@@ -562,7 +590,7 @@ function StudioView({ projectId, workspace, navigate }: {
         )}
       </section>
       <aside className="right">
-        {project && (
+        {project && land && (
           <PropertyEditor parameters={parameters} values={project.values} derived={project.derived}
             error={error} onSet={setParameter} />
         )}

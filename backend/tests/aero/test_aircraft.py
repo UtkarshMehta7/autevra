@@ -48,13 +48,21 @@ def test_the_geometry_builds_as_a_part(variant: dict) -> None:
 
 
 @pytest.mark.cad
-def test_the_api_analyses_and_builds_the_aircraft(client: TestClient) -> None:
+def test_aircraft_live_in_their_own_projects(client: TestClient) -> None:
     assert client.get("/api/aero/spec").json()["defaults"]["wing_naca"] == "2412"
     r = client.post("/api/aero/analyse", json={"wing_span": 12.0})
     assert r.status_code == 200 and r.json()["geometry"]["wing_area"] > 15
     assert client.post("/api/aero/analyse", json={"wing_span": -1}).status_code == 422
-    project = client.post("/api/projects", json={"name": "Aircraft test"}).json()["id"]
-    first = client.post(f"/api/projects/{project}/aircraft", json={})
+    car = client.post("/api/projects", json={"name": "A car"}).json()["id"]
+    assert client.post(f"/api/projects/{car}/aircraft", json={}).status_code == 422  # no mixing
+    plane = client.post("/api/projects", json={"name": "Trainer", "domain": "aerospace"}).json()
+    pid = plane["id"]
+    assert plane["domain"] == "aerospace"
+    assert client.get(f"/api/projects/{pid}/aircraft/spec").json()["name"] == "Trainer"
+    first = client.post(f"/api/projects/{pid}/aircraft", json={"name": "Trainer"})
     assert first.status_code == 200, first.text
-    again = client.post(f"/api/projects/{project}/aircraft", json={"wing_span": 12.0})
-    assert again.json()["id"] == first.json()["id"]  # updated in place, by name
+    again = client.post(f"/api/projects/{pid}/aircraft", json={"name": "Trainer", "wing_span": 12})
+    assert again.json()["id"] == first.json()["id"]  # updated in place
+    assert client.get(f"/api/projects/{pid}/aircraft/spec").json()["wing_span"] == 12  # kept
+    model = client.get(f"/api/projects/{pid}/model").json()
+    assert [p["category"] for p in model["parts"]] == ["custom"]  # the aircraft, no vehicle
