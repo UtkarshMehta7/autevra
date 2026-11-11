@@ -61,3 +61,26 @@ def test_run_index_and_contact(client: TestClient, project: str) -> None:
     assert sent.status_code == 201 and sent.json()["stored"] and not sent.json()["delivered"]
     bad = client.post("/api/contact", json={"name": "A", "email": "nope", "message": "x"})
     assert bad.status_code == 422
+
+
+def test_land_vehicle_tools_refuse_other_modules(client: TestClient) -> None:
+    """Modules are kept apart: an aircraft project cannot take a wheelbase, a suspension test
+    or a vehicle specification."""
+    pid = client.post("/api/projects", json={"name": "plane", "domain": "aerospace"}).json()["id"]
+    calls = [
+        ("post", "instructions", {"text": "increase the wheelbase by 100 mm"}),
+        ("post", "commands",
+         {"command": {"changes": [{"parameter": "wheelbase", "operation": "set", "value": 2800}]}}),
+        ("post", "tests/run", {"target": "rear", "scenario_id": "step_25"}),
+        ("get", "rules", None), ("get", "system", None), ("get", "spec", None),
+        ("get", "package", None), ("get", "bom", None), ("get", "integration", None),
+    ]  # fmt: skip
+    for method, path, body in calls:
+        url = f"/api/projects/{pid}/{path}"
+        r = client.post(url, json=body) if method == "post" else client.get(url)
+        assert r.status_code == 422, path
+        assert "Land vehicles tool" in r.json()["detail"], path
+    # shared and aircraft tools still answer
+    assert client.get(f"/api/projects/{pid}/history").status_code == 200
+    assert client.get(f"/api/projects/{pid}/product").status_code == 200
+    assert client.get(f"/api/projects/{pid}/aircraft/spec").status_code == 200

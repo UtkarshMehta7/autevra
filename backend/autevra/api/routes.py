@@ -35,6 +35,21 @@ WorkspaceDep = Annotated[Workspace, Depends(workspace)]
 VisitorDep = Annotated[access.Visitor, Depends(access.visitor)]
 
 
+def land_vehicle_project(project_id: str, ws: WorkspaceDep) -> None:
+    """Land-vehicle tools (vehicle parameters, commands, rules, tests, specification,
+    styling, package) answer only for projects in the Land vehicles module: modules are kept
+    apart, so an aircraft project cannot be given a wheelbase or a suspension test."""
+    domain = ws.project(project_id).domain
+    if domain != "automotive":
+        raise HTTPException(
+            status_code=422,
+            detail=(f"this is a Land vehicles tool, and the project is in the '{domain}' module"),
+        )
+
+
+LAND = [Depends(land_vehicle_project)]
+
+
 @router.get("/parameters", response_model=schemas.Catalogue)
 def catalogue() -> schemas.Catalogue:
     return schemas.Catalogue(
@@ -72,13 +87,15 @@ def duplicate_project(
     return ws.duplicate_project(project_id, body.name if body else None, who.owner)
 
 
-@router.get("/projects/{project_id}/system", response_model=schemas.SystemGraph)
+@router.get("/projects/{project_id}/system", dependencies=LAND, response_model=schemas.SystemGraph)
 def system_graph(project_id: str, ws: WorkspaceDep) -> schemas.SystemGraph:
     """Components, interfaces and typed relationships of the assembly."""
     return ws.system_graph(project_id)
 
 
-@router.get("/projects/{project_id}/rules", response_model=list[schemas.RuleStatus])
+@router.get(
+    "/projects/{project_id}/rules", dependencies=LAND, response_model=list[schemas.RuleStatus]
+)
 def rule_status(project_id: str, ws: WorkspaceDep) -> list[schemas.RuleStatus]:
     return ws.rule_status(project_id)
 
@@ -125,13 +142,16 @@ def delete_project(project_id: str, ws: WorkspaceDep) -> None:
     ws.delete(project_id)
 
 
-@router.get("/projects/{project_id}/parameters", response_model=schemas.ProjectState)
+@router.get(
+    "/projects/{project_id}/parameters", dependencies=LAND, response_model=schemas.ProjectState
+)
 def project_parameters(project_id: str, ws: WorkspaceDep) -> schemas.ProjectState:
     return ws.project(project_id)
 
 
 @router.post(
     "/projects/{project_id}/commands",
+    dependencies=LAND,
     response_model=schemas.CommandResult,
     responses={422: {"model": schemas.Rejection}},
 )
@@ -147,7 +167,11 @@ def apply_command(
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/instructions", response_model=schemas.InstructionResult)
+@router.post(
+    "/projects/{project_id}/instructions",
+    dependencies=LAND,
+    response_model=schemas.InstructionResult,
+)
 def instruct(
     project_id: str, body: schemas.InstructionRequest, ws: WorkspaceDep
 ) -> schemas.InstructionResult:
@@ -159,6 +183,7 @@ def instruct(
 
 @router.post(
     "/projects/{project_id}/proposals/{proposal_id}/confirm",
+    dependencies=LAND,
     response_model=schemas.CommandResult,
     responses={422: {"model": schemas.Rejection}},
 )
@@ -172,7 +197,9 @@ def confirm_proposal(
         return JSONResponse(status_code=422, content=rejection.model_dump(mode="json"))
 
 
-@router.post("/projects/{project_id}/proposals/{proposal_id}/reject", status_code=204)
+@router.post(
+    "/projects/{project_id}/proposals/{proposal_id}/reject", dependencies=LAND, status_code=204
+)
 def reject_proposal(project_id: str, proposal_id: str, ws: WorkspaceDep) -> None:
     ws.reject(project_id, proposal_id)
 
@@ -202,12 +229,12 @@ def llm_status(ws: WorkspaceDep) -> schemas.LLMStatusOut:
     return ws.llm_status()
 
 
-@router.post("/projects/{project_id}/undo", response_model=schemas.CommandResult)
+@router.post("/projects/{project_id}/undo", dependencies=LAND, response_model=schemas.CommandResult)
 def undo(project_id: str, ws: WorkspaceDep) -> schemas.CommandResult:
     return ws.undo(project_id)
 
 
-@router.post("/projects/{project_id}/redo", response_model=schemas.CommandResult)
+@router.post("/projects/{project_id}/redo", dependencies=LAND, response_model=schemas.CommandResult)
 def redo(project_id: str, ws: WorkspaceDep) -> schemas.CommandResult:
     return ws.redo(project_id)
 
@@ -258,7 +285,9 @@ def test_catalogue() -> list[schemas.TestDefinitionOut]:
     ]
 
 
-@router.post("/projects/{project_id}/tests/run", response_model=schemas.TestRunResponse)
+@router.post(
+    "/projects/{project_id}/tests/run", dependencies=LAND, response_model=schemas.TestRunResponse
+)
 def run_tests(
     project_id: str, body: schemas.TestRunRequest, ws: WorkspaceDep
 ) -> schemas.TestRunResponse:
@@ -271,7 +300,9 @@ def run_tests(
     return ws.run_tests(project_id, body.test_id, targets, body.scenario_id)
 
 
-@router.post("/projects/{project_id}/tests/retest", response_model=schemas.TestRunResponse)
+@router.post(
+    "/projects/{project_id}/tests/retest", dependencies=LAND, response_model=schemas.TestRunResponse
+)
 def retest_stale(project_id: str, ws: WorkspaceDep) -> schemas.TestRunResponse:
     """Rerun every previously run test case whose result is out of date."""
     return ws.retest_stale(project_id)
@@ -382,7 +413,7 @@ async def import_reqif(
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/preview", response_model=ImpactPreview)
+@router.post("/projects/{project_id}/preview", dependencies=LAND, response_model=ImpactPreview)
 def preview_command(
     project_id: str, body: schemas.CommandRequest, ws: WorkspaceDep
 ) -> ImpactPreview:
@@ -392,12 +423,14 @@ def preview_command(
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.get("/projects/{project_id}/integration", response_model=schemas.IntegrationOut)
+@router.get(
+    "/projects/{project_id}/integration", dependencies=LAND, response_model=schemas.IntegrationOut
+)
 def integration_report(project_id: str, ws: WorkspaceDep) -> schemas.IntegrationOut:
     return ws.integration(project_id)
 
 
-@router.post("/projects/{project_id}/optimize", response_model=opt.StudyResult)
+@router.post("/projects/{project_id}/optimize", dependencies=LAND, response_model=opt.StudyResult)
 def optimize(project_id: str, body: opt.Study, ws: WorkspaceDep) -> opt.StudyResult:
     try:
         return ws.optimize(project_id, body)
@@ -405,7 +438,7 @@ def optimize(project_id: str, body: opt.Study, ws: WorkspaceDep) -> opt.StudyRes
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/loop", response_model=eloop.LoopResult)
+@router.post("/projects/{project_id}/loop", dependencies=LAND, response_model=eloop.LoopResult)
 def engineering_loop(project_id: str, body: eloop.Goal, ws: WorkspaceDep) -> eloop.LoopResult:
     try:
         return ws.engineering_loop(project_id, body)
@@ -431,6 +464,7 @@ def list_studies(project_id: str, ws: WorkspaceDep) -> list[opt.StudyResult]:
 
 @router.post(
     "/projects/{project_id}/studies/{study_id}/accept",
+    dependencies=LAND,
     response_model=schemas.CommandResult,
     responses={422: {"model": schemas.Rejection}},
 )
@@ -449,7 +483,9 @@ def accept_study(
 
 
 @router.post(
-    "/projects/{project_id}/studies/{study_id}/choose/{index}", response_model=opt.StudyResult
+    "/projects/{project_id}/studies/{study_id}/choose/{index}",
+    dependencies=LAND,
+    response_model=opt.StudyResult,
 )
 def choose_candidate(
     project_id: str, study_id: str, index: int, ws: WorkspaceDep
@@ -460,7 +496,7 @@ def choose_candidate(
         raise HTTPException(status_code=409, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/studies/{study_id}/reject", status_code=204)
+@router.post("/projects/{project_id}/studies/{study_id}/reject", dependencies=LAND, status_code=204)
 def reject_study(project_id: str, study_id: str, ws: WorkspaceDep) -> None:
     try:
         ws.decide_study(project_id, study_id, accept=False)
@@ -468,12 +504,14 @@ def reject_study(project_id: str, study_id: str, ws: WorkspaceDep) -> None:
         raise HTTPException(status_code=409, detail=str(exc)) from None
 
 
-@router.get("/projects/{project_id}/spec", response_model=schemas.SpecState)
+@router.get("/projects/{project_id}/spec", dependencies=LAND, response_model=schemas.SpecState)
 def get_spec(project_id: str, ws: WorkspaceDep) -> schemas.SpecState:
     return ws.spec(project_id)
 
 
-@router.post("/projects/{project_id}/spec/answers", response_model=schemas.SpecState)
+@router.post(
+    "/projects/{project_id}/spec/answers", dependencies=LAND, response_model=schemas.SpecState
+)
 def answer_spec(project_id: str, body: schemas.SpecAnswer, ws: WorkspaceDep) -> schemas.SpecState:
     try:
         return ws.spec_answer(project_id, body.question, body.value)
@@ -481,17 +519,21 @@ def answer_spec(project_id: str, body: schemas.SpecAnswer, ws: WorkspaceDep) -> 
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/spec/text", response_model=schemas.SpecState)
+@router.post(
+    "/projects/{project_id}/spec/text", dependencies=LAND, response_model=schemas.SpecState
+)
 def spec_from_text(project_id: str, body: schemas.SpecText, ws: WorkspaceDep) -> schemas.SpecState:
     return ws.spec_text(project_id, body.text)[0]
 
 
-@router.delete("/projects/{project_id}/spec", response_model=schemas.SpecState)
+@router.delete("/projects/{project_id}/spec", dependencies=LAND, response_model=schemas.SpecState)
 def reset_spec(project_id: str, ws: WorkspaceDep) -> schemas.SpecState:
     return ws.spec_reset(project_id)
 
 
-@router.post("/projects/{project_id}/spec/design", response_model=schemas.SpecDesign)
+@router.post(
+    "/projects/{project_id}/spec/design", dependencies=LAND, response_model=schemas.SpecDesign
+)
 def spec_design(project_id: str, ws: WorkspaceDep) -> schemas.SpecDesign:
     try:
         return ws.spec_design(project_id)
@@ -499,7 +541,9 @@ def spec_design(project_id: str, ws: WorkspaceDep) -> schemas.SpecDesign:
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/spec/apply", response_model=schemas.SpecApplied)
+@router.post(
+    "/projects/{project_id}/spec/apply", dependencies=LAND, response_model=schemas.SpecApplied
+)
 def spec_apply(project_id: str, ws: WorkspaceDep) -> schemas.SpecApplied:
     try:
         return ws.spec_apply(project_id)
@@ -509,14 +553,20 @@ def spec_apply(project_id: str, ws: WorkspaceDep) -> schemas.SpecApplied:
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.get("/projects/{project_id}/styling")
+@router.get(
+    "/projects/{project_id}/styling",
+    dependencies=LAND,
+)
 def get_styling(project_id: str, ws: WorkspaceDep) -> dict:
     """The styled body's guide curves (the project's own or the style's) and reference
     geometry for an editor."""
     return ws.styling(project_id)
 
 
-@router.put("/projects/{project_id}/styling")
+@router.put(
+    "/projects/{project_id}/styling",
+    dependencies=LAND,
+)
 def put_styling(project_id: str, body: dict, ws: WorkspaceDep) -> dict:
     """Set the project's styling curves (top, bottom, plan; omit a curve to use the
     style's). An empty object resets to the style."""
@@ -526,7 +576,10 @@ def put_styling(project_id: str, body: dict, ws: WorkspaceDep) -> dict:
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/styling/undo")
+@router.post(
+    "/projects/{project_id}/styling/undo",
+    dependencies=LAND,
+)
 def undo_styling(project_id: str, ws: WorkspaceDep) -> dict:
     try:
         return ws.step_styling(project_id, back=True)
@@ -534,7 +587,10 @@ def undo_styling(project_id: str, ws: WorkspaceDep) -> dict:
         raise HTTPException(status_code=409, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/styling/redo")
+@router.post(
+    "/projects/{project_id}/styling/redo",
+    dependencies=LAND,
+)
 def redo_styling(project_id: str, ws: WorkspaceDep) -> dict:
     try:
         return ws.step_styling(project_id, back=False)
@@ -542,13 +598,20 @@ def redo_styling(project_id: str, ws: WorkspaceDep) -> dict:
         raise HTTPException(status_code=409, detail=str(exc)) from None
 
 
-@router.get("/projects/{project_id}/package", response_model=list[schemas.PackageValueOut])
+@router.get(
+    "/projects/{project_id}/package",
+    dependencies=LAND,
+    response_model=list[schemas.PackageValueOut],
+)
 def package_values(project_id: str, ws: WorkspaceDep) -> list[schemas.PackageValueOut]:
     """Package dimensions: overall size, overhangs, tracks, clearance angles, H-point."""
     return [schemas.PackageValueOut(**vars(v)) for v in ws.package(project_id)]
 
 
-@router.get("/projects/{project_id}/package.svg")
+@router.get(
+    "/projects/{project_id}/package.svg",
+    dependencies=LAND,
+)
 def package_drawing(project_id: str, ws: WorkspaceDep) -> Response:
     """Dimensioned side, top and front views (mm) as SVG."""
     disposition = f'inline; filename="{project_id}-package.svg"'
@@ -556,7 +619,9 @@ def package_drawing(project_id: str, ws: WorkspaceDep) -> Response:
                     headers={"Content-Disposition": disposition})  # fmt: skip
 
 
-@router.get("/projects/{project_id}/bom", response_model=list[schemas.BomLineOut])
+@router.get(
+    "/projects/{project_id}/bom", dependencies=LAND, response_model=list[schemas.BomLineOut]
+)
 def bill_of_materials(project_id: str, ws: WorkspaceDep) -> list[schemas.BomLineOut]:
     """Parts grouped into lines with quantities, sizes and volumes (no mass: several
     parts are solid envelopes)."""
@@ -564,7 +629,10 @@ def bill_of_materials(project_id: str, ws: WorkspaceDep) -> list[schemas.BomLine
             for line in ws.bom(project_id)]  # fmt: skip
 
 
-@router.get("/projects/{project_id}/bom.csv")
+@router.get(
+    "/projects/{project_id}/bom.csv",
+    dependencies=LAND,
+)
 def bill_of_materials_csv(project_id: str, ws: WorkspaceDep) -> Response:
     from autevra.api import bom
 
@@ -713,8 +781,11 @@ def part_drawing(project_id: str, part_id: str, ws: WorkspaceDep) -> Response:
     if report.shape is None:
         raise HTTPException(status_code=422, detail="the part has no solid to draw")
     svg = drawing.drawing_svg(report.shape, doc.name)
-    return Response(svg, media_type="image/svg+xml", headers={
-        "Content-Disposition": f'attachment; filename="{part_id}-drawing.svg"'})
+    return Response(
+        svg,
+        media_type="image/svg+xml",
+        headers={"Content-Disposition": f'attachment; filename="{part_id}-drawing.svg"'},
+    )
 
 
 @router.get("/projects/{project_id}/parts/{part_id}/design-table.csv")
