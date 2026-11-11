@@ -669,3 +669,39 @@ export interface ContinuityReport {
   tolerances: { g0: number; g1_deg: number; g2_rel: number; g3_rel: number };
   combs: { points: [number, number, number][]; tips: [number, number, number][]; curvature: number[] }[];
 }
+
+/** Linear static FEA run (backend api/structures.py, fea/). */
+export interface FeaRequest {
+  demo?: string;
+  element: "tet4" | "tet10" | "hex8";
+  size: number;
+  material: { name: string; youngs?: number; poisson?: number; density?: number; yield_strength?: number };
+  supports: string[];
+  loads: { region: string; force: [number, number, number]; pressure: number }[];
+}
+
+export interface FeaResult {
+  mesh: { kind: "tet4" | "tet10" | "hex8"; nodes: [number, number, number][]; boundary: [number, number, number][];
+    stats: { nodes: number; elements: number; size: number; volume_ratio: number; quality_min: number;
+      quality_mean: number; slivers: number; method: string };
+    cad_volume: number };
+  fields: { displacement: [number, number, number][]; magnitude: number[]; von_mises: number[];
+    principal_1: number[]; strain_eq: number[] };
+  supports: number[];
+  loaded: Record<string, number[]>;
+  material: { name: string; youngs: number; poisson: number; density: number; yield_strength: number };
+  stats: { dofs: number; free_dofs: number; fixed_dofs: number; k_shape: [number, number]; k_nnz: number;
+    k_density: number; k_memory_mb: number; element_matrix: [number, number]; cg_iterations: number;
+    cg_converged: boolean; cg_residuals: number[]; cg_final_residual: number; direct_difference: number | null;
+    time_assemble: number; time_solve: number; applied_force: [number, number, number];
+    reaction_force: [number, number, number]; equilibrium_error: number; compliance: number;
+    max_displacement: number; max_von_mises: number; max_principal: number; min_principal: number;
+    factor_of_safety: number | null; mass_kg: number; method: string };
+  assumptions: string[];
+}
+
+export interface FeaCatalogue {
+  demos: Record<string, string>;
+  materials: Record<string, { name: string; youngs: number; poisson: number; density: number; yield_strength: number }>;
+  regions: string[];
+}

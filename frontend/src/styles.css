@@ -406,6 +406,14 @@ textarea.json.bad { border-color: var(--bad); }
 .chart.param .domain { fill: rgba(255,255,255,0.02); stroke: var(--line); }
 .chart.param .support { fill: rgba(255, 184, 64, 0.28); stroke: #ffb840; stroke-width: 0.8; }
 .chart.basis .tick, .chart.param .tick, .chart.basis .chart-title { fill: var(--muted); font-size: 8px; }
+/* Structures (FEA) */
+.structures .legend { position: absolute; left: 8px; bottom: 8px; width: 220px; font-size: 11px; background: rgba(16,20,26,0.82);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; display: grid; gap: 4px; }
+.structures .legend .bar { height: 10px; border-radius: 3px; }
+.structures .legend .ends { display: flex; justify-content: space-between; color: var(--muted); }
+.structures .legend input[type="range"] { width: 100%; }
+.lab-busy { position: absolute; inset: auto 0 50% 0; text-align: center; color: #fff; font-size: 13px; text-shadow: 0 1px 3px #000; }
+.structures .math.results { border-color: #2d4a6e; }
 .math.continuity .level { font-weight: 700; font-size: 13px; }
 .level-G2, .level-G3 { color: var(--good); }
 .level-G1 { color: #ffc94a; }

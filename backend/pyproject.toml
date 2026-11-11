@@ -13,6 +13,7 @@ dependencies = [
     "sqlalchemy>=2.0.30",
     "alembic>=1.13",
     "numpy>=2.0",
+    "scipy>=1.11",  # sparse matrices and solvers (FEA), Delaunay (meshing)
     "httpx2>=2.13",
     "psycopg[binary]>=3.2",
 ]

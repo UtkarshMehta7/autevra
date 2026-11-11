@@ -1,5 +1,5 @@
 import type {
-  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport } from "./types";
+  BomLine, Command, CommandResult, Comparison, ComponentTestStatus, DerivedValue, DesignTemplate, Diagnosis, DomainDef, FeatureTemplate, HistoryEntry, ImpactPreview, InstructionResult, IntegrationReport, LLMStatus, LoopResult, ModelPayload, PackageValue, ParameterDef, PartDoc, PartOut, ProjectState, ProjectSummary, Requirement, RequirementRow, RuleStatus, RunIndexItem, RunRecord, RunSummary, Sketch, SketchSolve, SpecDesign, SpecState, Study, StudyResult, Styling, SystemGraph, TestDefinition, TestRunResponse, Variable, Violation, NurbsSurface, NurbsEvaluation, ContinuityReport, FeaRequest, FeaResult, FeaCatalogue } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -240,6 +240,9 @@ export const api = {
     post<{ surface: Required<NurbsSurface>; max_shape_change: number }>("/surfaces/insert-knot", { surface, direction, t }),
   joinSurface: (surface: NurbsSurface, target: "G0" | "G1" | "G2", bend: number) =>
     post<{ surface: Required<NurbsSurface> }>("/surfaces/join", { surface, target, bend }),
+  feaCatalogue: () => request<FeaCatalogue>("/structures/catalogue"),
+  runFea: (body: FeaRequest, part?: { project: string; part: string }) =>
+    post<FeaResult>(part ? `/projects/${part.project}/parts/${part.part}/structures` : "/structures/run", body),
   surfaceContinuity: (a: NurbsSurface, b: NurbsSurface, combScale: number) =>
     post<ContinuityReport>("/surfaces/continuity", { a, b, comb_scale: combScale }),
   parts: (id: string) => request<PartOut[]>(`/projects/${id}/parts`),
