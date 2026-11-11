@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from autevra import modules
 from autevra.api import access
 from autevra.api.aerospace import get_spec
+from autevra.api.installs import engine_values
 from autevra.api.mechanical import get_spec as engine_spec
 from autevra.api.routes import WorkspaceDep
 from autevra.api.service import Workspace
@@ -73,6 +74,8 @@ def _module(ws: Workspace, project_id: str) -> tuple[modules.ModuleDef, dict[str
         values = engine_spec(project_id, ws).model_dump()
     else:
         values = dict(ws.project(project_id).values)
+    if module.id in ("land", "aircraft"):
+        values.update(engine_values(ws, project_id))  # an engine installed from the inventory
     return module, values
 
 

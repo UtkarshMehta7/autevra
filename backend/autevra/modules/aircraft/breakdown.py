@@ -266,6 +266,10 @@ def breakdown(values: Values) -> Node:
     ht, vt = g["htail"], g["vtail"]
     gear_mlg, gear_nlg = g["main_gear"], g["nose_gear"]
     eng_inst, eng_dry = g["engine_installed"], g["engine_dry"]
+    engine_basis = "the dry engine (0.88 kg/kW)"
+    if isinstance(values.get("installed_engine_mass_kg"), int | float):  # from the inventory
+        eng_dry = float(values["installed_engine_mass_kg"])
+        engine_basis = f"inventory item {values.get('installed_engine_label', '')}"
     rest = max(eng_inst - eng_dry, 0.0)
 
     structure = [
@@ -474,7 +478,7 @@ def breakdown(values: Values) -> Node:
         "Powerplant",
         "ATA 71-80",
         [
-            _part("engine", eng_dry, 1.0, "the dry engine (0.88 kg/kW)", (0.75, 0, 0)),
+            _part("engine", eng_dry, 1.0, engine_basis, (0.75, 0, 0)),
             _part(
                 "propeller", rest, 0.35, "the installation (Raymer installed engine)", (0.05, 0, 0)
             ),

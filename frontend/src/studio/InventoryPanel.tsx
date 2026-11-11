@@ -6,7 +6,7 @@ import type { InventoryItem, ItemPort, ItemSummary } from "../api/types";
  * published items, read their dimensions, ports and performance, size a bearing by its
  * ISO 281 life, and add an item to the current project as a part (backend inventory/). */
 
-const CATEGORIES = ["", "Fasteners", "Bearings", "Profiles", "Published"];
+const CATEGORIES = ["", "Engines", "Fasteners", "Bearings", "Profiles", "Published"];
 
 function fmt(v: number | string): string {
   if (typeof v !== "number") return v;
@@ -31,6 +31,26 @@ export function InventoryPanel({ projectId, onModelChanged }: { projectId: strin
   const [message, setMessage] = useState<string | null>(null);
   const [installed, setInstalled] = useState<{ part: string; name: string; ports: ItemPort[] }[]>([]);
   const [mate, setMate] = useState({ part: "", port: "", own_port: "" });
+  const [engine, setEngine] = useState<Awaited<ReturnType<typeof api.installedEngine>>>(null);
+  const [engineChecks, setEngineChecks] = useState<{ id: string; label: string; status: string; message: string }[]>([]);
+  const loadEngine = () => api.installedEngine(projectId).then(setEngine).catch(() => setEngine(null));
+  useEffect(() => { loadEngine(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const installEngine = async () => {
+    if (!item) return;
+    try {
+      const out = await api.installEngine(projectId, item.id);
+      setEngineChecks(out.checks);
+      setMessage(`Installed “${out.name}” v${out.version} as the powertrain; the design's power follows the engine.`);
+      loadEngine(); onModelChanged();
+    } catch (e) { setMessage(e instanceof Error ? e.message : String(e)); }
+  };
+  const upgradeEngine = async () => {
+    try {
+      const out = await api.upgradeEngine(projectId);
+      setMessage(`Upgraded the engine to v${out.version}.`);
+      loadEngine(); onModelChanged();
+    } catch (e) { setMessage(e instanceof Error ? e.message : String(e)); }
+  };
   const loadInstalled = () => api.installedItems(projectId).then(setInstalled).catch(() => setInstalled([]));
   useEffect(() => { loadInstalled(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -84,6 +104,16 @@ export function InventoryPanel({ projectId, onModelChanged }: { projectId: strin
         <p className="muted small">{rows.length} items · standard library plus parts published from projects</p>
       </div>
       <div className="bench-detail">
+        {engine && (
+          <div className={`check ${engine.upgrade_available ? "warn" : "pass"} inv-engine`}>
+            <b>Powertrain:</b> {engine.name} v{engine.version}
+            {engine.upgrade_available ? (
+              <> · v{engine.latest} released: power {engine.impact.peak_power_kw >= 0 ? "+" : ""}{engine.impact.peak_power_kw} kW,
+                torque {engine.impact.peak_torque_nm >= 0 ? "+" : ""}{engine.impact.peak_torque_nm} N·m,
+                mass {engine.impact.mass_kg >= 0 ? "+" : ""}{engine.impact.mass_kg} kg <button onClick={upgradeEngine}>Upgrade</button></>
+            ) : <span className="muted"> · up to date</span>}
+          </div>
+        )}
         {!item && <p className="muted">Pick an item to see its dimensions, ports and performance, and add it to this project.</p>}
         {item && (
           <div className="inv-item">
@@ -142,6 +172,13 @@ export function InventoryPanel({ projectId, onModelChanged }: { projectId: strin
                   )}
                 </div>
                 <button className="primary" onClick={install}>{mate.part ? "Snap into place" : "Add to project"}</button>
+                {item.category === "Engines" && (
+                  <>
+                    <h4>Install as the powertrain</h4>
+                    <button className="primary" onClick={installEngine}>Install engine</button>
+                    {engineChecks.map((c) => <div key={c.id} className={`check ${c.status}`}><b>{c.label}</b>: {c.message}</div>)}
+                  </>
+                )}
                 <h4>Where used</h4>
                 {usage.length === 0 ? <p className="muted small">Not installed anywhere yet.</p> : (
                   <ul className="small">{usage.map((u, i) => <li key={i}>project {u.project.slice(0, 8)} · part {u.part.slice(0, 8)} · v{u.version}</li>)}</ul>

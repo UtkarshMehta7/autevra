@@ -266,6 +266,11 @@ export const api = {
   installedItems: (id: string) =>
     request<{ part: string; name: string; item: string; version: string; ports: ItemPort[] }[]>(`/projects/${id}/inventory/installed`),
   publishPart: (id: string, partId: string) => post<InventoryItem>(`/projects/${id}/parts/${partId}/publish`, {}),
+  installEngine: (id: string, item: string) =>
+    post<{ item: string; version: string; name: string; checks: { id: string; label: string; status: string; message: string }[] }>(`/projects/${id}/install-engine`, { item }),
+  installedEngine: (id: string) =>
+    request<{ item: string; name: string; version: string; latest: string; upgrade_available: boolean; impact: Record<string, number> } | null>(`/projects/${id}/installed-engine`),
+  upgradeEngine: (id: string) => post<{ version: string }>(`/projects/${id}/installed-engine/upgrade`, {}),
   systemChain: (id: string, fn: string) => request<ChainStep[]>(`/projects/${id}/systems/chain/${encodeURIComponent(fn)}`),
   allocate: (id: string, requirement: string, fn: string) =>
     request<Record<string, string>>(`/projects/${id}/systems/allocations`, { method: "PUT", body: JSON.stringify({ requirement, function: fn }) }),

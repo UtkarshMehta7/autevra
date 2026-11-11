@@ -213,7 +213,7 @@ OPEN_TOP = {"Roadster"}
 
 
 def breakdown(values: Values) -> Node:
-    p = {k: float(v) for k, v in values.items()}
+    p = {k: float(v) for k, v in values.items() if isinstance(v, int | float)}
     mm = 0.001
     wb, fo, ro = p["wheelbase"] * mm, p["front_overhang"] * mm, p["rear_overhang"] * mm
     length, width, height = fo + wb + ro, p["body_width"] * mm, p["overall_height"] * mm
@@ -675,6 +675,11 @@ def breakdown(values: Values) -> Node:
         )  # fmt: skip
         for i, (c, m) in enumerate(ENGINE_MASS.items())
     ]
+    if "installed_engine_mass_kg" in p:  # an engine from the inventory replaces the table
+        label = str(values.get("installed_engine_label", "inventory engine"))
+        engine_nodes = [_n("engine", p["installed_engine_mass_kg"], f"inventory item {label}",
+                           (x_engine, 0, gc + 0.45), name=f"Engine: {label}",
+                           applicability=ice)]  # fmt: skip
     motor_kw = p["peak_power"]
     battery = auto.battery_mass(p)
     driven_front, driven_rear = front_share > 0.0, front_share < 1.0
@@ -926,7 +931,7 @@ def breakdown(values: Values) -> Node:
 
 
 def checks(values: Values, root: RolledNode) -> list[Check]:
-    p = {k: float(v) for k, v in values.items()}
+    p = {k: float(v) for k, v in values.items() if isinstance(v, int | float)}
     mass, cg = root.rollup.mass, root.rollup.cg
     target = p["vehicle_mass"]
     err = (mass - target) / target
