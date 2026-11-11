@@ -251,8 +251,13 @@ def add_route(project_id: str, body: dict, ws: WorkspaceDep) -> schemas.PartOut:
 
 
 @router.get("/projects/{project_id}/parts/{part_id}/draft", response_model=tooling.DraftReport)
-def part_draft(project_id: str, part_id: str, ws: WorkspaceDep, min_draft: float = Query(
-        1.0, ge=0.0, le=45.0), pull: str = Query("z", pattern="^[+-]?[xyz]$")) -> tooling.DraftReport:  # fmt: skip
+def part_draft(
+    project_id: str,
+    part_id: str,
+    ws: WorkspaceDep,
+    min_draft: float = Query(1.0, ge=0.0, le=45.0),
+    pull: str = Query("z", pattern="^[+-]?[xyz]$"),
+) -> tooling.DraftReport:
     """Draft analysis of a part against a pull direction (tooling check)."""
     doc = dict(ws._part_docs(project_id)).get(part_id)
     if doc is None:

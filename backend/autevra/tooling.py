@@ -62,7 +62,8 @@ def draft(
             status = "insufficient"
         faces.append(DraftFace(index=i, area_mm2=round(face.Area(), 2),
                                min_draft_deg=round(worst, 3),
-                               side="cavity" if mean_dot >= 0 else "core", status=status))  # fmt: skip
+                               side="cavity" if mean_dot >= 0 else "core",
+                               status=status))  # fmt: skip
     totals = {k: round(sum(f.area_mm2 for f in faces if f.status == k), 1)
               for k in ("perpendicular", "drafted", "insufficient")}  # fmt: skip
     return DraftReport(pull=tuple(d.tolist()), min_draft_deg=min_draft_deg, faces=faces,  # type: ignore[arg-type]
