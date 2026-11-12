@@ -7,7 +7,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from autevra import dmu, routing, tooling
+from autevra import dmu, mechanisms, routing, tooling
 from autevra.api import access, schemas
 from autevra.api.routes import WorkspaceDep
 from autevra.api.service import Workspace
@@ -268,3 +268,109 @@ def part_draft(
     sign = -1.0 if pull.startswith("-") else 1.0
     axis = {"x": (sign, 0.0, 0.0), "y": (0.0, sign, 0.0), "z": (0.0, 0.0, sign)}[pull[-1]]
     return tooling.draft(built.shape, axis, min_draft)
+
+
+@router.get("/projects/{project_id}/parts/{part_id}/parting",
+            response_model=tooling.PartingReport)  # fmt: skip
+def part_parting(
+    project_id: str,
+    part_id: str,
+    ws: WorkspaceDep,
+    pull: str = Query("z", pattern="^[+-]?[xyz]$"),
+    pressure: float = Query(40.0, ge=1.0, le=300.0),
+) -> tooling.PartingReport:
+    """Parting line, undercuts and clamp force of a part in a straight-pull tool."""
+    doc = dict(ws._part_docs(project_id)).get(part_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"no part '{part_id}'")
+    built = build_part(doc)
+    if built.shape is None:
+        raise HTTPException(status_code=422, detail="the part does not build")
+    sign = -1.0 if pull.startswith("-") else 1.0
+    axis = {"x": (sign, 0.0, 0.0), "y": (0.0, sign, 0.0), "z": (0.0, 0.0, sign)}[pull[-1]]
+    return tooling.parting(built.shape, axis, pressure)
+
+
+# --- mechanisms ----------------------------------------------------------------------
+
+
+@router.post("/mechanisms/fourbar")
+def mechanism_fourbar(body: mechanisms.FourBar) -> dict:
+    return mechanisms.fourbar(body)
+
+
+@router.post("/mechanisms/slider-crank")
+def mechanism_slider_crank(body: mechanisms.SliderCrank) -> dict:
+    try:
+        return mechanisms.slider_crank(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+class SweepIn(BaseModel):
+    joint: mechanisms.Joint
+    required: float = Field(5.0, ge=0.0, le=1000.0)
+    volume: bool = False
+
+
+def _placed(ws: Workspace, project_id: str) -> list[dmu.Placed]:
+    placed = []
+    for pid, doc in ws._part_docs(project_id):
+        built = build_part(doc)
+        if built.shape is not None:
+            placed.append(dmu.Placed(id=pid, name=doc.name, shape=built.shape,
+                                     matrix=placement_matrix(doc.at)))  # fmt: skip
+    return placed
+
+
+def _moving(ws: Workspace, project_id: str, part_id: str) -> tuple[dmu.Placed, list[dmu.Placed]]:
+    placed = _placed(ws, project_id)
+    moving = next((p for p in placed if p.id == part_id), None)
+    if moving is None:
+        raise HTTPException(status_code=404, detail=f"no built part '{part_id}'")
+    return moving, [p for p in placed if p.id != part_id]
+
+
+@router.post("/projects/{project_id}/parts/{part_id}/sweep",
+             response_model=mechanisms.SweepReport)  # fmt: skip
+def part_sweep(project_id: str, part_id: str, body: SweepIn,
+               ws: WorkspaceDep) -> mechanisms.SweepReport:  # fmt: skip
+    """Move a part through a joint's range and report its closest approach to every other
+    part of the project (sampled positions)."""
+    moving, others = _moving(ws, project_id, part_id)
+    if len(others) > 40:
+        raise HTTPException(status_code=422, detail="the swept check is limited to 40 other "
+                            "parts (run it on a sub-assembly)")  # fmt: skip
+    try:
+        return mechanisms.sweep(moving, others, body.joint, body.required, body.volume)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.post("/projects/{project_id}/parts/{part_id}/envelope", response_model=schemas.PartOut)
+def part_envelope(project_id: str, part_id: str, joint: mechanisms.Joint,
+                  ws: WorkspaceDep) -> schemas.PartOut:  # fmt: skip
+    """Add the swept envelope of a part (union of its sampled poses) to the project as a
+    part, kept in the import store so it regenerates exactly."""
+    import tempfile
+    from pathlib import Path
+
+    import cadquery as cq
+
+    moving, _ = _moving(ws, project_id, part_id)
+    try:
+        solid = mechanisms.envelope(moving, joint)
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "envelope.step"
+            cq.exporters.export(solid, str(target))
+            sha, _n = imports.store(target.read_bytes())
+        unit = "deg" if joint.kind == "revolute" else "mm"
+        doc = PartDoc.model_validate({
+            "name": f"Envelope of {moving.name}"[:80], "color": [0.95, 0.55, 0.2],
+            "finish": "glass",
+            "features": [{"id": "imported", "type": "imported", "file": sha,
+                          "name": f"Swept {joint.lo:g} to {joint.hi:g} {unit}, "
+                                  f"{joint.steps} poses"}]})  # fmt: skip
+        return ws.create_part(project_id, doc)
+    except (ValueError, CommandError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
