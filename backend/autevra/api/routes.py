@@ -264,6 +264,15 @@ def export_step(
     return FileResponse(path, media_type="application/step", filename=f"{safe}.step")
 
 
+@router.get("/projects/{project_id}/export.glb")
+def export_glb(project_id: str, ws: WorkspaceDep) -> FileResponse:
+    """The project's geometry as a glTF 2.0 binary mesh (metres, Y-up) for viewers and AR."""
+    path = ws.export_glb(project_id)
+    name = ws.project(project_id).name
+    safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in name).strip("-") or "model"
+    return FileResponse(path, media_type="model/gltf-binary", filename=f"{safe}.glb")
+
+
 @router.get("/tests", response_model=list[schemas.TestDefinitionOut])
 def test_catalogue() -> list[schemas.TestDefinitionOut]:
     return [

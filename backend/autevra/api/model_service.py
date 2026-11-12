@@ -146,3 +146,12 @@ def export_step(model: VehicleModel, path: Path, schema: str = "AP214") -> Path:
         path,
         schema=schema,
     )
+
+
+def export_glb(model: VehicleModel, path: Path, name: str = "model") -> Path:
+    from autevra.cad import gltf
+
+    parts = [kernel.Part(p.id, model.shapes[p.geometry], p.matrix, p.color) for p in model.parts]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(gltf.glb(parts, name=name))
+    return path

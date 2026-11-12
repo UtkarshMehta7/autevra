@@ -201,3 +201,13 @@ def test_warm_up_fills_the_geometry_cache(tmp_path: Path) -> None:
 def test_model_payload_is_compressed(client: TestClient, project: str) -> None:
     reply = client.get(f"/api/projects/{project}/model", headers={"Accept-Encoding": "gzip"})
     assert reply.status_code == 200 and reply.headers["content-encoding"] == "gzip"
+
+
+@pytest.mark.cad
+def test_export_glb(client: TestClient, project: str) -> None:
+    from autevra.cad import gltf
+
+    res = client.get(f"/api/projects/{project}/export.glb")
+    assert res.status_code == 200 and res.headers["content-type"] == "model/gltf-binary"
+    doc, blob = gltf.read(res.content)
+    assert len(doc["nodes"]) > 5 and len(blob) == doc["buffers"][0]["byteLength"]

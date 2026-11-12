@@ -1351,6 +1351,14 @@ class Workspace:
                 schema,
             )
 
+    def export_glb(self, project_id: str) -> Path:
+        with self._lock:
+            return model_service.export_glb(
+                self._full_model(project_id),
+                self.data_dir / "exports" / f"{project_id}.glb",
+                self.project(project_id).name,
+            )
+
     def package(self, project_id: str) -> list:
         from autevra.domains.automotive import package
 
