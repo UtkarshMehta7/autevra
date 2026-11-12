@@ -754,6 +754,8 @@ export interface AircraftSpec {
   fin_height: number; fin_root_chord: number; fin_tip_chord: number; fin_sweep: number; fin_x: number;
   power_kw: number; prop_diameter: number; prop_efficiency: number; bsfc: number; mtow: number; fuel_mass: number;
   x_cg: number; fixed_gear: boolean; tricycle: boolean; cruise_speed: number; cruise_altitude: number;
+  propulsion: "piston" | "turbofan"; engines: number; thrust_kn: number; bypass_ratio: number; tsfc: number;
+  nacelle_diameter: number; nacelle_length: number; engine_span_fraction: number; korn_factor: number;
 }
 
 export interface AircraftAnalysis {
@@ -766,7 +768,11 @@ export interface AircraftAnalysis {
     components: { name: string; re: number; cf: number; ff: number; q: number; s_wet: number; cd0: number }[] };
   stability: { x_ac_wing: number; x_ac_tail: number; x_np: number; x_cg: number; static_margin: number; v_h: number; v_v: number; eta: number };
   performance: { wing_loading: number; power_loading: number; drag: number; power_required: number; power_available: number;
-    v_stall: number; cl_max: number; range_km: number; endurance_h: number };
+    v_stall: number; cl_max: number; range_km: number; endurance_h: number; propulsion: "piston" | "turbofan";
+    thrust_required_kn?: number; thrust_available_kn?: number; thrust_to_weight?: number; cd_wave?: number; m_dd?: number; m_crit?: number };
+  climb: { roc_sea_level: number; v_best_climb: number; climb_gradient_sea_level: number; roc_cruise_altitude: number;
+    service_ceiling: number; absolute_ceiling: number; curve: { altitude: number; v: number; roc: number }[] };
+  sizing: { htail_area_for_vh_0_7: number | null; fin_area_for_vv_0_04: number | null; cg_aft_limit: number; cg_forward_limit: number };
   checks: { name: string; value: number; range: [number, number]; unit: string; status: "pass" | "warn" | "fail"; why: string }[];
   assumptions: string[];
 }

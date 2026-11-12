@@ -168,6 +168,7 @@ export const api = {
   model: (id: string, known: Iterable<string>) =>
     request<ModelPayload>(`/projects/${id}/model?known=${encodeURIComponent([...known].join(","))}`),
   stepUrl: (id: string) => `${API}/projects/${id}/export.step`,
+  glbUrl: (id: string) => `${API}/projects/${id}/export.glb`,
   tests: () => request<TestDefinition[]>("/tests"),
   runTests: (id: string, body: { test_id: string; target: string; scenario_id?: string | null }) =>
     post<TestRunResponse>(`/projects/${id}/tests/run`, body),
@@ -242,6 +243,7 @@ export const api = {
     post<{ surface: Required<NurbsSurface> }>("/surfaces/join", { surface, target, bend }),
   aircraftSpec: () => request<{ defaults: AircraftSpec }>("/aero/spec"),
   analyseAircraft: (spec: AircraftSpec) => post<AircraftAnalysis>("/aero/analyse", spec),
+  aircraftPresets: () => request<Record<string, AircraftSpec>>("/aero/presets"),
   getAircraftSpec: (id: string) => request<AircraftSpec>(`/projects/${id}/aircraft/spec`),
   analyseEngine: (spec: EngineSpec) => post<EngineAnalysis>("/engines/analyse", spec),
   getEngineSpec: (id: string) => request<EngineSpec>(`/projects/${id}/engine/spec`),
@@ -278,10 +280,18 @@ export const api = {
     post<{ thickness_mm: number; symmetric: boolean; ex_gpa: number; ey_gpa: number; gxy_gpa: number; nuxy: number }>(
       "/composites/laminate", { plies: angles.map((angle) => ({ angle, thickness_mm: thickness })) }),
   manufacturing: (id: string, takt?: number) => request<unknown>(`/projects/${id}/manufacturing${takt ? `?takt=${takt}` : ""}`),
+  partDraft: (id: string, part: string, pull: string, min: number) => request<DraftReport>(`/projects/${id}/parts/${part}/draft?pull=${encodeURIComponent(pull)}&min_draft=${min}`),
+  partParting: (id: string, part: string, pull: string, pressure: number) => request<PartingReport>(`/projects/${id}/parts/${part}/parting?pull=${encodeURIComponent(pull)}&pressure=${pressure}`),
+  pfmea: (id: string) => request<PfmeaOut>(`/projects/${id}/pfmea`),
   stackup: (stack: unknown) => post<unknown>("/quality/stackup", stack),
   lca: (id: string, grid: number) => request<unknown>(`/projects/${id}/lca?grid=${grid}`),
   reviews: (id: string) => request<unknown[]>(`/projects/${id}/reviews`),
   clearance: (id: string, required: number) => request<unknown[]>(`/projects/${id}/clearance?required=${required}`),
+  fourbar: (body: unknown) => post<FourBarOut>("/mechanisms/fourbar", body),
+  sliderCrank: (body: unknown) => post<SliderCrankOut>("/mechanisms/slider-crank", body),
+  sweep: (id: string, part: string, joint: unknown, required: number) =>
+    post<SweepReport>(`/projects/${id}/parts/${part}/sweep`, { joint, required, volume: false }),
+  addEnvelope: (id: string, part: string, joint: unknown) => post<PartOut>(`/projects/${id}/parts/${part}/envelope`, joint),
   baselines: (id: string) => request<unknown[]>(`/projects/${id}/baselines`),
   takeBaseline: (id: string, name: string, gate: string) => post<unknown>(`/projects/${id}/baselines`, { name, gate }),
   compareBaseline: (id: string, bl: string) => request<unknown>(`/projects/${id}/baselines/${bl}/compare`),
@@ -350,3 +360,12 @@ export const api = {
     request<void>(`/projects/${id}/parts/${part}`, { method: "DELETE" }),
   integration: (id: string) => request<IntegrationReport>(`/projects/${id}/integration`),
 };
+
+export interface FourBarPose { theta_deg: number; b: [number, number]; c: [number, number]; p: [number, number]; transmission_deg: number; rocker_deg: number }
+export interface FourBarOut { class: string; full_rotation: boolean; assembled_fraction: number; poses: FourBarPose[]; transmission_min_deg?: number; transmission_max_deg?: number; rocker_swing_deg?: number; warnings: string[] }
+export interface SliderCrankOut { stroke_mm: number; x_max_mm: number; x_min_mm: number; rod_ratio: number; v_max_m_s: number; a_max_m_s2: number; rows: { theta_deg: number; x_mm: number; v_m_s: number; a_m_s2: number }[] }
+export interface SweepReport { part: string; unit: string; positions: number[]; box_min: number[]; box_max: number[]; pairs: { other: string; other_name: string; status: string; distance_mm: number; at: number; exact: boolean }[] }
+export interface PfmeaRow { part: string; name: string; station: string; step: string; mode: string; effect: string; cause: string; prevention: string; detection_control: string; severity: number; severity_from: string; occurrence: number; detection: number; rpn: number; priority: string }
+export interface PfmeaOut { summary: { rows: number; by_priority: Record<string, number>; linked_to_design: number; stations: Record<string, { high: number; medium: number; low: number; max_rpn: number }> }; rows: PfmeaRow[] }
+export interface DraftReport { min_draft_deg: number; area_mm2: { perpendicular: number; drafted: number; insufficient: number }; ok: boolean; faces: { index: number; status: string; min_draft_deg: number; side: string; area_mm2: number }[] }
+export interface PartingReport { cavity_faces: number; core_faces: number; wall_faces: number; parting_edges: number; parting_length_mm: number; parting_height_mm: [number, number]; flat: boolean; projected_area_mm2: number; clamp_kn: number; undercuts: { index: number; side: string; area_mm2: number }[]; verdict: string }

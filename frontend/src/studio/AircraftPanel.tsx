@@ -18,11 +18,14 @@ const GROUPS: { title: string; fields: Field[] }[] = [
     ["fin_tip_chord", "tip chord", "m", 0.05], ["fin_sweep", "sweep", "°", 1], ["fin_x", "root LE aft of nose", "m", 0.05]] },
   { title: "Fuselage", fields: [["fuselage_length", "length", "m", 0.1], ["fuselage_width", "width", "m", 0.05],
     ["fuselage_height", "height", "m", 0.05]] },
-  { title: "Mass, power, mission", fields: [["mtow", "max take-off mass", "kg", 10], ["fuel_mass", "fuel", "kg", 5],
-    ["x_cg", "CG aft of nose", "m", 0.02], ["power_kw", "engine power", "kW", 5], ["prop_diameter", "propeller diameter", "m", 0.05],
-    ["prop_efficiency", "propeller efficiency", "", 0.01], ["bsfc", "fuel consumption", "g/kWh", 5],
-    ["cruise_speed", "cruise speed (TAS)", "m/s", 1], ["cruise_altitude", "cruise altitude", "m", 100]] },
+  { title: "Mass and mission", fields: [["mtow", "max take-off mass", "kg", 10], ["fuel_mass", "fuel", "kg", 5],
+    ["x_cg", "CG aft of nose", "m", 0.02], ["cruise_speed", "cruise speed (TAS)", "m/s", 1], ["cruise_altitude", "cruise altitude", "m", 100]] },
 ];
+const PISTON: Field[] = [["power_kw", "engine power", "kW", 5], ["prop_diameter", "propeller diameter", "m", 0.05],
+  ["prop_efficiency", "propeller efficiency", "", 0.01], ["bsfc", "fuel consumption", "g/kWh", 5]];
+const TURBOFAN: Field[] = [["engines", "engines", "", 1], ["thrust_kn", "static thrust, each", "kN", 5], ["bypass_ratio", "bypass ratio", "", 0.5],
+  ["tsfc", "cruise consumption", "mg/N·s", 0.1], ["nacelle_diameter", "nacelle diameter", "m", 0.1], ["nacelle_length", "nacelle length", "m", 0.1],
+  ["engine_span_fraction", "engine at semi-span", "", 0.01], ["korn_factor", "aerofoil technology κ", "", 0.01]];
 
 export function AircraftPanel({ projectId, onModelChanged }: { projectId: string; onModelChanged: () => void }) {
   const [spec, setSpec] = useState<AircraftSpec | null>(null);
@@ -31,6 +34,8 @@ export function AircraftPanel({ projectId, onModelChanged }: { projectId: string
   const [busy, setBusy] = useState(false);
   const [built, setBuilt] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
+  const [presets, setPresets] = useState<Record<string, AircraftSpec>>({});
+  useEffect(() => { api.aircraftPresets().then(setPresets).catch(() => undefined); }, []);
 
   // the project's own aircraft specification, saved as it is edited
   const loaded = useRef(false);
@@ -71,6 +76,11 @@ export function AircraftPanel({ projectId, onModelChanged }: { projectId: string
           <label>name <input value={spec.name} onChange={(e) => set("name", e.target.value)} /></label>
           <label>wing section NACA <input value={spec.wing_naca} maxLength={4} style={{ width: 52 }}
             onChange={(e) => /^\d{0,4}$/.test(e.target.value) && set("wing_naca", e.target.value)} /></label>
+          <label>propulsion <select value={spec.propulsion} onChange={(e) => set("propulsion", e.target.value)}>
+            <option value="piston">piston propeller</option><option value="turbofan">turbofan</option></select></label>
+          <label>start from <select value="" onChange={(e) => { const p = presets[e.target.value]; if (p) { setSpec({ ...p }); setBuilt(null); } }}>
+            <option value="">a reference aircraft…</option>
+            {Object.keys(presets).map((k) => <option key={k} value={k}>{k}</option>)}</select></label>
         </div>
         <div className="row">
           {(["high_wing", "t_tail", "tricycle", "fixed_gear"] as const).map((k) => (
@@ -78,7 +88,7 @@ export function AircraftPanel({ projectId, onModelChanged }: { projectId: string
               {{ high_wing: "high wing", t_tail: "T-tail", tricycle: "tricycle gear", fixed_gear: "fixed gear" }[k]}</label>
           ))}
         </div>
-        {GROUPS.map((grp) => (
+        {[...GROUPS, { title: spec.propulsion === "turbofan" ? "Turbofan engines" : "Piston engine and propeller", fields: spec.propulsion === "turbofan" ? TURBOFAN : PISTON }].map((grp) => (
           <fieldset key={grp.title}>
             <legend>{grp.title}</legend>
             {grp.fields.map(([key, label, unit, step]) => (
@@ -114,8 +124,13 @@ export function AircraftPanel({ projectId, onModelChanged }: { projectId: string
             <div>C_D = C_D0 + C_L²/(π AR e) = {a.cd0.toFixed(4)} + {(a.cd_cruise - a.cd0).toFixed(4)} = {a.cd_cruise.toFixed(4)} (e = {a.oswald_e.toFixed(3)}) → L/D = {a.l_over_d.toFixed(2)}, (L/D)max = {a.ld_max.toFixed(2)} at {a.v_ld_max.toFixed(1)} m/s</div>
             <div>dε/dα = 2a_w/(πAR) = {a.downwash_gradient.toFixed(3)}; x_ac,w = {st.x_ac_wing.toFixed(3)} m, x_ac,t = {st.x_ac_tail.toFixed(3)} m → x_np = {st.x_np.toFixed(3)} m, x_cg = {st.x_cg.toFixed(3)} m</div>
             <div>Static margin (x_np − x_cg)/MAC = {(100 * st.static_margin).toFixed(1)} %; V_H = {st.v_h.toFixed(3)}, V_V = {st.v_v.toFixed(4)}</div>
-            <div>Power required DV/η = {p.power_required.toFixed(1)} kW of {p.power_available.toFixed(1)} kW available · V_stall = {p.v_stall.toFixed(1)} m/s ({(p.v_stall / 0.514444).toFixed(0)} kt) · W/S = {p.wing_loading.toFixed(1)} kg/m²</div>
-            <div>Breguet: range {p.range_km.toFixed(0)} km, endurance {p.endurance_h.toFixed(1)} h at cruise</div>
+            {p.propulsion === "turbofan"
+              ? <div>Thrust required = drag = {(p.thrust_required_kn ?? 0).toFixed(1)} kN of {(p.thrust_available_kn ?? 0).toFixed(1)} kN available at cruise (T/W static {(p.thrust_to_weight ?? 0).toFixed(3)}) · wave drag ΔC_D = {(p.cd_wave ?? 0).toFixed(4)}, M_dd = {(p.m_dd ?? 0).toFixed(3)} (Korn), M_crit = {(p.m_crit ?? 0).toFixed(3)}</div>
+              : <div>Power required DV/η = {p.power_required.toFixed(1)} kW of {p.power_available.toFixed(1)} kW available</div>}
+            <div>V_stall = {p.v_stall.toFixed(1)} m/s ({(p.v_stall / 0.514444).toFixed(0)} kt) · W/S = {p.wing_loading.toFixed(1)} kg/m²</div>
+            <div>Breguet ({p.propulsion === "turbofan" ? "jet, all fuel, no reserves" : "propeller"}): range {p.range_km.toFixed(0)} km, endurance {p.endurance_h.toFixed(1)} h at cruise</div>
+            <div>Climb at max mass: {out.climb.roc_sea_level.toFixed(1)} m/s ({(out.climb.roc_sea_level * 196.85).toFixed(0)} ft/min) at sea level and {out.climb.v_best_climb.toFixed(0)} m/s, {out.climb.roc_cruise_altitude.toFixed(1)} m/s at cruise altitude · service ceiling {out.climb.service_ceiling.toFixed(0)} m ({(out.climb.service_ceiling / 0.3048).toFixed(0)} ft), absolute {out.climb.absolute_ceiling.toFixed(0)} m</div>
+            <div>Balance: CG between {out.sizing.cg_forward_limit.toFixed(2)} m and {out.sizing.cg_aft_limit.toFixed(2)} m keeps the static margin within 5–25 % MAC{out.sizing.htail_area_for_vh_0_7 ? ` · tail areas for V_H 0.7 / V_V 0.04: ${out.sizing.htail_area_for_vh_0_7.toFixed(2)} / ${(out.sizing.fin_area_for_vv_0_04 ?? 0).toFixed(2)} m²` : ""}</div>
           </div>
           <div className="aircraft-charts">
             <SpanLoading y={a.span_y} cl={a.span_cl} span={spec.wing_span} />

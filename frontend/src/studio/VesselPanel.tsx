@@ -3,7 +3,7 @@ import { api } from "../api/client";
 
 /** Vessel workspace (Marine module): a parametric displacement hull analysed as it is
  * edited: hydrostatics, the GZ curve against the IMO intact stability criteria, and the
- * viscous resistance (a lower bound: wave-making not modelled yet); built as coloured parts
+ * resistance (ITTC-1957 friction plus Holtrop-Mennen wave-making); built as coloured parts
  * (backend marine/hull.py, modules/marine). */
 
 interface Spec { name: string; length: number; beam: number; draft: number; depth: number; cp: number; cm: number; transom: number; kg: number; speed_kn: number; material: string; twin_shaft: boolean; bow_thruster: boolean }
@@ -98,7 +98,7 @@ export function VesselPanel({ projectId, onModelChanged }: { projectId: string; 
               <div><b>{hs.cb.toFixed(3)}</b><span>block coefficient</span></div>
               <div><b>{hs.tpc_t.toFixed(3)} t/cm</b><span>immersion</span></div>
               <div><b>{hs.lcb_m.toFixed(2)} m</b><span>LCB from AP</span></div>
-              {design && <div><b>≥ {design.delivered_power_kw_lower_bound.toFixed(0)} kW</b><span>delivered power at {spec.speed_kn} kn (Fn {design.froude.toFixed(2)}, viscous only)</span></div>}
+              {design && <div><b>{design.delivered_power_kw.toFixed(0)} kW</b><span>delivered power at {spec.speed_kn} kn (Fn {design.froude.toFixed(2)}, {(100 * design.wave_resistance_n / design.total_resistance_n).toFixed(0)} % wave-making)</span></div>}
             </div>
             <div className="engine-grid">
               <section>
@@ -112,14 +112,15 @@ export function VesselPanel({ projectId, onModelChanged }: { projectId: string; 
                 <p className="muted small">IMO IS Code 2008 Part A 2.2 general criteria; downflooding and the weather criterion not yet included.</p>
               </section>
               <section>
-                <h4>Resistance (viscous: ITTC-1957 friction with form factor)</h4>
-                <table><thead><tr><th>kn</th><th className="num">Fn</th><th className="num">R kN</th><th className="num">P_E kW</th><th className="num">P_D kW</th></tr></thead>
+                <h4>Resistance (ITTC-1957 friction + Holtrop–Mennen wave-making)</h4>
+                <table><thead><tr><th>kn</th><th className="num">Fn</th><th className="num">viscous kN</th><th className="num">wave kN</th><th className="num">total kN</th><th className="num">P_E kW</th><th className="num">P_D kW</th></tr></thead>
                   <tbody>{out.resistance.map((r) => (
                     <tr key={r.speed_kn}><td>{r.speed_kn.toFixed(1)}</td><td className="num">{r.froude.toFixed(2)}</td>
-                      <td className="num">{(r.viscous_resistance_n / 1000).toFixed(2)}</td><td className="num">{r.effective_power_kw_lower_bound.toFixed(1)}</td>
-                      <td className="num">{r.delivered_power_kw_lower_bound.toFixed(1)}</td></tr>
+                      <td className="num">{(r.viscous_resistance_n / 1000).toFixed(2)}</td><td className="num">{(r.wave_resistance_n / 1000).toFixed(2)}</td>
+                      <td className="num"><b>{(r.total_resistance_n / 1000).toFixed(2)}</b></td><td className="num">{r.effective_power_kw.toFixed(1)}</td>
+                      <td className="num">{r.delivered_power_kw.toFixed(1)}</td></tr>
                   ))}</tbody></table>
-                <p className="muted small">Lower bound: wave-making resistance is not modelled yet and grows quickly above Fn ≈ 0.25–0.3. Delivered power assumes a propulsive efficiency of 0.6.</p>
+                <p className="muted small">Total includes the immersed-transom and correlation terms. Holtrop–Mennen is a regression on displacement-ship model tests: an estimate up to Fn ≈ 0.45, not valid for planing. Delivered power assumes a propulsive efficiency of 0.6.</p>
                 <h4>Hydrostatics at the design draft</h4>
                 <table><tbody>
                   {["volume_m3", "kb_m", "bm_m", "bml_m", "waterplane_m2", "lcf_m", "mct_tm"].map((k) => <tr key={k}><td>{k.replace(/_/g, " ")}</td><td className="num">{hs[k].toFixed(3)}</td></tr>)}

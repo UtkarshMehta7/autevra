@@ -679,3 +679,13 @@ textarea.json.bad { border-color: var(--bad); }
 .fta .gate-row .basics { grid-column: 1 / -1; padding-left: 12px; }
 .fta .bar { height: 10px; background: var(--line); border-radius: 3px; overflow: hidden; } .fta .bar i { display: block; height: 100%; background: var(--bad); }
 .routing textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; }
+.mechanisms input[type="number"] { width: 64px; }
+.mechanisms .vec input { width: 54px; margin-left: 3px; }
+.mechanisms label, .mechanisms .vec { color: var(--muted); }
+.mech-body { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.mech-svg { width: 260px; height: 200px; background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-radius: 6px; }
+.mech-curves { display: flex; flex-direction: column; gap: 4px; }
+.mech-curve { width: 300px; height: 62px; background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-radius: 4px; }
+.mech-facts { display: flex; flex-direction: column; gap: 3px; } .mech-facts .bad { color: var(--bad); max-width: 240px; }
+.pfmea { margin-top: 10px; } .pfmea .row { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; } .pfmea button.on { border-color: var(--accent); color: var(--accent); }
+.pfmea-table td { white-space: normal; vertical-align: top; max-width: 190px; }

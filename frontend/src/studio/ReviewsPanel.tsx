@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
+import { MechanismsPanel } from "./MechanismsPanel";
 
 /** Reviews workspace (every module): review gates computed from the model, baselines with
  * comparison against the current design, and engineering change requests whose impact is
@@ -122,6 +123,7 @@ export function ReviewsPanel({ projectId, version, onModelChanged }: { projectId
           </>
         )}
       </section>
+      <MechanismsPanel projectId={projectId} version={version} onModelChanged={onModelChanged} />
       {error && <p className="error">{error}</p>}
     </div>
   );

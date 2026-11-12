@@ -115,7 +115,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
     scene.environmentIntensity = 0.35;
     renderer.toneMappingExposure = 0.9;
     pmrem.dispose();
-    const perspective = new THREE.PerspectiveCamera(FOV, 1, 10, 200000);
+    const perspective = new THREE.PerspectiveCamera(FOV, 1, 10, 600000);
     const orthographic = new THREE.OrthographicCamera(-1, 1, 1, -1, -200000, 200000);
     for (const cam of [perspective, orthographic]) cam.up.set(0, 0, 1); // ISO 8855: Z up
     perspective.position.set(4500, -6500, 3200);
@@ -130,6 +130,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
 
     const grid = new THREE.GridHelper(12000, 24, 0x3a434d, 0x2a3138);
     grid.rotation.x = Math.PI / 2; // into the XY ground plane
+    grid.name = "ground-grid";
     scene.add(grid);
 
     const root = new THREE.Group();
@@ -301,6 +302,20 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       c.geometries.get(key)!.dispose();
       c.geometries.delete(key);
     }
+    // The ground grid sits under the model: at the origin plane for a car (wheels at z = 0),
+    // at the lowest point for a model drawn about its own axis (an aircraft's fuselage
+    // centreline, a hull's keel), and it grows with the model.
+    const ground = c.scene.getObjectByName("ground-grid");
+    if (ground && model.parts.length) {
+      const all = new THREE.Box3().setFromObject(c.root);
+      if (!all.isEmpty()) {
+        const span = Math.max(all.max.x - all.min.x, all.max.y - all.min.y);
+        const mid = all.getCenter(new THREE.Vector3());
+        const scale = Math.max(1, Math.ceil((span * 1.6) / 12000));
+        ground.scale.setScalar(scale);
+        ground.position.set(scale > 1 ? mid.x : 0, scale > 1 ? mid.y : 0, Math.min(0, all.min.z));
+      }
+    }
     if (!c.framed) {
       const box = new THREE.Box3().setFromObject(c.root);
       const centre = box.getCenter(new THREE.Vector3());
@@ -308,7 +323,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       // stand back in proportion to the model (an engine, a car and an aircraft all fill
       // the view), on the same three-quarter direction as before
       const size = box.getSize(new THREE.Vector3()).length() || 5100; // a car: about 5.1 m
-      const k = Math.min(Math.max(size / 5100, 0.12), 3);
+      const k = Math.min(Math.max(size / 5100, 0.12), 30);
       c.camera.position.set(centre.x + 4200 * k, centre.y - 6000 * k, centre.z + 3000 * k);
       c.framed = true;
     }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { api } from "../api/client";
+import { api, type DraftReport, type PartingReport, type PfmeaOut } from "../api/client";
+import type { PartOut } from "../api/types";
 
 /** Production workspace (every module): the MBOM by station with a process plan,
  * work content and operators at the takt time, unit cost and CO2, reconciliation against
@@ -117,6 +118,98 @@ export function ProductionPanel({ projectId, version }: { projectId: string; ver
             ))}</tbody></table>
         </section>
       </div>
+      <ToolingCheck projectId={projectId} version={version} />
+      <ProcessFmea projectId={projectId} version={version} />
     </div>
+  );
+}
+
+/** Process FMEA generated from the plan (backend pfmea.py): generic failure modes of each
+ * part's process and of its fitting step, severity carried over from the design FMEA. */
+function ProcessFmea({ projectId, version }: { projectId: string; version?: number }) {
+  const [out, setOut] = useState<PfmeaOut | null>(null);
+  const [show, setShow] = useState<"high" | "medium" | "low">("high");
+  const [station, setStation] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api.pfmea(projectId).then((r) => { setOut(r); setError(null); }).catch((e) => setError(String(e.message ?? e)));
+  }, [projectId, version]);
+  if (error) return <p className="error">{error}</p>;
+  if (!out) return <p className="small muted">Generating the process FMEA…</p>;
+  const s = out.summary;
+  const rows = out.rows.filter((r) => r.priority === show && (!station || r.station === station));
+  return (
+    <section className="pfmea">
+      <h4>Process FMEA ({s.rows} failure modes from the process plan)</h4>
+      <p className="small muted">Generic modes per process and fitting step; severity is raised to the design FMEA's worst rating for {s.linked_to_design} rows. Occurrence and detection are starting ratings, to be replaced by plant data.</p>
+      <div className="row">
+        {(["high", "medium", "low"] as const).map((p) => (
+          <button key={p} className={show === p ? "on" : ""} onClick={() => setShow(p)}>{p} priority · {s.by_priority[p]}</button>
+        ))}
+        <select value={station} onChange={(e) => setStation(e.target.value)} aria-label="station">
+          <option value="">every station</option>
+          {Object.entries(s.stations).map(([name, st]) => <option key={name} value={name}>{name} · {st.high} high · max RPN {st.max_rpn}</option>)}
+        </select>
+      </div>
+      <table className="bd-table pfmea-table"><thead><tr><th>Part</th><th>Step</th><th>Failure mode</th><th>Effect</th><th>Cause</th><th>Prevention</th><th>Detection</th><th className="num">S</th><th className="num">O</th><th className="num">D</th><th className="num">RPN</th></tr></thead>
+        <tbody>{rows.slice(0, 80).map((r, i) => (
+          <tr key={i}><td>{r.name}<div className="muted">{r.station}</div></td><td>{r.step}</td><td>{r.mode}</td><td>{r.effect}</td><td>{r.cause}</td><td>{r.prevention}</td><td>{r.detection_control}</td>
+            <td className="num" title={r.severity_from === "generic" ? "generic severity" : `from the design failure: ${r.severity_from}`}>{r.severity}{r.severity_from !== "generic" ? "*" : ""}</td>
+            <td className="num">{r.occurrence}</td><td className="num">{r.detection}</td><td className="num"><b>{r.rpn}</b></td></tr>
+        ))}</tbody></table>
+      {rows.length > 80 && <p className="small muted">Showing the 80 highest of {rows.length}; pick a station to narrow it.</p>}
+      {rows.length === 0 && <p className="small muted">No {show}-priority rows{station ? " at this station" : ""}.</p>}
+      <p className="small muted">* severity carried over from the design FMEA of the block the part realises.</p>
+    </section>
+  );
+}
+
+/** Tooling check of one part (backend tooling.py): draft against a pull direction, and the
+ * parting line, undercuts and clamp force of a straight-pull tool. */
+function ToolingCheck({ projectId, version }: { projectId: string; version?: number }) {
+  const [parts, setParts] = useState<PartOut[]>([]);
+  const [part, setPart] = useState("");
+  const [pull, setPull] = useState("z");
+  const [minDraft, setMinDraft] = useState(1);
+  const [pressure, setPressure] = useState(40);
+  const [out, setOut] = useState<{ draft: DraftReport; parting: PartingReport } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api.parts(projectId).then((p) => { setParts(p); setPart((cur) => (p.some((x) => x.id === cur) ? cur : p[0]?.id ?? "")); }).catch(() => undefined);
+  }, [projectId, version]);
+  const run = async () => {
+    setBusy(true);
+    try {
+      const [draft, parting] = await Promise.all([api.partDraft(projectId, part, pull, minDraft), api.partParting(projectId, part, pull, pressure)]);
+      setOut({ draft, parting }); setError(null);
+    } catch (e) { setOut(null); setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  };
+  const d = out?.draft, pt = out?.parting;
+  return (
+    <section className="pfmea tooling">
+      <h4>Tooling check (moulded or cast part)</h4>
+      {parts.length === 0 ? <p className="small muted">Add a part to the project (Part Design, Inventory or STEP import) to check its draft and parting line.</p> : (
+        <div className="row">
+          <label>part <select value={part} onChange={(e) => { setPart(e.target.value); setOut(null); }}>{parts.map((p) => <option key={p.id} value={p.id}>{p.document.name}</option>)}</select></label>
+          <label>pull <select value={pull} onChange={(e) => setPull(e.target.value)}>{["z", "-z", "x", "-x", "y", "-y"].map((a) => <option key={a} value={a}>{a.startsWith("-") ? a : `+${a}`}</option>)}</select></label>
+          <label>minimum draft <input type="number" min={0} max={45} step={0.5} value={minDraft} onChange={(e) => setMinDraft(Number(e.target.value))} /> °</label>
+          <label>cavity pressure <input type="number" min={1} max={300} step={5} value={pressure} onChange={(e) => setPressure(Number(e.target.value))} /> MPa</label>
+          <button disabled={busy || !part} onClick={run}>{busy ? "Checking…" : "Check draft and parting"}</button>
+        </div>
+      )}
+      {d && pt && (
+        <div className="prod-kpis">
+          <div><b className={pt.undercuts.length ? "bad" : ""}>{pt.undercuts.length}</b><span>undercut faces{pt.undercuts.length ? ` (${pt.undercuts.reduce((a, u) => a + u.area_mm2, 0).toFixed(0)} mm²)` : ""}</span></div>
+          <div><b className={d.ok ? "" : "bad"}>{(d.area_mm2.insufficient / 100).toFixed(1)} cm²</b><span>below {d.min_draft_deg}° draft</span></div>
+          <div><b>{pt.parting_length_mm.toFixed(0)} mm</b><span>parting line, {pt.parting_edges} edges, {pt.parting_edges === 0 ? "undefined" : pt.flat ? "flat" : `stepped over ${(pt.parting_height_mm[1] - pt.parting_height_mm[0]).toFixed(1)} mm`}</span></div>
+          <div><b>{(pt.projected_area_mm2 / 100).toFixed(1)} cm²</b><span>projected area</span></div>
+          <div><b>{pt.clamp_kn.toFixed(0)} kN</b><span>clamp force ({(pt.clamp_kn / 9.80665).toFixed(1)} t)</span></div>
+          <div><b>{pt.cavity_faces} / {pt.core_faces} / {pt.wall_faces}</b><span>cavity / core / wall faces</span></div>
+        </div>
+      )}
+      {pt && <p className="small">{pt.verdict}.</p>}
+      {error && <p className="error">{error}</p>}
+    </section>
   );
 }

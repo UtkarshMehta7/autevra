@@ -30,8 +30,17 @@ def test_constant_power_above_base_speed_and_efficiency() -> None:
 def test_ideal_turbojet_matches_brayton() -> None:
     """With perfect components, no losses and one gas, the thermal efficiency at rest (all
     exhaust kinetic energy counted) tends to 1 - PR^-(gamma-1)/gamma."""
-    ideal = {"eta_c": 1, "eta_t": 1, "eta_b": 1, "eta_n": 1, "eta_m": 1, "burner_loss": 0,
-             "inlet_recovery": 1, "cp_h": 1005, "gamma_h": 1.4}
+    ideal = {
+        "eta_c": 1,
+        "eta_t": 1,
+        "eta_b": 1,
+        "eta_n": 1,
+        "eta_m": 1,
+        "burner_loss": 0,
+        "inlet_recovery": 1,
+        "cp_h": 1005,
+        "gamma_h": 1.4,
+    }
     s = gt.TurbineSpec(pressure_ratio=10, tit_k=1400, **ideal)
     out = gt.cycle(s)
     assert out["thermal_efficiency"] == pytest.approx(gt.ideal_brayton_efficiency(10), rel=0.03)
