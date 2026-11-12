@@ -12,7 +12,15 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from autevra import composites, manufacturing, materials, modules, quality, sustainability
+from autevra import (
+    composites,
+    manufacturing,
+    materials,
+    modules,
+    pfmea,
+    quality,
+    sustainability,
+)
 from autevra.api import access
 from autevra.api.aerospace import get_spec
 from autevra.api.installs import engine_values
@@ -324,6 +332,26 @@ def manufacturing_plan(project_id: str, ws: WorkspaceDep,
     return {"module": module.id, "plan": plan.model_dump(),
             "stackups": [{"stack": s.model_dump(), "result": quality.analyse(s)}
                          for s in stacks]}  # fmt: skip
+
+
+@router.get("/projects/{project_id}/pfmea")
+def process_fmea(project_id: str, ws: WorkspaceDep,
+                 config: str = Query("", max_length=2000)) -> dict:  # fmt: skip
+    """Process FMEA generated from the process plan, with severities linked to the design
+    FMEA of the block each part realises."""
+    module, values = _module(ws, project_id)
+    chosen = _chosen(module, values, config)
+    root = root_node(module, values, chosen)
+    order = list(module.station_order)
+    final = next((st for st in order if st.startswith("Final")), order[-1] if order else
+                 "Final assembly")  # fmt: skip
+    plan = manufacturing.plan(root, dict(module.stations), order,
+                              TAKT.get(module.id, 60.0), final)  # fmt: skip
+    arch = _architecture(module, values, chosen, {}) if module.architecture else None
+    templates = {n.id: n.template for n in root.walk() if n.kind == "part"}
+    rows = pfmea.generate(plan.operations, templates, arch)
+    return {"module": module.id, "summary": pfmea.summary(rows),
+            "rows": [r.model_dump() for r in rows]}  # fmt: skip
 
 
 @router.post("/quality/stackup")

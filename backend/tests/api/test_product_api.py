@@ -78,3 +78,12 @@ def test_manufacturing_plan_and_stackup_api(client: TestClient, project: str) ->
     r = client.post("/api/quality/stackup", json={"name": "s", "contributors": [
         {"name": "a", "nominal": 5, "plus": 0.1, "minus": 0.1}]}).json()  # fmt: skip
     assert r["worst_case"] == [4.9, 5.1]
+
+
+def test_process_fmea_of_a_project(client: TestClient, project: str) -> None:
+    out = client.get(f"/api/projects/{project}/pfmea").json()
+    rows = out["rows"]
+    assert out["summary"]["rows"] == len(rows) > 20
+    assert out["summary"]["linked_to_design"] > 0  # design FMEA severities carried over
+    priorities = [r["priority"] for r in rows]
+    assert priorities == sorted(priorities, key=["high", "medium", "low"].index)
