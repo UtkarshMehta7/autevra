@@ -25,6 +25,14 @@ def spec_schema() -> dict:
             "schema": ac.AircraftSpec.model_json_schema()}  # fmt: skip
 
 
+@router.get("/aero/presets")
+def presets() -> dict[str, ac.AircraftSpec]:
+    """Starting specifications: a piston single and a twin-jet transport."""
+    from autevra.aero.presets import PRESETS
+
+    return PRESETS
+
+
 @router.post("/aero/analyse")
 def analyse(spec: ac.AircraftSpec) -> dict:
     try:

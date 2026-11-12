@@ -158,8 +158,62 @@ tpl.register(*(PartTemplate(id=i, module=MODULE, name=n, code=c, process=p, func
 # --- Raymer general-aviation group weights (lb) ----------------------------------------
 
 
+def transport_masses(s: ac.AircraftSpec) -> dict[str, float]:
+    """Group masses in kg of a jet transport: Raymer's transport-category statistical
+    equations for the structure and the dry engines (ultimate load factor 1.5 x 2.5,
+    landing mass 0.72 of maximum take-off, all-moving tailplane, wing-mounted main gear),
+    and stated fractions of the maximum take-off mass for the systems (4.5 % in all) and
+    for furnishings with operator items (6.5 %): typical of long-range twins, not derived
+    from the design."""
+    geo = ac.analyse(s)["geometry"]
+    cos = lambda deg: math.cos(math.radians(deg))  # noqa: E731
+    wdg, nz = s.mtow * LB, 1.5 * 2.5
+    lam = s.wing_tip_chord / s.wing_root_chord
+    sweep = ac._sweep_at(s.wing_sweep, 0.25, s.wing_root_chord, lam, s.wing_span)
+    tc_root = int(s.wing_naca[2:]) / 100 + 0.03  # the root is thicker than the mean section
+    sw = geo["wing_area"] * FT**2
+    w_wing = (0.0051 * (wdg * nz) ** 0.557 * sw**0.649 * geo["aspect_ratio"] ** 0.5
+              * tc_root**-0.4 * (1 + lam) ** 0.1 / cos(sweep) * (0.12 * sw) ** 0.1)  # fmt: skip
+    lt = max(geo["tail_arm"], 1.0) * FT
+    sht = geo["htail_area"] * FT**2
+    aht = s.htail_span**2 / geo["htail_area"]
+    w_ht = (0.0379 * 1.143 * (1 + s.fuselage_width / s.htail_span) ** -0.25 * wdg**0.639
+            * nz**0.10 * sht**0.75 / lt * (0.3 * lt) ** 0.704 / cos(30.0) * aht**0.166
+            * 1.25**0.1)  # fmt: skip
+    lv = max(geo["fin_arm"], 1.0) * FT
+    svt = geo["fin_area"] * FT**2
+    avt = s.fin_height**2 / geo["fin_area"]
+    w_vt = (0.0026 * (1 + (1.0 if s.t_tail else 0.0)) ** 0.225 * wdg**0.556 * nz**0.536
+            * lv**-0.5 * svt**0.5 * lv**0.875 / cos(s.fin_sweep) * avt**0.35
+            * 0.10**-0.5)  # fmt: skip
+    lf, d = s.fuselage_length * FT, (s.fuselage_width + s.fuselage_height) / 2 * FT
+    sf = math.pi * d * lf * 0.82  # wetted area of a body with a long constant section
+    kws = (0.75 * (1 + 2 * lam) / (1 + lam) * s.wing_span * FT
+           * math.tan(math.radians(sweep)) / lf)  # fmt: skip
+    w_fus = (0.3280 * 1.12 * (wdg * nz) ** 0.5 * lf**0.25 * sf**0.302 * (1 + kws) ** 0.04
+             * (lf / d) ** 0.10)  # fmt: skip
+    wl, nl = 0.72 * wdg, 1.5 * 3.0
+    axles = 3 if s.mtow > 250_000 else 2 if s.mtow > 40_000 else 1
+    strut_in = 0.6 * s.fuselage_height * 39.37
+    v_stall_kt = 0.75 * ac.analyse(s)["performance"]["v_stall"] / 0.514444  # with flaps
+    w_mlg = (0.0106 * wl**0.888 * nl**0.25 * strut_in**0.4 * (4 * axles) ** 0.321 * 2**-0.5
+             * v_stall_kt**0.1)  # fmt: skip
+    w_nlg = 0.032 * wl**0.646 * nl**0.2 * (0.85 * strut_in) ** 0.5 * 2**0.45
+    thrust_lbf = s.thrust_kn * 1000 / 4.44822
+    w_en_dry = s.engines * 0.084 * thrust_lbf**1.1 * math.exp(-0.045 * s.bypass_ratio)
+    lb = {"wing": w_wing, "htail": w_ht, "vtail": w_vt, "fuselage": w_fus,
+          "main_gear": w_mlg, "nose_gear": w_nlg, "engine_dry": w_en_dry,
+          "engine_installed": 1.3 * w_en_dry, "fuel_system": 0.006 * wdg,
+          "flight_controls": 0.012 * wdg, "hydraulics": 0.008 * wdg, "avionics": 0.004 * wdg,
+          "electrical": 0.015 * wdg, "furnishings": 0.065 * wdg}  # fmt: skip
+    return {k: v / LB for k, v in lb.items()}
+
+
 def group_masses(s: ac.AircraftSpec, n_limit: float) -> dict[str, float]:
-    """Group masses in kg (Raymer's general-aviation equations)."""
+    """Group masses in kg (Raymer's general-aviation equations; the transport equations
+    for turbofan aircraft)."""
+    if s.jet:
+        return transport_masses(s)
     geo = ac.analyse(s)["geometry"]
     wdg = s.mtow * LB
     nz = 1.5 * n_limit

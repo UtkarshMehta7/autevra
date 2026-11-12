@@ -9,8 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from autevra.part.sketch import Sketch
 
-Length = Annotated[float, Field(gt=0.0, le=50_000.0)]
-Coord = Annotated[float, Field(ge=-50_000.0, le=50_000.0)]
+# up to 100 m: a transport aircraft's fuselage is a single loft
+Length = Annotated[float, Field(gt=0.0, le=100_000.0)]
+Coord = Annotated[float, Field(ge=-100_000.0, le=100_000.0)]
 Point2 = tuple[Coord, Coord]
 Point3 = tuple[Coord, Coord, Coord]
 
@@ -143,7 +144,10 @@ class Section(BaseModel):
     z: Coord
     width: Length
     height: Length
-    radius: float = Field(0.0, ge=0.0, le=25_000.0)  # corner radius (0 = sharp)
+    radius: float = Field(0.0, ge=0.0, le=50_000.0)  # corner radius (0 = sharp)
+    # offset of the section's centre from the loft axis (a swept-up tail cone, a duct bend)
+    dx: float = Field(0.0, ge=-50_000.0, le=50_000.0)
+    dy: float = Field(0.0, ge=-50_000.0, le=50_000.0)
 
 
 class Loft(_Solid):

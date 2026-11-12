@@ -128,7 +128,10 @@ def _solid(feat: f.Box | f.Cylinder | f.Sphere | f.Extrude | f.Revolve | f.Loft 
             wires = []
             for s in feat.sections:
                 r = min(s.radius, 0.499 * min(s.width, s.height))
-                wires.append(k.rounded_rect((-s.width / 2, s.width / 2), s.height / 2, r, r, s.z))
+                wire = k.rounded_rect((-s.width / 2, s.width / 2), s.height / 2, r, r, s.z)
+                if s.dx or s.dy:
+                    wire = wire.moved(cq.Location(cq.Vector(s.dx, s.dy, 0.0)))
+                wires.append(wire)
             return cq.Solid.makeLoft(wires, ruled=feat.ruled)
         case f.Sweep():
             return _sweep(feat)
