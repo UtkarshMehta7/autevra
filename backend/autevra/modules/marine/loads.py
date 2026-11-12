@@ -3,7 +3,7 @@
 Loads (stated, concept level): hydrostatic pressure at the keel rho g T; still-water
 bending moment estimated as the displacement weight times the length over 35 (a rough
 small-craft figure; a real check integrates the weight and buoyancy curves); propeller
-thrust from the viscous resistance at the design speed (a lower bound, see the hull
+thrust from the total resistance at the design speed (an estimate, see the hull
 module). Compliance: the IMO IS Code general criteria computed from the GZ curve; the
 scantling and small-craft stability standards are references still to show.
 """
@@ -31,9 +31,9 @@ def cases(values: Values) -> list[LoadCase]:
                  "small-craft estimate)", results={"bending_knm": disp_n * s.length / 35 / 1e3},
                  loads=[LoadAt(location="midship section", my=round(disp_n * s.length / 35))]),
         LoadCase(id="thrust", name="Propeller thrust at the design speed", kind="operating",
-                 factors={"speed_kn": s.speed_kn}, method="viscous resistance (lower bound)",
-                 results={"thrust_n": res["viscous_resistance_n"]},
-                 loads=[LoadAt(location="thrust bearing", fx=round(res["viscous_resistance_n"]))]),
+                 factors={"speed_kn": s.speed_kn}, method="total resistance (Holtrop-Mennen)",
+                 results={"thrust_n": res["total_resistance_n"]},
+                 loads=[LoadAt(location="thrust bearing", fx=round(res["total_resistance_n"]))]),
     ]  # fmt: skip
 
 

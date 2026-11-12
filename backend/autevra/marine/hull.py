@@ -17,10 +17,14 @@ displaced volume stays constant (free trim neglected); GZ = y_B cos(phi) + (z_B 
 sin(phi). Criteria: IMO Intact Stability Code 2008, Part A 2.2 (areas under GZ 0-30°
 >= 0.055 m·rad, 0-40° >= 0.090, 30-40° >= 0.030; GZ >= 0.20 m at 30° or more; maximum GZ
 at 25° or more; GM0 >= 0.15 m), without downflooding angles or weather criteria.
-Resistance (viscous only): ITTC-1957 friction line C_F = 0.075 / (log10 Rn - 2)^2, form
-factor by Watanabe k = -0.095 + 25.6 Cb / ((L/B)^2 sqrt(B/T)), wetted surface by
-Holtrop's formula (no bulb); wave-making resistance is not modelled yet, so the effective
-power is a lower bound, increasingly so above a Froude number of about 0.25.
+Resistance: viscous by the ITTC-1957 friction line C_F = 0.075 / (log10 Rn - 2)^2 with
+Watanabe's form factor k = -0.095 + 25.6 Cb / ((L/B)^2 sqrt(B/T)) and Holtrop's wetted
+surface; wave-making, immersed-transom and model-ship correlation resistance by Holtrop
+and Mennen's statistical method (1982, revised 1984), a regression on model tests of
+displacement ships. It is an estimate for conventional forms at Froude numbers up to about
+0.45 (above 0.55 the method's high-speed formula is used, with less support in its data);
+it does not cover planing. The hull form here has no bulb and its transom is immersed over
+the full section, which the method penalises (c5 and the transom term).
 """
 
 import math
@@ -229,6 +233,58 @@ def wetted_surface(spec: HullSpec) -> float:
                                              - 0.003467 * b / t + 0.3696 * cwp)  # fmt: skip
 
 
+def holtrop_wave(length: float, beam: float, draft: float, volume: float, cp: float,
+                 cm: float, cwp: float, lcb_pct: float, transom_area: float, speed: float,
+                 bulb_area: float = 0.0, bulb_height: float = 0.0) -> dict:  # fmt: skip
+    """Wave-making resistance by Holtrop and Mennen (1984), N.
+
+    ``lcb_pct`` is the centre of buoyancy forward of midships in percent of the length;
+    ``bulb_area`` and ``bulb_height`` (transverse bulb area and the height of its centre
+    above the keel) are zero for a hull without a bulb.
+    """
+    lw, b, t = length, beam, draft
+    fn = speed / math.sqrt(G * lw)
+    lr = lw * (1 - cp + 0.06 * cp * lcb_pct / (4 * cp - 1))  # length of the run
+    ie = 1 + 89 * math.exp(-((lw / b) ** 0.80856) * (1 - cwp) ** 0.30484
+                           * (1 - cp - 0.0225 * lcb_pct) ** 0.6367 * (lr / b) ** 0.34574
+                           * (100 * volume / lw**3) ** 0.16302)  # fmt: skip
+    ratio = b / lw
+    c7 = (0.229577 * ratio ** (1 / 3) if ratio < 0.11 else ratio if ratio <= 0.25
+          else 0.5 - 0.0625 / ratio)  # fmt: skip
+    c1 = 2223105 * c7**3.78613 * (t / b) ** 1.07961 * (90 - ie) ** -1.37565
+    c3 = (0.56 * bulb_area**1.5 / (b * t * (0.31 * math.sqrt(bulb_area) + t - bulb_height))
+          if bulb_area > 0 else 0.0)  # fmt: skip
+    c2 = math.exp(-1.89 * math.sqrt(c3))
+    c5 = 1 - 0.8 * transom_area / (b * t * cm)
+    c16 = (8.07981 * cp - 13.8673 * cp**2 + 6.984388 * cp**3 if cp < 0.8
+           else 1.73014 - 0.7067 * cp)  # fmt: skip
+    m1 = 0.0140407 * lw / t - 1.75254 * volume ** (1 / 3) / lw - 4.79323 * b / lw - c16
+    slender = lw**3 / volume
+    c15 = (-1.69385 if slender < 512 else 0.0 if slender > 1726.91
+           else -1.69385 + (lw / volume ** (1 / 3) - 8) / 2.36)  # fmt: skip
+    lam = 1.446 * cp - (0.03 * lw / b if lw / b < 12 else 0.36)
+    weight = volume * RHO_SW * G
+
+    def low(f: float) -> float:  # Fn <= 0.4
+        m4 = c15 * 0.4 * math.exp(-0.034 * f**-3.29)
+        return c1 * c2 * c5 * weight * math.exp(m1 * f**-0.9 + m4 * math.cos(lam * f**-2))
+
+    def high(f: float) -> float:  # Fn >= 0.55
+        c17 = 6919.3 * cm**-1.3346 * (volume / lw**3) ** 2.00977 * (lw / b - 2) ** 1.40692
+        m3 = -7.2035 * (b / lw) ** 0.326869 * (t / b) ** 0.605375
+        m4 = c15 * 0.4 * math.exp(-0.034 * f**-3.29)
+        return c17 * c2 * c5 * weight * math.exp(m3 * f**-0.9 + m4 * math.cos(lam * f**-2))
+
+    if fn <= 0.4:
+        rw = low(fn)
+    elif fn >= 0.55:
+        rw = high(fn)
+    else:
+        rw = low(0.4) + (10 * fn - 4) * (high(0.55) - low(0.4)) / 1.5
+    return {"rw_n": rw, "froude": fn, "half_entrance_deg": ie, "c1": c1, "c2": c2, "c5": c5,
+            "m1": m1, "lambda": lam, "run_length_m": lr}  # fmt: skip
+
+
 def resistance(spec: HullSpec, speed_kn: float | None = None) -> dict:
     v = (speed_kn or spec.speed_kn) * 0.514444
     lw, b, t = spec.length, spec.beam, spec.draft
@@ -239,7 +295,35 @@ def resistance(spec: HullSpec, speed_kn: float | None = None) -> dict:
     s = wetted_surface(spec)
     rv = 0.5 * RHO_SW * v * v * s * cf * (1 + k)
     fn = v / math.sqrt(G * lw)
+    # Wave-making, immersed transom and correlation allowance (Holtrop and Mennen).
+    volume = cb * lw * b * t
+    cwp = 1 - (2 - spec.transom) / (2 * (spec.exponent + 1))
+    at = spec.transom * b * t * spec.cm  # the aft section is immersed over its full depth
+    wave = holtrop_wave(lw, b, t, volume, spec.cp, spec.cm, cwp, lcb_percent(spec), at, v)
+    rtr = 0.0
+    if at > 0:
+        fnt = v / math.sqrt(2 * G * at / (b + b * cwp))
+        rtr = 0.5 * RHO_SW * v * v * at * (0.2 * (1 - 0.2 * fnt) if fnt < 5 else 0.0)
+    ca = 0.006 * (lw + 100) ** -0.16 - 0.00205
+    ra = 0.5 * RHO_SW * v * v * s * ca
+    total = rv + wave["rw_n"] + rtr + ra
     return {"speed_ms": v, "froude": fn, "reynolds": rn, "cf": cf, "form_factor": 1 + k,
             "wetted_surface_m2": s, "viscous_resistance_n": rv,
+            "wave_resistance_n": wave["rw_n"], "transom_resistance_n": rtr,
+            "correlation_resistance_n": ra, "total_resistance_n": total,
+            "half_entrance_deg": wave["half_entrance_deg"],
+            "effective_power_kw": total * v / 1000,
+            "delivered_power_kw": total * v / 1000 / 0.6,
             "effective_power_kw_lower_bound": rv * v / 1000,
             "delivered_power_kw_lower_bound": rv * v / 1000 / 0.6}  # fmt: skip
+
+
+def lcb_percent(spec: HullSpec) -> float:
+    """Centre of buoyancy forward of midships, percent of the length (closed form: every
+    section has the same fullness, so the volume is distributed like the waterline)."""
+    p, tr = spec.exponent, spec.transom
+    # integral of f and of f * (xi - 1/2) over each half, with u = |2 xi - 1|
+    fore_a, aft_a = 0.5 * (1 - 1 / (p + 1)), 0.5 * (1 - (1 - tr) / (p + 1))
+    fore_m = 0.25 * (0.5 - 1 / (p + 2))
+    aft_m = -0.25 * (0.5 - (1 - tr) / (p + 2))
+    return 100.0 * (fore_m + aft_m) / (fore_a + aft_a)

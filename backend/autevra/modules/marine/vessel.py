@@ -156,10 +156,11 @@ def checks(values: Values, root: RolledNode) -> list[Check]:
               status="pass" if not failed else "fail",
               message="all six general criteria met" if not failed else
               "not met: " + ", ".join(failed)),
-        Check(id="froude", label="Speed regime", status="pass" if res["froude"] <= 0.3 else "warn",
-              message=f"Froude number {res['froude']:.2f}: "
-              + ("displacement regime" if res["froude"] <= 0.3 else
-                 "wave-making resistance dominates and is not modelled yet")),
+        Check(id="froude", label="Speed regime", status="pass" if res["froude"] <= 0.45 else "warn",
+              message=f"Froude number {res['froude']:.2f}, wave-making "
+              f"{100 * res['wave_resistance_n'] / res['total_resistance_n']:.0f} % of the "
+              "resistance: " + ("displacement regime" if res["froude"] <= 0.45 else
+                                "beyond the range the resistance method supports well")),
         Check(id="freeboard", label="Freeboard", status="pass" if s.depth - s.draft >= 0.08 *
               s.length ** 0.5 * 2 else "warn", message=f"{s.depth - s.draft:.2f} m"),
     ]  # fmt: skip

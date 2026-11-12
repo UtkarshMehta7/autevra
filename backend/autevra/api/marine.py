@@ -1,4 +1,4 @@
-"""Marine module API: analyse a hull (hydrostatics, GZ curve and IMO criteria, viscous
+"""Marine module API: analyse a hull (hydrostatics, GZ curve and IMO criteria, total
 resistance against speed), keep each marine project's specification, and build the vessel
 as coloured parts. Vessels live only in Marine projects."""
 
