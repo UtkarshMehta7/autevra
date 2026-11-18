@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from autevra.api import access
 from autevra.api.routes import WorkspaceDep
-from autevra.cam import gcode, milling
+from autevra.cam import gcode, milling, turning
+from autevra.cam import tooling as tl
 
 router = APIRouter(tags=["machining"], dependencies=[Depends(access.guard_project)])
 
@@ -76,4 +77,73 @@ def machine_part(project_id: str, part_id: str, body: milling.CamIn, ws: Workspa
         "stock_mass_kg": plan["stock_mass_kg"],
         "gcode": program,
         "gcode_lines": program.count("\n"),
+    }
+
+
+@router.post("/projects/{project_id}/parts/{part_id}/turning")
+def turn_part(project_id: str, part_id: str, body: turning.TurnIn, ws: WorkspaceDep) -> dict:
+    """Plan CNC turning of a part revolved about its Z axis; same shape as the milling plan
+    (operations with toolpaths in the part frame, G-code, time)."""
+    doc = dict(ws._part_docs(project_id)).get(part_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"no part '{part_id}'")
+    try:
+        plan = turning.plan(doc, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    vc, front, rb = plan["vc"], plan["front"], plan["bar"] / 2.0
+    ops, tools, total = [], {}, 0.0
+    for op in plan["operations"]:
+        num = int(op.tool.split()[0][1:])
+        tools.setdefault(num, op.tool)
+        cut, rapid = op.lengths()
+        t = op.time_s(vc, body.max_rpm)
+        total += t
+        paths = [
+            [[round(x / 2.0, 3), 0.0, round(z + front, 3)] for x, z in pts]
+            for kind, pts in op.moves
+            if kind != "rapid" and len(pts) > 1
+        ]
+        ops.append(
+            {
+                "name": op.name,
+                "tool": num,
+                "tool_label": op.tool,
+                "rpm": min(1000.0 * vc / (math.pi * plan["bar"]), body.max_rpm),
+                "feed": op.feed_rev,
+                "ap": 0.0,
+                "ae": 0.0,
+                "cut_mm": cut,
+                "rapid_mm": rapid,
+                "time_s": t,
+                "power_kw": 0.0,
+                "cycle": op.comp or None,
+                "notes": [],
+                "paths": paths,
+            }
+        )
+    program = turning.gcode(plan["operations"], body, doc.name, vc)
+    density = tl.MATERIALS[body.material].density
+    back = front - plan["length"]
+    return {
+        "process": "turning",
+        "stock": [-rb, -rb, back, rb, rb, front + body.face_allowance],
+        "material": body.material,
+        "tools": [
+            {"number": n, "label": lab, "kind": "turning", "diameter": 0}
+            for n, lab in tools.items()
+        ],
+        "operations": ops,
+        "warnings": plan["warnings"],
+        "notes": plan["notes"],
+        "levels": [],
+        "time_s": total,
+        "stock_volume": plan["stock_volume"],
+        "removed_volume": plan["removed_volume"],
+        "rest_area": 0.0,
+        "mass_kg": plan["volume"] * 1e-9 * density,
+        "stock_mass_kg": plan["stock_volume"] * 1e-9 * density,
+        "gcode": program,
+        "gcode_lines": program.count("\n"),
+        "units": "feed mm/rev, surface speed m/min (G96)",
     }

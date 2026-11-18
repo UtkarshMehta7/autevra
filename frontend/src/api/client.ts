@@ -318,6 +318,7 @@ export const api = {
   mateFaces: (id: string, part: string) => request<unknown[]>(`/projects/${id}/mates/faces/${part}`),
   solveMates: (id: string) => post<unknown>(`/projects/${id}/mates/solve`),
   cam: (id: string, part: string, body: unknown) => post<CamOut>(`/projects/${id}/parts/${part}/cam`, body),
+  turning: (id: string, part: string, body: unknown) => post<CamOut>(`/projects/${id}/parts/${part}/turning`, body),
   sliderCrank: (body: unknown) => post<SliderCrankOut>("/mechanisms/slider-crank", body),
   sweep: (id: string, part: string, joint: unknown, required: number) =>
     post<SweepReport>(`/projects/${id}/parts/${part}/sweep`, { joint, required, volume: false }),

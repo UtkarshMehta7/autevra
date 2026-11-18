@@ -30,6 +30,7 @@ export function MachiningPanel({ projectId, version }: { projectId: string; vers
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [show, setShow] = useState<Set<number>>(new Set());
+  const [process, setProcess] = useState<"milling" | "turning">("milling");
 
   useEffect(() => {
     api.parts(projectId).then((list) => {
@@ -44,7 +45,9 @@ export function MachiningPanel({ projectId, version }: { projectId: string; vers
     if (!part) return;
     setBusy(true); setError(null);
     try {
-      const o = await api.cam(projectId, part, { ...cfg, rough_tool: rough, finish_tool: finish });
+      const o = process === "turning"
+        ? await api.turning(projectId, part, { material: cfg.material, max_rpm: Math.min(cfg.max_rpm, 6000), face_allowance: cfg.top_margin })
+        : await api.cam(projectId, part, { ...cfg, rough_tool: rough, finish_tool: finish });
       setOut(o);
       setShow(new Set(o.operations.map((_, i) => i)));
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); setOut(null); } finally { setBusy(false); }
@@ -80,6 +83,12 @@ export function MachiningPanel({ projectId, version }: { projectId: string; vers
               </select>
             </label>
           )}
+          <label className="el-field">process
+            <select value={process} onChange={(e) => { setProcess(e.target.value as "milling" | "turning"); setOut(null); }}>
+              <option value="milling">3-axis milling and drilling</option>
+              <option value="turning">turning (lathe, part about its Z axis)</option>
+            </select>
+          </label>
           <label className="el-field">material
             <select value={cfg.material} onChange={(e) => setCfg({ ...cfg, material: e.target.value })}>
               {MATERIALS.map((m) => <option key={m}>{m}</option>)}
@@ -118,13 +127,13 @@ export function MachiningPanel({ projectId, version }: { projectId: string; vers
             </div>
             {out.warnings.length > 0 && <ul className="el-warn">{out.warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
             {out.notes.length > 0 && <ul className="small cam-notes">{out.notes.map((w) => <li key={w}>{w}</li>)}</ul>}
-            <table className="bd-table"><thead><tr><th>show</th><th>operation</th><th>tool</th><th className="num">rpm</th><th className="num">feed mm/min</th><th className="num">cut mm</th><th className="num">time</th><th className="num">kW</th></tr></thead><tbody>
+            <table className="bd-table"><thead><tr><th>show</th><th>operation</th><th>tool</th><th className="num">rpm</th><th className="num">{process === "turning" ? "feed mm/rev" : "feed mm/min"}</th><th className="num">cut mm</th><th className="num">time</th><th className="num">kW</th></tr></thead><tbody>
               {out.operations.map((op, i) => (
                 <tr key={i}>
                   <td><input type="checkbox" checked={show.has(i)} aria-label={`Show toolpath of ${op.name}`}
                     onChange={(e) => { const next = new Set(show); if (e.target.checked) next.add(i); else next.delete(i); setShow(next); }} /></td>
                   <td>{op.name}{op.cycle ? ` · ${op.cycle}` : ""}</td><td>{op.tool_label}</td>
-                  <td className="num">{op.rpm.toFixed(0)}</td><td className="num">{op.feed.toFixed(0)}</td>
+                  <td className="num">{op.rpm.toFixed(0)}</td><td className="num">{process === "turning" ? op.feed.toFixed(2) : op.feed.toFixed(0)}</td>
                   <td className="num">{op.cut_mm.toFixed(0)}</td><td className="num">{mmss(op.time_s)}</td>
                   <td className="num">{op.power_kw ? op.power_kw.toFixed(2) : "—"}</td>
                 </tr>
