@@ -768,3 +768,9 @@ pre.gcode { max-height: 220px; overflow: auto; background: #14171c; border: 1px 
 .reference-picker { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .reference-picker label { display: flex; gap: 8px; align-items: center; font-size: 12px; }
 .reference-picker select { max-width: 320px; }
+.library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.library-card { background: #1b1f25; border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+.library-card p { margin: 0; }
+.lc-head { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
+.chip { font-size: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 1px 6px; color: var(--muted); white-space: nowrap; }
+.library-panel .el-field input, .library-panel .el-field textarea { width: 100%; }

@@ -209,27 +209,114 @@ class Workspace:
             info = repo.create(name, state, domain=domain, owner=owner)
             return _state(info, repo.load(info.id))
 
-    def duplicate_project(
-        self, project_id: str, name: str | None = None, owner: str | None = None
-    ) -> schemas.ProjectState:
-        """A new project whose initial design is this project's current design (history,
-        runs and studies stay with the original; requirements and the specification copy)."""
+    # Per-project design files of the modules (kept beside the database). History-like
+    # folders (baselines, change requests) and exports are not part of a design.
+    DESIGN_FILES = (
+        "aircraft",
+        "engines",
+        "motors",
+        "turbines",
+        "vessels",
+        "assembly",
+        "allocations",
+        "installs",
+    )
+    PACKAGE_FORMAT = "autevra-project/1"
+
+    def snapshot(self, project_id: str) -> dict:
+        """Everything that defines the project's design, in any module, as one JSON-able
+        package: parameters, the user's parts, the module design files, the styling curves,
+        the vehicle specification and the requirements."""
+        from autevra.storage.stylings import StylingRepository
+
         with self.db.session() as s:
             repo = ProjectRepository(s)
             info = repo.info(project_id)
-            values = repo.load(project_id).values
+            values = dict(repo.load(project_id).values)
+            styling_json, _, _ = StylingRepository(s).get(project_id)
+            spec_json = _load_spec(SpecRepository(s), project_id).model_dump_json()
+            requirements = [
+                r.model_dump(mode="json") for r in RunRepository(s).requirement_records(project_id)
+            ]
+        files = {}
+        for kind in self.DESIGN_FILES:
+            path = self.data_dir / kind / f"{project_id}.json"
+            if path.exists():
+                files[kind] = path.read_text()
+        parts = [
+            {"id": pid, "document": json.loads(doc.model_dump_json())}
+            for pid, doc in self._part_docs(project_id)
+        ]
+        return {
+            "format": self.PACKAGE_FORMAT,
+            "name": info.name,
+            "domain": info.domain,
+            "values": values,
+            "parts": parts,
+            "files": files,
+            "styling": styling_json,
+            "spec": spec_json,
+            "requirements": requirements,
+        }
+
+    def restore(
+        self, package: dict, name: str | None = None, owner: str | None = None
+    ) -> schemas.ProjectState:
+        """A new project from a package (snapshot): part ids are new and every reference to
+        them in the module files (assembly constraints, installs) is rewritten."""
+        from autevra.storage.stylings import StylingRepository
+
+        if package.get("format") != self.PACKAGE_FORMAT:
+            raise CommandError("not an Autevra project package")
+        domain = package.get("domain") or "automotive"
+        if not domains.can_host_projects(domain):
+            raise CommandError(f"unknown module '{domain}'")
+        values = {k: float(v) for k, v in (package.get("values") or {}).items()}
+        with self.db.session() as s:
+            repo = ProjectRepository(s)
             copy = repo.create(
-                name or f"{info.name} (copy)",
+                name or package.get("name") or "Imported design",
                 DesignState(values=values),
-                domain=info.domain,
+                domain=domain,
                 owner=owner,
             )
             runs = RunRepository(s)
-            for record in runs.requirement_records(project_id):
+            for raw in package.get("requirements") or []:
+                record = rqm.Requirement.model_validate(raw)
                 runs.add_requirement(copy.id, record.model_copy(update={"id": uuid4().hex[:12]}))
-            specs = SpecRepository(s)
-            specs.save_json(copy.id, _load_spec(specs, project_id).model_dump_json())
-            return _state(copy, repo.load(copy.id))
+            if package.get("spec"):
+                SpecRepository(s).save_json(copy.id, package["spec"])
+            if package.get("styling"):
+                StylingRepository(s).set(copy.id, package["styling"])
+            new_id = copy.id
+        mapping: dict[str, str] = {}
+        with self.db.session() as s:
+            parts = PartRepository(s)
+            for part in package.get("parts") or []:
+                doc = PartDoc.model_validate(part["document"])
+                mapping[part["id"]] = parts.create(new_id, doc.model_dump_json())
+        old_id = package.get("source_id")
+        for kind, text in (package.get("files") or {}).items():
+            if kind not in self.DESIGN_FILES:
+                continue
+            for old, fresh in mapping.items():
+                text = text.replace(old, fresh)
+            if old_id:
+                text = text.replace(old_id, new_id)
+            folder = self.data_dir / kind
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / f"{new_id}.json").write_text(text)
+        return self.project(new_id)
+
+    def duplicate_project(
+        self, project_id: str, name: str | None = None, owner: str | None = None
+    ) -> schemas.ProjectState:
+        """A new project whose initial design is this project's current design, in any
+        module: parameters, parts, module design files, styling and requirements (history,
+        runs and studies stay with the original)."""
+        package = self.snapshot(project_id)
+        package["source_id"] = project_id
+        return self.restore(package, name or f"{package['name']} (copy)", owner)
 
     def system_graph(self, project_id: str) -> schemas.SystemGraph:
         from autevra.assembly.model import BY_ID, COINCIDENCES, COMPONENTS, LOAD_PATHS

@@ -31,6 +31,7 @@ import { FunctionsPanel } from "./FunctionsPanel";
 import { ElementsPanel } from "./ElementsPanel";
 import { MachiningPanel } from "./MachiningPanel";
 import { MatesPanel } from "./MatesPanel";
+import { LibraryPanel } from "./LibraryPanel";
 import { InventoryPanel } from "./InventoryPanel";
 import { MachinePanel } from "./MachinePanel";
 import { VesselPanel } from "./VesselPanel";
@@ -458,6 +459,22 @@ function StudioView({ projectId, workspace, navigate }: {
             { label: "Export STEP (B-rep assembly)", disabled: !project, action: project ? downloadAction(api.stepUrl(project.id)) : undefined },
             { label: "Export STEP AP242", disabled: !project, action: project ? downloadAction(`${api.stepUrl(project.id)}?schema=AP242`) : undefined },
             { label: "Export glTF (.glb mesh for viewers and AR)", disabled: !project, action: project ? downloadAction(api.glbUrl(project.id)) : undefined },
+            { label: "Duplicate project (everything: parts, module specs, constraints)", disabled: !project, action: project ? async () => { const d = await api.duplicateProject(project.id); setProjects(await api.listProjects()); navigate(`/studio/${d.id}/${workspace}`); } : undefined },
+            { label: "Export design (.json, any module)", disabled: !project, action: project ? downloadAction(api.snapshotUrl(project.id)) : undefined },
+            { label: "Import design (.json)…", action: () => {
+              const input = document.createElement("input");
+              input.type = "file"; input.accept = ".json,application/json";
+              input.onchange = async () => {
+                const file = input.files?.[0];
+                if (!file) return;
+                try {
+                  const created = await api.importDesign(JSON.parse(await file.text()));
+                  setProjects(await api.listProjects());
+                  navigate(`/studio/${created.id}/${moduleOf(created.domain).workspaces[0]}`);
+                } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+              };
+              input.click();
+            } },
             { label: "Assembly drawing (A3 SVG: isometric, balloons, bill of materials)", disabled: !project, action: project ? downloadAction(api.assemblyDrawingUrl(project.id)) : undefined },
             { label: "Export STL (3D printing, binary, mm)", disabled: !project, action: project ? downloadAction(api.stlUrl(project.id)) : undefined },
             { label: "Export IGES 5.3 (B-rep solids, mm)", disabled: !project, action: project ? downloadAction(api.igesUrl(project.id)) : undefined },
@@ -609,6 +626,10 @@ function StudioView({ projectId, workspace, navigate }: {
         )}
         {project && !collapsed && workspace === "inventory" && (
           <InventoryPanel projectId={project.id} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "library" && (
+          <LibraryPanel projectId={project.id} projectName={project.name}
+            onOpen={async (id, domain) => { setProjects(await api.listProjects()); navigate(`/studio/${id}/${moduleOf(domain).workspaces[0]}`); }} />
         )}
         {project && !collapsed && workspace === "mates" && (
           <MatesPanel key={project.id} projectId={project.id} version={history.cursor} onModelChanged={() => refresh(project.id)} />

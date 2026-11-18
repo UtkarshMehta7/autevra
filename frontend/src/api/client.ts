@@ -147,6 +147,9 @@ export interface CamOut {
   gcode: string; gcode_lines: number;
 }
 
+/** A design saved in the library (any module). */
+export interface LibraryEntry { id: string; name: string; description: string; domain: string; tags: string[]; created: string; parts: number; source: string }
+
 /** A machine-element calculation: numbers, nested results and warnings. */
 export type ElementOut = { warnings: string[]; [key: string]: unknown };
 
@@ -163,6 +166,12 @@ export const api = {
     request<ProjectState>(`/projects/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
   deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: "DELETE" }),
   duplicateProject: (id: string) => post<ProjectState>(`/projects/${id}/duplicate`),
+  library: () => request<LibraryEntry[]>("/library"),
+  saveToLibrary: (body: { project_id: string; name: string; description: string; tags: string[] }) => post<LibraryEntry>("/library", body),
+  useLibraryDesign: (id: string) => post<ProjectState>(`/library/${id}/use`),
+  deleteLibraryDesign: (id: string) => request<void>(`/library/${id}`, { method: "DELETE" }),
+  snapshotUrl: (id: string) => `${API}/projects/${id}/snapshot`,
+  importDesign: (pkg: unknown) => post<ProjectState>("/projects/import", pkg),
   domains: () => request<DomainDef[]>("/domains"),
   allRuns: () => request<RunIndexItem[]>("/runs"),
   system: (id: string) => request<SystemGraph>(`/projects/${id}/system`),
