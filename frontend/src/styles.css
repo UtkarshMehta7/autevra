@@ -744,3 +744,12 @@ textarea.json.bad { border-color: var(--bad); }
 .el-chart .base { fill: none; stroke: #ffffff; stroke-opacity: 0.35; stroke-width: 0.6; stroke-dasharray: 1 2; }
 .gear-chart { max-width: 460px; max-height: 240px; }
 .legend .lbl { font-size: 8px; }
+
+/* Machining workspace */
+.cam-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+.cam-tiles div { background: #1b1f25; border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; display: flex; flex-direction: column; }
+.cam-tiles b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.cam-tiles span { font-size: 11px; color: var(--muted); }
+.cam-notes { color: var(--muted); margin: 0; padding-left: 16px; }
+.machining-panel .bd-table td { white-space: normal; }
+pre.gcode { max-height: 220px; overflow: auto; background: #14171c; border: 1px solid var(--line); padding: 6px 8px; font-size: 11px; line-height: 1.35; }

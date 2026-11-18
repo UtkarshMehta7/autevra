@@ -133,6 +133,20 @@ export function backendHint(): string {
     : "The hosted backend may be starting after a pause; reload in a minute.";
 }
 
+/** A machining plan: setup, operations with toolpaths (part frame, mm) and the G-code. */
+export interface CamOp {
+  name: string; tool: number; tool_label: string; rpm: number; feed: number; ap: number; ae: number;
+  cut_mm: number; rapid_mm: number; time_s: number; power_kw: number; cycle: string | null; notes: string[];
+  paths: [number, number, number][][];
+}
+export interface CamOut {
+  stock: number[]; part_box: number[]; safe_z: number; material: string;
+  tools: { number: number; label: string; kind: string; diameter: number }[];
+  operations: CamOp[]; warnings: string[]; notes: string[]; levels: number[]; time_s: number;
+  stock_volume: number; removed_volume: number; rest_area: number; mass_kg: number; stock_mass_kg: number;
+  gcode: string; gcode_lines: number;
+}
+
 /** A machine-element calculation: numbers, nested results and warnings. */
 export type ElementOut = { warnings: string[]; [key: string]: unknown };
 
@@ -296,6 +310,7 @@ export const api = {
   element: (kind: "bolt" | "weld" | "fatigue" | "fatigue/history" | "spring" | "gears", body: unknown) =>
     post<ElementOut>(`/elements/${kind}`, body),
   addGears: (id: string, body: unknown) => post<PartOut[]>(`/projects/${id}/elements/gears`, body),
+  cam: (id: string, part: string, body: unknown) => post<CamOut>(`/projects/${id}/parts/${part}/cam`, body),
   sliderCrank: (body: unknown) => post<SliderCrankOut>("/mechanisms/slider-crank", body),
   sweep: (id: string, part: string, joint: unknown, required: number) =>
     post<SweepReport>(`/projects/${id}/parts/${part}/sweep`, { joint, required, volume: false }),
