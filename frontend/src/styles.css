@@ -757,3 +757,7 @@ pre.gcode { max-height: 220px; overflow: auto; background: #14171c; border: 1px 
 .el-chart .grid { stroke: #ffffff; stroke-opacity: 0.06; }
 .tr-table td, .tr-table th { padding: 2px 4px; }
 .el-inputs h4 { margin: 8px 0 2px; font-size: 12px; color: var(--text); }
+.mate-pick { display: flex; gap: 4px; flex-wrap: wrap; }
+.mate-pick select { max-width: 150px; }
+.mates-panel td.wrap { white-space: normal; }
+.mates-panel td.good { color: var(--good); } .mates-panel td.bad { color: var(--bad); } .mates-panel td.warn { color: var(--warn); }

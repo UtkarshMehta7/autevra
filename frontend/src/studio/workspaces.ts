@@ -1,5 +1,5 @@
 export type WorkspaceId =
-  | "design" | "engine" | "vessel" | "breakdown" | "functions" | "loads" | "production" | "reviews" | "inventory" | "elements" | "machining" | "routing" | "styling" | "part-design" | "surfaces" | "structures" | "aircraft" | "package" | "assembly" | "simulation" | "ai-engineering" | "optimization" | "requirements"
+  | "design" | "engine" | "vessel" | "breakdown" | "functions" | "loads" | "production" | "reviews" | "inventory" | "elements" | "machining" | "mates" | "routing" | "styling" | "part-design" | "surfaces" | "structures" | "aircraft" | "package" | "assembly" | "simulation" | "ai-engineering" | "optimization" | "requirements"
   | "systems" | "manufacturing" | "digital-engineering";
 
 export const WORKSPACES: { id: WorkspaceId; label: string; description: string }[] = [
@@ -14,6 +14,7 @@ export const WORKSPACES: { id: WorkspaceId; label: string; description: string }
   { id: "inventory", label: "Inventory", description: "Shared library: ISO fasteners, bearings, hollow sections and published parts, with their ports and performance; add to the project" },
   { id: "elements", label: "Machine elements", description: "Shared calculators: bolted joints, fillet welds, fatigue (Goodman, S-N, rainflow), springs and spur gears; gear pairs added as parts" },
   { id: "machining", label: "Machining", description: "CAM for a part: stock, tools and cutting data by material, facing, Z-level roughing, rest machining, finishing, drilling and tapping from Hole features; toolpaths in 3D and ISO G-code" },
+  { id: "mates", label: "Assembly design", description: "Constraints between parts: Fix, Coincidence, Contact, Offset, Angle on faces and axes; Update solves them, moves the parts and reports the degrees of freedom left" },
   { id: "routing", label: "Routing", description: "Wiring harnesses and pipes along waypoints: bundle size, voltage drop, pressure drop and bend checks; added as parts" },
   { id: "styling", label: "Styling", description: "Draw the body: silhouette, underbody and plan curves of the styled skin" },
   { id: "part-design", label: "Part Design", description: "Your own parts from a feature tree: sketches, revolves, lofts, sweeps, shells, patterns" },
@@ -35,7 +36,7 @@ export const WORKSPACES: { id: WorkspaceId; label: string; description: string }
  * module's workspaces (domains are kept apart; shared tools act on the module's parts). */
 export interface ModuleDef { id: string; label: string; noun: string; workspaces: WorkspaceId[]; planned?: boolean; description: string }
 
-const SHARED: WorkspaceId[] = ["part-design", "inventory", "elements", "machining", "routing", "surfaces", "structures"];
+const SHARED: WorkspaceId[] = ["part-design", "mates", "inventory", "elements", "machining", "routing", "surfaces", "structures"];
 
 export const MODULES: ModuleDef[] = [
   { id: "automotive", label: "Land vehicles", noun: "Vehicle", description: "Cars, SUVs, pickups and trucks",

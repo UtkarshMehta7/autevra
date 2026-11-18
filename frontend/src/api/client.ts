@@ -312,6 +312,10 @@ export const api = {
     post<ElementOut>(`/elements/${kind}`, body),
   transmissionInputs: (id: string) => request<Record<string, unknown>>(`/projects/${id}/elements/transmission-inputs`),
   addGears: (id: string, body: unknown) => post<PartOut[]>(`/projects/${id}/elements/gears`, body),
+  mates: (id: string) => request<{ constraints: unknown[] }>(`/projects/${id}/mates`),
+  saveMates: (id: string, body: unknown) => request<{ constraints: unknown[] }>(`/projects/${id}/mates`, { method: "PUT", body: JSON.stringify(body) }),
+  mateFaces: (id: string, part: string) => request<unknown[]>(`/projects/${id}/mates/faces/${part}`),
+  solveMates: (id: string) => post<unknown>(`/projects/${id}/mates/solve`),
   cam: (id: string, part: string, body: unknown) => post<CamOut>(`/projects/${id}/parts/${part}/cam`, body),
   sliderCrank: (body: unknown) => post<SliderCrankOut>("/mechanisms/slider-crank", body),
   sweep: (id: string, part: string, joint: unknown, required: number) =>

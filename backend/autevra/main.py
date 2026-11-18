@@ -18,6 +18,7 @@ from autevra.api.elements import router as elements_router
 from autevra.api.installs import router as installs_router
 from autevra.api.inventory import router as inventory_router
 from autevra.api.marine import router as marine_router
+from autevra.api.mates import router as mates_router
 from autevra.api.mechanical import router as mechanical_router
 from autevra.api.product import router as product_router
 from autevra.api.routes import EXCEPTION_HANDLERS, router
@@ -66,6 +67,7 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None) -
     app.include_router(inventory_router, prefix="/api")
     app.include_router(elements_router, prefix="/api")
     app.include_router(cam_router, prefix="/api")
+    app.include_router(mates_router, prefix="/api")
     app.include_router(mechanical_router, prefix="/api")
     app.include_router(marine_router, prefix="/api")
     app.include_router(installs_router, prefix="/api")
