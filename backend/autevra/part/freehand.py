@@ -205,7 +205,7 @@ def _merge_arcs(stroke: np.ndarray, segs: list[dict], tol: float) -> list[dict]:
     return segs
 
 
-def _smooth(stroke: np.ndarray, idx: list[int], limit_deg: float = 40.0) -> bool:
+def _smooth(stroke: np.ndarray, idx: list[int], limit_deg: float = 60.0) -> bool:
     """No sharp corner inside: every turn between consecutive RDP pieces is gentle and
     they all turn the same way (an arc, not a zig-zag)."""
     if len(idx) < 3:
@@ -236,7 +236,10 @@ def _smooth_stroke(pts: np.ndarray, passes: int = 2) -> np.ndarray:
     return out
 
 
-def classify(strokes: list[Stroke], tol: float) -> list[dict]:
+def classify(strokes: list[Stroke], tol: float, fixed: bool = False) -> list[dict]:
+    """Lines, arcs and circles of each stroke. Unless ``fixed``, a stroke is read at 1.5 %
+    of its own size (small holes stay precise beside a large outline), never finer than
+    3 x its jitter and never coarser than ``tol``."""
     items: list[dict] = []
     for raw in strokes:
         pts = np.array(raw, float)
@@ -246,7 +249,8 @@ def classify(strokes: list[Stroke], tol: float) -> list[dict]:
             if len(pts) >= 5
             else 0.0
         )
-        stol = max(tol, 3.0 * noise)
+        own = 0.015 * float(np.max(np.ptp(pts, axis=0))) if len(pts) > 1 else tol
+        stol = tol if fixed else max(min(tol, own), 3.0 * noise)
         if len(pts) < 2:
             continue
         size = float(np.max(np.ptp(pts, axis=0)))
@@ -436,7 +440,7 @@ def clean_view(strokes: list[Stroke], tolerance: float | None, snap: float | Non
     size = float(np.max(np.ptp(allpts, axis=0))) or 1.0
     tol = tolerance or 0.015 * size
     snp = snap or 0.04 * size
-    items = classify(strokes, tol)
+    items = classify(strokes, tol, fixed=tolerance is not None)
     sketch, notes = build_sketch(items, snp)
     try:
         regions = sk.regions(sketch)

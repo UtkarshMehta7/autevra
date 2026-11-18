@@ -978,7 +978,17 @@ def freehand_part(project_id: str, body: dict, ws: WorkspaceDep) -> schemas.Part
     from autevra.part import freehand
 
     try:
-        doc, report = freehand.part(freehand.FreehandIn.model_validate(body))
-        return ws.create_part(project_id, PartDoc.model_validate(doc))
+        doc, _ = freehand.part(freehand.FreehandIn.model_validate(body))
+        new = ws.create_part(project_id, PartDoc.model_validate(doc))
+        # set it beside the parts already in the project (+X), not inside them
+        others = [p for p in ws.parts(project_id) if p.id != new.id and p.bounds]
+        if others and new.bounds:
+            right = max(p.document.at.x + p.bounds[1][0] for p in others)
+            x = right + 20.0 - new.bounds[0][0]
+            moved = new.document.model_copy(
+                update={"at": new.document.at.model_copy(update={"x": round(x, 3)})}
+            )
+            new = ws.update_part(project_id, new.id, moved)
+        return new
     except (ValueError, CommandError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None

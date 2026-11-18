@@ -141,3 +141,16 @@ def clean_area(clean: dict) -> float:
     xs = [p["x"] for p in clean["sketch"]["points"]]
     ys = [p["y"] for p in clean["sketch"]["points"]]
     return (max(xs) - min(xs)) * (max(ys) - min(ys))
+
+
+def test_new_parts_are_placed_beside_the_others(client: TestClient, project: str):
+    rect = wob(poly([(0, 0), (101, 2), (99, 61), (1, 59), (1.5, 1)]), 0.7)
+    a = client.post(
+        f"/api/projects/{project}/freehand", json={"views": {"top": [rect]}, "depth": 5}
+    ).json()
+    b = client.post(
+        f"/api/projects/{project}/freehand", json={"views": {"top": [rect]}, "depth": 5}
+    ).json()
+    a_right = a["document"]["at"]["x"] + a["bounds"][1][0]
+    b_left = b["document"]["at"]["x"] + b["bounds"][0][0]
+    assert b_left == pytest.approx(a_right + 20.0, abs=1e-3)

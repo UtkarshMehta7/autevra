@@ -1,5 +1,6 @@
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
+import { thin, toGrey, traceEnclosed } from "./traceSketch";
 
 /** Sketch to 3D (every module): draw rough strokes with a mouse, pen or finger in one or
  * more views; Autevra fits lines, arcs and circles, joins the ends, infers horizontal,
@@ -30,6 +31,31 @@ export function SketchTo3DPanel({ projectId, onModelChanged }: { projectId: stri
   const [cleaned, setCleaned] = useState<Partial<Record<View, Cleaned>>>({});
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<Partial<Record<View, { url: string; x: number; y: number; w: number; h: number }>>>({});
+
+  /** Trace a photo or scan of a paper sketch into this view's strokes. */
+  const tracePhoto = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(W / img.width, H / img.height);
+      const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, w, h);
+      const grey = toGrey(ctx.getImageData(0, 0, w, h).data, w, h);
+      const ox = (W - w) / 2, oy = (H - h) / 2;
+      const loops = traceEnclosed(grey, w, h).slice(0, 12)
+        .map((loop) => thin(loop, 2).map(([x, y]) => [+((x + ox) * k).toFixed(2), +((H - (y + oy)) * k).toFixed(2)] as Pt));
+      setPhoto((cur) => ({ ...cur, [view]: { url, x: ox, y: oy, w, h } }));
+      setStrokes((cur) => ({ ...cur, [view]: loops }));
+      setNote(loops.length ? `Traced ${loops.length} closed area(s) from the photo (outline and holes). Check the blue result; draw over it to add more.`
+        : "No closed outline found in the photo: draw with a dark pen on light paper, closing the outline.");
+    };
+    img.src = url;
+  };
   const svg = useRef<SVGSVGElement | null>(null);
   const k = width / W; // mm per canvas unit
 
@@ -127,7 +153,10 @@ export function SketchTo3DPanel({ projectId, onModelChanged }: { projectId: stri
           <label className="el-field wide">name<input value={name} onChange={(e) => setName(e.target.value)} /></label>
           <div className="row wrap">
             <button disabled={!strokes[view].length} onClick={() => setStrokes((s) => ({ ...s, [view]: s[view].slice(0, -1) }))}>Undo stroke</button>
-            <button disabled={!strokes[view].length} onClick={() => setStrokes((s) => ({ ...s, [view]: [] }))}>Clear view</button>
+            <button disabled={!strokes[view].length} onClick={() => { setStrokes((s) => ({ ...s, [view]: [] })); setPhoto((c) => ({ ...c, [view]: undefined })); }}>Clear view</button>
+            <label className="button file-button">Trace a photo or scan…
+              <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) tracePhoto(f); e.target.value = ""; }} />
+            </label>
           </div>
           <button className="primary" disabled={busy || !views.length || (mode === "views" ? views.length < 2 : !strokes[view].length)} onClick={create}>
             {busy ? "Building…" : mode === "views" ? `Create 3D part from ${views.length} views` : "Create 3D part"}
@@ -144,6 +173,7 @@ export function SketchTo3DPanel({ projectId, onModelChanged }: { projectId: stri
             role="img" aria-label={`Drawing area, ${view} view`}>
             {Array.from({ length: 33 }, (_, i) => <line key={`gx${i}`} x1={i * 20} y1={0} x2={i * 20} y2={H} className="fh-grid" />)}
             {Array.from({ length: 21 }, (_, i) => <line key={`gy${i}`} x1={0} y1={i * 20} x2={W} y2={i * 20} className="fh-grid" />)}
+            {photo[view] && <image href={photo[view]!.url} x={photo[view]!.x} y={photo[view]!.y} width={photo[view]!.w} height={photo[view]!.h} opacity={0.35} />}
             {strokes[view].map((s, i) => <polyline key={i} points={s.map(toPx).join(" ")} className="fh-stroke" />)}
             {drawing && <polyline points={drawing.map(toPx).join(" ")} className="fh-stroke live" />}
             {geometry}

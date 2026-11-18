@@ -782,3 +782,5 @@ pre.gcode { max-height: 220px; overflow: auto; background: #14171c; border: 1px 
 .fh-vertex { fill: #1f6fd6; }
 .freehand-panel .cam-notes .good { color: var(--good); } .freehand-panel .cam-notes .bad { color: var(--bad); }
 .fh-canvas .lbl { fill: #6b6b6b; font-size: 11px; }
+.file-button { position: relative; overflow: hidden; display: inline-flex; align-items: center; cursor: pointer; }
+.file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
