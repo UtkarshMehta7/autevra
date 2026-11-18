@@ -86,7 +86,13 @@ def test_climb_is_best_at_the_minimum_power_speed_and_ceilings_are_ordered() -> 
 
     assert power(c["v_min_power"]) < min(power(c["v_min_power"] * 0.97),
                                          power(c["v_min_power"] * 1.03))  # fmt: skip
-    assert c["roc"] == pytest.approx((0.8 * 134e3 - power(c["v"])) / w)
+    assert c["roc"] == pytest.approx((c["power_available_kw"] * 1e3 - power(c["v"])) / w)
+    # a fixed-pitch propeller is less efficient in the climb than its 0.8 at cruise, so the
+    # best climb speed lies above the minimum-power speed
+    assert 0.55 < c["prop_efficiency"] < 0.8
+    assert c["v"] > c["v_min_power"]
+    assert c["prop_diameter"] == pytest.approx(0.5588 * (134 / 0.7457) ** 0.25)
+    assert ac.prop_efficiency_at(80.0, 134e3, rho, 1.9, 0.8) == 0.8  # capped at cruise speeds
     out = ac.climb_performance(w, s, cd0, k, 134.0, 0.8, cl_max, 2400.0)
     assert 3.0 < out["roc_sea_level"] < 7.0  # a 180 hp four-seater climbs 700-1300 ft/min
     assert 0 < out["roc_cruise_altitude"] < out["roc_sea_level"]

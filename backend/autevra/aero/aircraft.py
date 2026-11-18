@@ -464,6 +464,30 @@ def _jet_checks(margin: float, v_h: float, v_v: float, v_stall: float, drag: flo
     ]  # fmt: skip
 
 
+def prop_diameter(power_kw: float) -> float:
+    """Two-blade propeller diameter from engine power (Raymer: D = 22 hp^0.25 in), m."""
+    return 0.5588 * (power_kw / 0.7457) ** 0.25
+
+
+def prop_efficiency_at(v: float, power_w: float, rho: float, diameter: float, eta_max: float,
+                       profile: float = 0.85) -> float:  # fmt: skip
+    """Propeller efficiency at a flight speed by momentum (actuator-disc) theory: the shaft
+    power less profile losses, P_s = T (V + v_i) with the induced velocity
+    v_i = (-V + sqrt(V^2 + 2 T / (rho A))) / 2, gives the thrust T; eta = T V / P, capped at
+    the propeller's best (cruise) efficiency. Low at low speed, as for a fixed-pitch
+    propeller in the climb."""
+    if v <= 0 or power_w <= 0:
+        return 0.0
+    disc = math.pi * diameter**2 / 4.0
+    ps = profile * power_w
+    lo, hi = 0.0, ps / v
+    for _ in range(80):
+        t = 0.5 * (lo + hi)
+        vi = 0.5 * (-v + math.sqrt(v * v + 2.0 * t / (rho * disc)))
+        lo, hi = (t, hi) if t * (v + vi) < ps else (lo, t)
+    return min(0.5 * (lo + hi) * v / power_w, eta_max)
+
+
 def climb_at(
     weight: float,
     area: float,
@@ -473,24 +497,43 @@ def climb_at(
     prop_efficiency: float,
     cl_max: float,
     altitude: float,
+    diameter: float | None = None,
 ) -> dict:
     """Best rate of climb at an altitude: excess power over weight, maximised over speed.
 
-    Power required P = 1/2 rho V^3 S C_D0 + 2 W^2 / (rho V S pi AR e); it is least at
-    V_mp = sqrt(2 W / (rho S)) (1 / (3 C_D0 pi AR e))^(1/4). With constant propeller
-    efficiency the available power does not depend on speed, so the best climb is at V_mp,
-    or at 1.1 times the stall speed if that is faster.
+    Power required P = 1/2 rho V^3 S C_D0 + 2 W^2 / (rho V S pi AR e) is least at
+    V_mp = sqrt(2 W / (rho S)) (1 / (3 C_D0 pi AR e))^(1/4). Power available is the engine
+    power (lapsed with density, Gagg-Ferrar 1.132 sigma - 0.132) times the propeller
+    efficiency at that speed from momentum theory (``prop_efficiency_at``; diameter from
+    the power when not given), so the best climb speed lies above V_mp; it is found by a
+    scan and golden-section refinement between 1.1 V_stall and 3 V_mp.
     """
     air = isa(altitude)
     rho = air["rho"]
+    d = diameter or prop_diameter(power_kw)
     v_mp = math.sqrt(2 * weight / (rho * area)) * (1 / (3 * cd0 * pi_ar_e)) ** 0.25
     v_stall = math.sqrt(2 * weight / (rho * area * cl_max))
-    v = max(v_mp, 1.1 * v_stall)
-    required = 0.5 * rho * v**3 * area * cd0 + 2 * weight**2 / (rho * v * area * pi_ar_e)
-    available = prop_efficiency * power_kw * 1000.0 * max(1.132 * air["sigma"] - 0.132, 0.0)
-    return {"altitude": altitude, "v": v, "v_min_power": v_mp, "roc": (available - required)
-            / weight, "power_required_kw": required / 1000.0,
-            "power_available_kw": available / 1000.0}  # fmt: skip
+    shaft = power_kw * 1000.0 * max(1.132 * air["sigma"] - 0.132, 0.0)
+
+    def required(v: float) -> float:
+        return 0.5 * rho * v**3 * area * cd0 + 2 * weight**2 / (rho * v * area * pi_ar_e)
+
+    def excess(v: float) -> float:
+        return prop_efficiency_at(v, shaft, rho, d, prop_efficiency) * shaft - required(v)
+
+    lo_v, hi_v = 1.1 * v_stall, max(3.0 * v_mp, 1.2 * v_stall)
+    grid = [lo_v + (hi_v - lo_v) * i / 60 for i in range(61)]
+    best = max(range(61), key=lambda i: excess(grid[i]))
+    a, b = grid[max(best - 1, 0)], grid[min(best + 1, 60)]
+    g = (math.sqrt(5) - 1) / 2
+    for _ in range(40):
+        c1, c2 = b - g * (b - a), a + g * (b - a)
+        a, b = (a, c2) if excess(c1) > excess(c2) else (c1, b)
+    v = 0.5 * (a + b)
+    eta = prop_efficiency_at(v, shaft, rho, d, prop_efficiency)
+    return {"altitude": altitude, "v": v, "v_min_power": v_mp, "roc": excess(v) / weight,
+            "power_required_kw": required(v) / 1000.0, "power_available_kw": eta * shaft / 1000.0,
+            "prop_efficiency": eta, "prop_diameter": d}  # fmt: skip
 
 
 def climb_performance(
@@ -502,32 +545,36 @@ def climb_performance(
     prop_efficiency: float,
     cl_max: float,
     cruise_altitude: float,
+    diameter: float | None = None,
 ) -> dict:
     """Rate of climb against altitude and the ceilings: service where the best rate of climb
     falls to 0.5 m/s (100 ft/min), absolute where it reaches zero (bisection; ISA
     troposphere, so ceilings above 11 km are reported as 11 km)."""
     args = (weight, area, cd0, pi_ar_e, power_kw, prop_efficiency, cl_max)
 
+    def climb(h: float) -> dict:
+        return climb_at(*args, h, diameter)
+
     def ceiling(target: float) -> float:
-        if climb_at(*args, 0.0)["roc"] <= target:
+        if climb(0.0)["roc"] <= target:
             return 0.0
-        if climb_at(*args, 11_000.0)["roc"] > target:
+        if climb(11_000.0)["roc"] > target:
             return 11_000.0
         lo, hi = 0.0, 11_000.0
         for _ in range(40):
             mid = 0.5 * (lo + hi)
-            lo, hi = (mid, hi) if climb_at(*args, mid)["roc"] > target else (lo, mid)
+            lo, hi = (mid, hi) if climb(mid)["roc"] > target else (lo, mid)
         return 0.5 * (lo + hi)
 
-    sea = climb_at(*args, 0.0)
+    sea = climb(0.0)
     return {
         "roc_sea_level": sea["roc"],
         "v_best_climb": sea["v"],
         "climb_gradient_sea_level": sea["roc"] / sea["v"],
-        "roc_cruise_altitude": climb_at(*args, cruise_altitude)["roc"],
+        "roc_cruise_altitude": climb(cruise_altitude)["roc"],
         "service_ceiling": ceiling(0.5),
         "absolute_ceiling": ceiling(0.0),
-        "curve": [climb_at(*args, h) for h in range(0, 11_001, 1000)],
+        "curve": [climb(h) for h in range(0, 11_001, 1000)],
     }
 
 
