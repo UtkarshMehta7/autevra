@@ -61,7 +61,9 @@ def test_life_factors():
     assert tr.life_factors(3e6)[0] == pytest.approx(1.0)
     assert tr.life_factors(1e9) == (1.0, 1.0)
     y, z = tr.life_factors(1e5)
-    assert y == pytest.approx((3e6 / 1e5) ** (math.log(2.5) / math.log(3e3))) and z == pytest.approx(1.6)
+    assert y == pytest.approx(
+        (3e6 / 1e5) ** (math.log(2.5) / math.log(3e3))
+    ) and z == pytest.approx(1.6)
 
 
 def test_rating_against_allowables():
