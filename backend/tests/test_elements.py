@@ -243,3 +243,25 @@ def test_vdi2230_flags_slip_and_surface_pressure():
     assert soft["p_max"] > soft["p_G"] and any("hardened washer" in w for w in soft["warnings"])
     better = joints.vdi2230(joints.VdiIn(alpha_a=1.1))  # angle-controlled tightening
     assert better["F_KR_min_kN"] > joints.vdi2230(joints.VdiIn())["F_KR_min_kN"]
+
+
+def test_suspension_spring_from_ride_frequency():
+    s = springs.SuspensionIn(corner_mass_kg=400, ride_hz=1.3, tyre_rate=250, motion_ratio=0.9)
+    out = springs.suspension_spring(s)
+    kr = 400 * (2 * math.pi * 1.3) ** 2 / 1000
+    assert out["ride_rate"] == rel(kr)
+    assert out["wheel_rate"] == rel(kr * 250 / (250 - kr))
+    assert out["spring_rate"] == rel(out["wheel_rate"] / 0.81)
+    d, big_d = out["wire_d"], 110.0
+    assert out["active_coils"] == rel(77_200 * d**4 / (8 * big_d**3 * out["spring_rate"]))
+    assert out["tau_bump"] <= out["allowable"]
+    # one size thinner would be overstressed: the wire is the smallest that works
+    c = big_d / (d - 0.1)
+    kb = (4 * c + 2) / (4 * c - 3)
+    assert (
+        kb * 8 * out["bump_force_N"] * big_d / (math.pi * (d - 0.1) ** 3)
+        > 0.55 * 1974 / (d - 0.1) ** 0.108
+    )
+    assert 3 < out["mass_kg"] < 7 and out["surge_hz"] > 25
+    with pytest.raises(ValueError):
+        springs.suspension_spring(springs.SuspensionIn(tyre_rate=20, ride_hz=3))

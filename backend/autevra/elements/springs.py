@@ -118,3 +118,96 @@ def spring(s: SpringIn) -> dict:
             warnings.append("Working load closes the spring solid.")
     out["warnings"] = warnings
     return out
+
+
+class SuspensionIn(BaseModel):
+    """A road-vehicle corner: the sprung mass on that wheel, the ride frequency wanted,
+    the tyre's vertical rate and the spring's motion ratio (spring travel per wheel travel)."""
+
+    corner_mass_kg: float = Field(400.0, gt=20.0, le=10_000.0)
+    ride_hz: float = Field(1.3, ge=0.5, le=4.0)
+    tyre_rate: float = Field(250.0, gt=10.0, le=5000.0)  # N/mm
+    motion_ratio: float = Field(0.9, gt=0.2, le=1.5)
+    bump_mm: float = Field(80.0, gt=5.0, le=500.0)  # wheel travel from static to the bump stop
+    rebound_mm: float = Field(90.0, gt=5.0, le=500.0)
+    mean_diameter: float = Field(110.0, gt=20.0, le=400.0)  # D, set by the strut or the arm
+    wire: Literal["chrome-silicon", "chrome-vanadium", "oil-tempered"] = "chrome-silicon"
+    clash_allowance: float = Field(0.15, ge=0.0, le=1.0)  # coil gap at bump, of the travel
+
+
+def suspension_spring(s: SuspensionIn) -> dict:
+    """Coil spring for a ride frequency. Ride rate k_r = m (2 pi f)^2; the wheel rate in
+    series with the tyre k_w = k_r k_t / (k_t - k_r); the spring rate k_s = k_w / MR^2.
+    Wire d chosen as the smallest (0.1 mm steps) whose shear stress at full bump stays at
+    or below 0.55 Sut (shot-peened, preset suspension springs), then the active coils
+    n = G d^4 / (8 D^3 k_s); ends closed and ground; free length so the coils still have
+    the clash allowance at full bump."""
+    a_coef, m_exp, g, _ = WIRES[s.wire]
+    w = 2.0 * math.pi * s.ride_hz
+    k_ride = s.corner_mass_kg * w * w / 1000.0  # N/mm
+    if k_ride >= s.tyre_rate:
+        raise ValueError("ride rate at or above the tyre rate: lower the ride frequency")
+    k_wheel = k_ride * s.tyre_rate / (s.tyre_rate - k_ride)
+    k_spring = k_wheel / s.motion_ratio**2
+    f_static = s.corner_mass_kg * 9.80665 / s.motion_ratio  # N at the spring
+    travel_bump = s.bump_mm * s.motion_ratio
+    f_bump = f_static + k_spring * travel_bump
+    big_d = s.mean_diameter
+    chosen = None
+    for i in range(30, 400):
+        d = i / 10.0
+        c = big_d / d
+        if c < 3.0:
+            break
+        kb = (4.0 * c + 2.0) / (4.0 * c - 3.0)
+        tau = kb * 8.0 * f_bump * big_d / (math.pi * d**3)
+        allow = 0.55 * a_coef / d**m_exp
+        if tau <= allow:
+            chosen = (d, c, kb, tau, allow)
+            break
+    if chosen is None:
+        raise ValueError("no wire up to 40 mm carries the bump load at this coil diameter")
+    d, c, kb, tau_bump, allow = chosen
+    n = g * d**4 / (8.0 * big_d**3 * k_spring)
+    nt = n + 2.0
+    solid = nt * d
+    static_defl = f_static / k_spring
+    length_at_bump = solid + s.clash_allowance * travel_bump + n * 0.1 * d  # gaps left at bump
+    installed_static = length_at_bump + travel_bump
+    free = installed_static + static_defl
+    mass_kg = math.pi**2 * d**2 / 4.0 * big_d * nt * RHO_STEEL * 1000.0
+    m_active = math.pi**2 * d**2 * big_d * n * RHO_STEEL / 4.0
+    surge = 0.5 * math.sqrt(k_spring / m_active)
+    out = {
+        "ride_rate": k_ride,
+        "wheel_rate": k_wheel,
+        "spring_rate": k_spring,
+        "static_force_N": f_static,
+        "bump_force_N": f_bump,
+        "wire_d": d,
+        "index": c,
+        "active_coils": n,
+        "total_coils": nt,
+        "solid_length": solid,
+        "free_length": free,
+        "static_length": installed_static,
+        "length_at_bump": length_at_bump,
+        "static_deflection": static_defl,
+        "tau_static": kb * 8.0 * f_static * big_d / (math.pi * d**3),
+        "tau_bump": tau_bump,
+        "allowable": allow,
+        "mass_kg": mass_kg,
+        "surge_hz": surge,
+    }
+    warnings = []
+    if not 4.0 <= c <= 12.0:
+        warnings.append(f"Spring index {c:.1f} outside 4–12, usual for suspension springs.")
+    if surge < 25.0:
+        warnings.append(
+            f"Surge frequency {surge:.0f} Hz is close to wheel hop (10–15 Hz harmonics): "
+            "coils may resonate."
+        )
+    if free / big_d > 4.0:
+        warnings.append("Free length over 4 D: guide the spring on the damper (MacPherson strut).")
+    out["warnings"] = warnings
+    return out

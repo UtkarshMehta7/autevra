@@ -50,6 +50,40 @@ def spring(body: springs.SpringIn) -> dict:
     return _run(springs.spring, body)
 
 
+@router.post("/elements/suspension-spring")
+def suspension_spring(body: springs.SuspensionIn) -> dict:
+    return _run(springs.suspension_spring, body)
+
+
+@router.get("/projects/{project_id}/elements/suspension-inputs")
+def suspension_inputs(project_id: str, ws: WorkspaceDep) -> dict:
+    """Front and rear corners of a land-vehicle project: sprung mass per wheel, tyre
+    vertical rate, and the ride frequency of the springs it has now (wheel rate from the
+    spring rate, tyre in series)."""
+    import math
+
+    p = dict(ws.project(project_id).values)
+    if "vehicle_mass" not in p:
+        raise HTTPException(status_code=422, detail="not a land-vehicle project")
+    m, fm = p["vehicle_mass"], p.get("front_mass_distribution", 55.0) / 100.0
+    kt = p.get("tyre_vertical_stiffness", 250.0)
+    out = {}
+    for axle, share in (("front", fm), ("rear", 1.0 - fm)):
+        sprung = m * share / 2.0 - p.get(f"{axle}_unsprung_mass", 45.0)
+        k = p.get(f"{axle}_spring_rate")
+        ride = None
+        if k:
+            kr = k * kt / (k + kt)
+            ride = math.sqrt(kr * 1000.0 / sprung) / (2.0 * math.pi)
+        out[axle] = {
+            "corner_mass_kg": round(sprung, 1),
+            "tyre_rate": kt,
+            "spring_rate_now": k,
+            "ride_hz_now": ride,
+        }
+    return out
+
+
 @router.post("/elements/gears")
 def gear_pair(body: gears.GearPairIn) -> dict:
     out = _run(gears.pair, body)

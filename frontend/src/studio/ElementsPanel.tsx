@@ -5,7 +5,7 @@ import { api, type ElementOut } from "../api/client";
  * fatigue (Goodman family, S-N life, rainflow damage), helical springs and spur gear pairs.
  * Calculations run in the backend (autevra/elements); each result names its method. */
 
-type Kind = "bolt" | "vdi2230" | "weld" | "fatigue" | "fatigue/history" | "spring" | "gears" | "transmission";
+type Kind = "bolt" | "vdi2230" | "suspension-spring" | "weld" | "fatigue" | "fatigue/history" | "spring" | "gears" | "transmission";
 type Tab = "bolt" | "vdi2230" | "weld" | "fatigue" | "spring" | "gears" | "transmission";
 
 const TABS: { id: Tab; label: string; method: string }[] = [
@@ -393,6 +393,58 @@ function SpringSketch({ d, D, n, L0, Ls }: { d: number; D: number; n: number; L0
   );
 }
 
+function SuspensionSpring({ projectId }: { projectId?: string }) {
+  const [s, setS] = useState({ corner_mass_kg: 400, ride_hz: 1.3, tyre_rate: 250, motion_ratio: 0.9, bump_mm: 80, rebound_mm: 90, mean_diameter: 110, wire: "chrome-silicon", clash_allowance: 0.15 });
+  const [now, setNow] = useState<string | null>(null);
+  const { out, error } = useCalc("suspension-spring", s);
+  const fill = async (axle: "front" | "rear") => {
+    if (!projectId) return;
+    try {
+      const inp = await api.suspensionInputs(projectId);
+      const c = inp[axle];
+      setS({ ...s, corner_mass_kg: c.corner_mass_kg, tyre_rate: c.tyre_rate });
+      setNow(c.ride_hz_now ? `${axle} now: ${c.spring_rate_now} N/mm springs ride at ${c.ride_hz_now.toFixed(2)} Hz` : null);
+    } catch (e) { setNow(e instanceof Error ? e.message : String(e)); }
+  };
+  return (
+    <div className="el-body">
+      <div className="el-inputs">
+        <h4>Suspension spring from ride frequency</h4>
+        {projectId && <div className="row wrap"><button onClick={() => fill("front")}>Front corner of this vehicle</button><button onClick={() => fill("rear")}>Rear corner</button></div>}
+        {now && <p className="small muted">{now}</p>}
+        <Num label="sprung mass per corner" value={s.corner_mass_kg} unit="kg" step={5} onChange={(x) => setS({ ...s, corner_mass_kg: x })} />
+        <Num label="ride frequency" value={s.ride_hz} unit="Hz" step={0.05} onChange={(x) => setS({ ...s, ride_hz: x })} />
+        <Num label="tyre vertical rate" value={s.tyre_rate} unit="N/mm" step={10} onChange={(x) => setS({ ...s, tyre_rate: x })} />
+        <Num label="motion ratio" value={s.motion_ratio} step={0.01} onChange={(x) => setS({ ...s, motion_ratio: x })} />
+        <Num label="bump travel" value={s.bump_mm} unit="mm" onChange={(x) => setS({ ...s, bump_mm: x })} />
+        <Num label="coil mean ⌀ D" value={s.mean_diameter} unit="mm" onChange={(x) => setS({ ...s, mean_diameter: x })} />
+        <Pick label="wire" value={s.wire} options={["chrome-silicon", "chrome-vanadium", "oil-tempered"]} onChange={(x) => setS({ ...s, wire: x })} />
+      </div>
+      <div className="el-out">
+        {out && <>
+          <div className="cam-tiles">
+            <div><b>{fmt(num(out, "spring_rate"))} N/mm</b><span>spring rate</span></div>
+            <div><b>⌀{fmt(num(out, "wire_d"))} mm</b><span>wire, {fmt(num(out, "active_coils"))} active coils</span></div>
+            <div><b>{fmt(num(out, "free_length"))} mm</b><span>free length</span></div>
+            <div><b>{fmt(num(out, "mass_kg"))} kg</b><span>spring mass</span></div>
+          </div>
+          <Results rows={[
+            ["ride rate (tyre in series)", num(out, "ride_rate"), "N/mm"],
+            ["wheel rate", num(out, "wheel_rate"), "N/mm"],
+            ["static / bump force", `${fmt(num(out, "static_force_N"))} / ${fmt(num(out, "bump_force_N"))}`, "N"],
+            ["static deflection", num(out, "static_deflection"), "mm"],
+            ["installed (static) / at bump / solid", `${fmt(num(out, "static_length"))} / ${fmt(num(out, "length_at_bump"))} / ${fmt(num(out, "solid_length"))}`, "mm"],
+            ["shear at bump / allowable", `${fmt(num(out, "tau_bump"))} / ${fmt(num(out, "allowable"))}`, "MPa"],
+            ["spring index D/d", num(out, "index"), ""],
+            ["surge frequency", num(out, "surge_hz"), "Hz"],
+          ]} />
+        </>}
+        <Warnings out={out} error={error} />
+      </div>
+    </div>
+  );
+}
+
 function SpringTab() {
   const [s, setS] = useState({ d: 2, D: 16, n: 8, free_length: 60, ends: "closed-ground", wire: "music", force: 40, support: "fixed-fixed" });
   const { out, error } = useCalc("spring", s);
@@ -674,7 +726,7 @@ export function ElementsPanel({ projectId, onModelChanged }: { projectId?: strin
       {tab === "vdi2230" && <VdiTab />}
       {tab === "weld" && <WeldTab />}
       {tab === "fatigue" && <FatigueTab />}
-      {tab === "spring" && <SpringTab />}
+      {tab === "spring" && <><SuspensionSpring projectId={projectId} /><h4 className="el-sub">General helical spring</h4><SpringTab /></>}
       {tab === "gears" && <GearsTab projectId={projectId} onModelChanged={onModelChanged} />}
       {tab === "transmission" && <TransmissionTab projectId={projectId} />}
     </section>

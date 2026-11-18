@@ -308,8 +308,9 @@ export const api = {
   reviews: (id: string) => request<unknown[]>(`/projects/${id}/reviews`),
   clearance: (id: string, required: number) => request<unknown[]>(`/projects/${id}/clearance?required=${required}`),
   fourbar: (body: unknown) => post<FourBarOut>("/mechanisms/fourbar", body),
-  element: (kind: "bolt" | "vdi2230" | "weld" | "fatigue" | "fatigue/history" | "spring" | "gears" | "transmission", body: unknown) =>
+  element: (kind: "bolt" | "vdi2230" | "suspension-spring" | "weld" | "fatigue" | "fatigue/history" | "spring" | "gears" | "transmission", body: unknown) =>
     post<ElementOut>(`/elements/${kind}`, body),
+  suspensionInputs: (id: string) => request<Record<string, { corner_mass_kg: number; tyre_rate: number; spring_rate_now: number | null; ride_hz_now: number | null }>>(`/projects/${id}/elements/suspension-inputs`),
   transmissionInputs: (id: string) => request<Record<string, unknown>>(`/projects/${id}/elements/transmission-inputs`),
   addGears: (id: string, body: unknown) => post<PartOut[]>(`/projects/${id}/elements/gears`, body),
   mates: (id: string) => request<{ constraints: unknown[] }>(`/projects/${id}/mates`),

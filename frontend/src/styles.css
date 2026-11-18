@@ -764,3 +764,4 @@ pre.gcode { max-height: 220px; overflow: auto; background: #14171c; border: 1px 
 .vdi-split { display: flex; height: 18px; max-width: 440px; border-radius: 3px; overflow: hidden; font-size: 10px; }
 .vdi-split span { display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; color: #10141a; }
 .vdi-split .t { background: var(--accent); } .vdi-split .h { background: var(--warn); }
+.el-sub { margin: 10px 0 0; font-size: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
