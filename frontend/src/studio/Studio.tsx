@@ -327,6 +327,22 @@ function StudioView({ projectId, workspace, navigate }: {
     });
   const specAction = (action: () => Promise<SpecState>) =>
     run(async () => { setSpecState(await action()); setSpecDesign(null); return null; });
+  // Reference designs (land): published dimensions applied as one undoable change.
+  const [landRefs, setLandRefs] = useState<Record<string, { template: string; note: string; values: Record<string, number> }>>({});
+  useEffect(() => { api.landReferences().then(setLandRefs).catch(() => setLandRefs({})); }, []);
+  const [refNote, setRefNote] = useState<string | null>(null);
+  const applyReference = async (name: string) => {
+    const ref = landRefs[name];
+    if (!ref) return;
+    setRefNote(`Building “${name}”: ${ref.note}`);
+    setBusy(true);
+    try {
+      const created = await api.projectFromReference(name);
+      setProjects(await api.listProjects());
+      navigate(`/studio/${created.id}/design`);
+      setRefNote(ref.note);
+    } catch (e) { setRefNote(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  };
   const generateDesign = () =>
     run(async () => { setSpecDesign(await api.specDesign(project!.id)); return null; });
   const applyDesign = () =>
@@ -552,6 +568,15 @@ function StudioView({ projectId, workspace, navigate }: {
             values={project.values} studies={studies} loops={loops} busy={busy}
             onOptimize={optimize} onLoop={engineeringLoop} onDecide={decideStudy}
             onChoose={chooseCandidate} />
+        )}
+        {project && !collapsed && workspace === "design" && Object.keys(landRefs).length > 0 && (
+          <div className="reference-picker">
+            <label>New project from a reference design <select value="" disabled={busy} onChange={(e) => e.target.value && applyReference(e.target.value)}>
+              <option value="">choose a well-known car…</option>
+              {Object.keys(landRefs).map((k) => <option key={k} value={k}>{k}</option>)}
+            </select></label>
+            <span className="hint">{refNote ?? "A new project on the car's template with its published dimensions, mass, power and drag as one change in the history; figures not published are estimated. Studies, not manufacturers' data."}</span>
+          </div>
         )}
         {project && !collapsed && workspace === "design" && (
           <SpecPanel state={specState} design={specDesign} parameters={parameters}

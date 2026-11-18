@@ -42,6 +42,8 @@ export function VesselPanel({ projectId, onModelChanged }: { projectId: string; 
   const [out, setOut] = useState<Out | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [presets, setPresets] = useState<Record<string, Record<string, unknown>>>({});
+  useEffect(() => { api.vesselPresets().then(setPresets).catch(() => undefined); }, []);
   const timer = useRef<number | undefined>(undefined);
   const loaded = useRef(false);
   useEffect(() => {
@@ -72,6 +74,11 @@ export function VesselPanel({ projectId, onModelChanged }: { projectId: string; 
     <div className="bench wide engine vessel">
       <div className="bench-side">
         <label className="row">name <input value={spec.name} onChange={(e) => set("name", e.target.value)} /></label>
+        {Object.keys(presets).length > 0 && (
+          <label className="row">start from <select value="" onChange={(e) => { const p = presets[e.target.value]; if (p) setSpec({ ...(p as unknown as Spec) }); }}>
+            <option value="">reference design…</option>
+            {Object.keys(presets).map((k) => <option key={k} value={k}>{k}</option>)}</select></label>
+        )}
         <div className="row3">
           <label>material <select value={spec.material} onChange={(e) => set("material", e.target.value)}>
             <option value="steel">steel</option><option value="aluminium">aluminium</option><option value="grp">GRP</option></select></label>

@@ -57,6 +57,45 @@ def catalogue() -> schemas.Catalogue:
     )
 
 
+@router.get("/reference/land")
+def reference_land() -> dict:
+    """Reference land-vehicle designs: template, parameter values and a note on sources."""
+    from autevra import reference
+
+    return reference.LAND
+
+
+class FromReference(BaseModel):
+    name: str
+
+
+@router.post("/projects/from-reference", response_model=schemas.ProjectState, status_code=201)
+def project_from_reference(
+    body: FromReference, ws: WorkspaceDep, who: VisitorDep, request: Request
+) -> schemas.ProjectState:
+    """A new land-vehicle project from a reference design: its template, then its published
+    figures as one undoable change (so the history shows what was taken from the source)."""
+    from autevra import reference
+    from autevra.core.commands import Change, SetParameters
+
+    ref = reference.LAND.get(body.name)
+    if ref is None:
+        raise HTTPException(status_code=404, detail=f"no reference design '{body.name}'")
+    access.check_project_quota(request, who)
+    state = ws.create_project(body.name, "automotive", who.owner, ref["template"])
+    changes = tuple(
+        Change(parameter=k, operation="set", value=float(v)) for k, v in ref["values"].items()
+    )
+    try:
+        ws.apply(
+            state.id, SetParameters(changes=changes, instruction=f"reference design: {body.name}")
+        )
+    except CommandRejectedError as exc:
+        ws.delete(state.id)
+        raise HTTPException(status_code=422, detail=f"{body.name}: {exc}") from None
+    return ws.project(state.id)
+
+
 @router.get("/projects", response_model=list[schemas.ProjectSummary])
 def list_projects(ws: WorkspaceDep, who: VisitorDep) -> list[schemas.ProjectSummary]:
     return ws.list_projects(who.owner, all_owners=who.all_owners)

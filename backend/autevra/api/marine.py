@@ -31,6 +31,13 @@ class Analysis(BaseModel):
     resistance: list[dict[str, float]]
 
 
+@router.get("/marine/presets")
+def vessel_presets() -> dict:
+    from autevra import reference
+
+    return {k: VesselSpec.model_validate(v) for k, v in reference.MARINE.items()}
+
+
 @router.post("/marine/analyse", response_model=Analysis)
 def analyse(spec: VesselSpec) -> Analysis:
     hs = hk.hydrostatics(spec)

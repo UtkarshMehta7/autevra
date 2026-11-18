@@ -48,6 +48,8 @@ export function EnginePanel({ projectId, onModelChanged }: { projectId: string; 
   const [out, setOut] = useState<EngineAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [presets, setPresets] = useState<Record<string, Record<string, unknown>>>({});
+  useEffect(() => { api.enginePresets().then(setPresets).catch(() => undefined); }, []);
   const [busy, setBusy] = useState(false);
   const timer = useRef<number | undefined>(undefined);
   const loaded = useRef(false);
@@ -87,6 +89,11 @@ export function EnginePanel({ projectId, onModelChanged }: { projectId: string; 
     <div className="bench wide engine">
       <div className="bench-side">
         <label className="row">name <input value={spec.name} onChange={(e) => set("name", e.target.value)} /></label>
+        {Object.keys(presets).length > 0 && (
+          <label className="row">start from <select value="" onChange={(e) => { const p = presets[e.target.value]; if (p) setSpec({ ...(p as unknown as EngineSpec) }); }}>
+            <option value="">reference engine…</option>
+            {Object.keys(presets).map((k) => <option key={k} value={k}>{k}</option>)}</select></label>
+        )}
         <div className="row3">
           <label>layout <select value={spec.layout} onChange={(e) => set("layout", e.target.value as EngineSpec["layout"])}>
             <option value="inline">inline</option><option value="V">V</option><option value="boxer">opposed (boxer)</option></select></label>

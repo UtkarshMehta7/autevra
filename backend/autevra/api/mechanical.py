@@ -30,6 +30,13 @@ def spec_schema() -> dict:
     return {"defaults": pk.EngineSpec().model_dump(), "schema": pk.EngineSpec.model_json_schema()}
 
 
+@router.get("/engines/presets")
+def engine_presets() -> dict:
+    from autevra import reference
+
+    return reference.ENGINES
+
+
 @router.post("/engines/analyse")
 def analyse(spec: pk.EngineSpec) -> dict:
     return pk.analyse(spec)
