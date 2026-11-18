@@ -167,30 +167,29 @@ no claim of certification, analysis only where a verified solver runs.
 What a CATIA-class workbench offers, what Autevra has, and the build order. Status:
 **have**, **partial**, **planned**. No parity is claimed.
 
-| Capability | Autevra | Missing |
+| Capability | Autevra (18 November 2026) | Missing |
 |---|---|---|
-| Sketcher | partial: drag, insert and delete points on profiles | lines, arcs and circles; constraints (dimension, coincident, tangent, horizontal, vertical, symmetric); sketches on any plane |
-| Part Design | **have**: extrude, revolve, loft, sweep, shell, fillet and chamfer on selected edges, mirror, patterns, add/cut/intersect | holes, drafts, ribs |
-| Wireframe and Surface | planned | reference points, lines and planes; 3D curves; surface sweeps and offsets |
-| GSD / FreeStyle / Class-A | partial: styled freeform body, editable guide curves, blueprint tracing, zebra and curvature displays | section editor, fill and blend surfaces, continuity checks |
-| Assembly Design | partial: the vehicle assembly with mates, coincidences and impact analysis | assemblies of user parts with constraints and motion |
-| Drafting | partial: package drawing | 2D drawings of any part: projected views, dimensions, title block; PDF and DXF |
+| Sketcher | **have**: lines, arcs, circles, splines on profiles; 18 constraint kinds (coincident, horizontal, vertical, parallel, perpendicular, equal, tangent, concentric, on curve, midpoint, symmetric, dimensions, angle); DOF and conflict report; formulas on dimensions; sketch on any origin plane or a picked planar face | trim and extend, offset curves, ellipses |
+| Sketch to 3D (beyond the established tools) | **have**: rough strokes or a photo of a paper sketch cleaned into a constrained sketch (fitted lines, arcs, circles; inferred intent), then extruded, revolved or built from front, top and side views | lofted organic shapes from silhouettes |
+| Part Design | **have**: pad, pocket, shaft, groove, loft, sweep (rib), hole wizard (ISO metric simple, clearance, tapped, counterbore, countersink), slot, draft, shell, fillet, chamfer, mirror, patterns, add/cut/intersect; keys P, O, H, C, Ctrl+U, F3 | variable fillets, thread geometry (cosmetic threads only) |
+| Wireframe and Surface | partial: NURBS lab, styled freeform body | reference planes and axes as features, surface sweeps and offsets |
+| GSD / FreeStyle / Class-A | partial: styled body, guide curves, blueprint tracing, zebra, curvature, G0-G3 checks | fill and blend surfaces |
+| Assembly Design | **have**: Fix, Coincidence, Contact, Offset, Angle between faces and axes of parts, solved together with DOF and conflict report; faces re-matched after edits; interface mates of the vehicle | flexible sub-assemblies |
+| DMU | **have**: clearance matrix, swept motion envelopes, four-bar and slider-crank kinematics | full multi-body motion of user assemblies |
+| Drafting | **have**: front, top, right, isometric and section A-A views with hidden lines, dimensions, datums, GD&T frames, ISO 1302 surface texture, hole callouts, notes, title block; assembly sheet with balloons and BOM | PDF and DXF output, detail views |
+| Machining | **have**: 2.5-axis milling (facing, Z-level roughing, rest machining, finishing, drilling, peck, tapping, counterbore, countersink) and turning (facing, roughing, finishing with G42, grooving, part-off), cutting data by material, ISO G-code, toolpaths in 3D | 3- and 5-axis surface finishing, toolpath simulation of stock |
+| Machine elements | **have**: bolted joints (incl. VDI 2230), welds (EN 1993-1-8), fatigue, springs (incl. suspension from ride frequency), spur gears built as parts, transmission design (ISO 6336-style) | bearings in assemblies, shafts with stress analysis |
 | Sheet Metal | partial: bent sheet with K-factor flat length | flanges, reliefs, a flat-pattern view |
-| Hybrid Design | planned | surface and solid features in one part |
-| Knowledgeware and parameters | **have**: parameters, formulas, design rules, design tables | engineering checks inside parts |
-| Power Copies and Publications | partial: starting-point parts | user-saved feature templates with published inputs |
-| Draft Analysis | **have** (viewer, November 2026) | |
-| FEA and simulation | partial: ride and longitudinal solvers | stress, thermal and modal analysis with an external solver (CalculiX) |
-| MBSE and PLM | partial: requirements, traceability, ReqIF, systems graph, BOM | release states, change requests, accounts, electrical and software links |
+| Knowledgeware | **have**: parameters, formulas, design rules, design tables | engineering checks inside parts |
+| Power Copies and library | **have**: feature templates; design library and full project snapshots in every module; export and import of designs | published inputs on templates |
+| Draft Analysis | **have** | |
+| FEA and optimisation | **have**: linear static FEA (TET4, TET10, HEX8) with face-picked loads; SIMP topology optimisation | thermal, modal and non-linear analysis |
+| Data exchange | **have**: STEP AP214/AP242 in and out, IGES out, STL, glTF | IGES and Parasolid import, JT |
+| MBSE and PLM | partial: requirements, functions, FMEA, baselines, change requests, BOM | accounts and release workflow |
 
-Build order:
-1. Styled body and curve editor.
-2. Draft analysis.
-3. Power copies.
-4. Sketcher constraints and primitives.
-5. Reference geometry and surfaces.
-6. Assemblies of user parts.
-7. Drafting from 3D.
-8. Sheet-metal flanges and flat pattern.
-9. FEA.
-10. PLM.
+Next in depth (universal first):
+1. Sketch to 3D: lofted organic shapes from side and top silhouettes.
+2. Multi-body motion of user assemblies (joints from the assembly constraints).
+3. PDF and DXF drawings, detail views.
+4. Sheet-metal flanges and flat pattern view.
+5. Thermal and modal FEA.
