@@ -110,13 +110,14 @@ function StudioView({ projectId, workspace, navigate }: {
       const t = e.target as HTMLElement;
       if (["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) || t.isContentEditable) return;
       if (e.key === "Escape" && layout.focus) setLayout({ focus: false });
+      if (e.key === "F3") { e.preventDefault(); toggleSide("left"); }  // specification tree, as in CATIA
       if (e.key.toLowerCase() === "f" && !e.metaKey && !e.ctrlKey && !e.altKey) {
         setLayout({ focus: !layout.focus });
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [layout.focus, setLayout]);
+  }, [layout.focus, setLayout, toggleSide]);
   const [missing, setMissing] = useState(false);
   const go = useCallback((ws: WorkspaceId) => {
     setCollapsed(false);
@@ -474,7 +475,7 @@ function StudioView({ projectId, workspace, navigate }: {
         <button onClick={redo} disabled={!project?.can_redo || busy} title="Redo (⇧⌘Z)">Redo</button>
         <span className="layout-buttons" role="group" aria-label="Panels">
           <button className={layout.left > 0 && !layout.focus ? "on" : ""} onClick={() => toggleSide("left")}
-            disabled={layout.focus} title="Show or hide the component tree">Tree</button>
+            disabled={layout.focus} title="Show or hide the component tree (F3)">Tree</button>
           <button className={!collapsed && !layout.focus ? "on" : ""} onClick={() => setCollapsed(!collapsed)}
             disabled={layout.focus} title="Show or hide the workspace tabs panel">Tabs</button>
           <button className={layout.right > 0 && !layout.focus && land ? "on" : ""} onClick={() => toggleSide("right")}

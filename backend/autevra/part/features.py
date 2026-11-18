@@ -204,6 +204,57 @@ class SheetMetal(_Solid):
         return self
 
 
+class Hole(_Solid):
+    """A drilled hole along -Z of its placement (the placement point sits on the entry face):
+    simple (``diameter``), clearance (ISO 273 for ``size``), tapped (ISO 2306 tap drill with
+    a cosmetic thread, reported), counterbored (DIN 974-1 for ISO 4762 screws) or
+    countersunk (90 deg, ISO 10642). Through all, or blind with a 118 deg drill point."""
+
+    type: Literal["hole"] = "hole"
+    op: Op = Op.CUT
+    kind: Literal["simple", "clearance", "tapped", "counterbore", "countersink"] = "simple"
+    size: str = Field("M6", pattern=r"^M\d+(\.\d+)?$")
+    fit: Literal["fine", "medium", "coarse"] = "medium"
+    diameter: Length = 6.0  # simple holes
+    depth: Length = 20.0
+    through: bool = False
+    bottom: Literal["drill", "flat"] = "drill"
+    thread_depth: float | None = Field(None, gt=0.0, le=10_000.0)  # tapped: default depth - 2P
+    cbore_diameter: float | None = Field(None, gt=0.0, le=10_000.0)  # overrides the table
+    cbore_depth: float | None = Field(None, gt=0.0, le=10_000.0)
+    csink_diameter: float | None = Field(None, gt=0.0, le=10_000.0)
+    csink_angle: float = Field(90.0, gt=30.0, lt=180.0)
+
+
+class Slot(_Solid):
+    """A straight slot with round ends, cut down -Z of its placement: overall ``length``
+    along X, ``width`` across, ``depth`` deep (a pocket by default)."""
+
+    type: Literal["slot"] = "slot"
+    op: Op = Op.CUT
+    length: Length = 40.0
+    width: Length = 10.0
+    depth: Length = 10.0
+
+    @model_validator(mode="after")
+    def _proportions(self) -> "Slot":
+        if self.length < self.width:
+            raise ValueError("slot length must be at least its width")
+        return self
+
+
+class Draft(_Feature):
+    """Taper the side faces of the result so far for moulding or casting: every face
+    parallel to the pull direction is drafted by ``angle`` about a neutral plane (the base
+    of the part along the pull, or ``neutral`` mm along the pull axis), so the part narrows
+    towards the pull."""
+
+    type: Literal["draft"] = "draft"
+    angle: float = Field(2.0, gt=0.0, le=30.0)
+    pull: Literal["+x", "-x", "+y", "-y", "+z", "-z"] = "+z"
+    neutral: float | None = Field(None, ge=-100_000.0, le=100_000.0)
+
+
 class Shell(_Feature):
     """Hollow the result so far to a wall thickness (open where faces are removed: the
     faces whose outward normal points along ``open_towards``)."""
@@ -311,12 +362,15 @@ Feature = Annotated[
     | Shaft
     | Loft
     | Sweep
+    | Hole
+    | Slot
     | Wing
     | SheetMetal
     | Imported
     | Shell
     | Fillet
     | Chamfer
+    | Draft
     | Mirror
     | LinearPattern
     | CircularPattern,
@@ -324,9 +378,9 @@ Feature = Annotated[
 ]
 SOLID_TYPES = (
     "box", "cylinder", "sphere", "extrude", "revolve", "pad", "shaft", "loft", "sweep", "wing",
-    "sheet_metal", "imported",
+    "sheet_metal", "imported", "hole", "slot",
 )  # fmt: skip
-FEATURE_TYPES = (*SOLID_TYPES, "shell", "fillet", "chamfer", "mirror", "linear_pattern",
+FEATURE_TYPES = (*SOLID_TYPES, "shell", "fillet", "chamfer", "draft", "mirror", "linear_pattern",
                  "circular_pattern")  # fmt: skip
 
 

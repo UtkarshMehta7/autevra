@@ -611,7 +611,7 @@ export interface PartOut {
   can_redo: boolean;
   built: string[];
   errors: { feature: string; message: string }[];
-  info?: Record<string, Record<string, number>>;
+  info?: Record<string, Record<string, number | string>>;
   topology?: Record<string, Topology | { error: string }>; // per feature, after it
   sections?: Record<string, BooleanSection>; // per boolean feature on an existing body
   reused?: string[]; // features taken from the prefix cache in the last build

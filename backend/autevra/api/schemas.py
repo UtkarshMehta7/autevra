@@ -399,7 +399,7 @@ class PartOut(BaseModel):
     can_redo: bool
     built: list[str]  # ids of the features applied, in order
     errors: list[FeatureErrorOut]  # at most one: the feature where the build stopped
-    info: dict[str, dict[str, float]] = {}  # per feature, e.g. sheet-metal flat size (mm)
+    info: dict[str, dict[str, float | str]] = {}  # per feature: sheet flat size, hole callout
     # Inspection: per feature, the topology after it and (for booleans on a body) the
     # section curves the kernel computed the boolean along.
     topology: dict[str, dict[str, Any]] = {}

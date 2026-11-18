@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { DesignTable, FeatureTemplate, PartDoc, PartFeature, PartOut, Placement, Sketch } from "../api/types";
 import { DownloadLink } from "../DownloadLink";
@@ -42,23 +42,31 @@ const FEATURE_DEFAULTS: Record<string, Omit<PartFeature, "id" | "type">> = {
   shell: { thickness: 3, open_towards: "+z" },
   fillet: { radius: 3, edges: "" },
   chamfer: { size: 2, edges: "" },
+  draft: { angle: 2, pull: "+z" },
+  hole: { kind: "counterbore", size: "M8", fit: "medium", diameter: 8, depth: 20, through: true, bottom: "drill", csink_angle: 90 },
+  slot: { length: 40, width: 10, depth: 8 },
   mirror: { plane: "xz" },
   linear_pattern: { count: 3, step: [150, 0, 0] },
   circular_pattern: { count: 6, axis: "z", angle: 360 },
 };
-const SOLIDS = ["box", "cylinder", "sphere", "extrude", "revolve", "pad", "shaft", "loft", "sweep", "wing", "sheet_metal"];
+const SOLIDS = ["box", "cylinder", "sphere", "extrude", "revolve", "pad", "shaft", "loft", "sweep", "wing", "sheet_metal", "hole", "slot"];
 const LABELS: Record<string, string> = {
   box: "Box", cylinder: "Cylinder", sphere: "Sphere", extrude: "Extrude sketch",
   revolve: "Revolve profile", pad: "Pad / pocket (constrained sketch)",
   shaft: "Shaft / groove (constrained sketch)", loft: "Loft sections", sweep: "Sweep tube",
   wing: "Wing (NACA aerofoil)", sheet_metal: "Sheet metal", shell: "Shell",
   fillet: "Fillet edges", chamfer: "Chamfer edges", mirror: "Mirror", linear_pattern: "Linear pattern",
-  circular_pattern: "Circular pattern",
+  circular_pattern: "Circular pattern", hole: "Hole (ISO metric)", slot: "Slot", draft: "Draft angle",
 };
 const CHOICES: Record<string, string[]> = {
   op: ["add", "cut", "intersect"], axis: ["x", "y", "z"], plane: ["xy", "xz", "yz"],
   open_towards: ["none", "+x", "-x", "+y", "-y", "+z", "-z"],
+  kind: ["simple", "clearance", "tapped", "counterbore", "countersink"], fit: ["fine", "medium", "coarse"],
+  bottom: ["drill", "flat"], pull: ["+x", "-x", "+y", "-y", "+z", "-z"],
+  size: ["M2", "M2.5", "M3", "M4", "M5", "M6", "M8", "M10", "M12", "M14", "M16", "M20", "M24"],
 };
+/** Hotkeys of the feature tree (CATIA-style): P pad, O pocket, H hole, C chamfer; Ctrl+U update. */
+const HOTKEYS: Record<string, string> = { p: "pad", o: "pocket", h: "hole", c: "chamfer" };
 
 
 
@@ -310,7 +318,7 @@ function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: 
         onChange={(e) => set("name", e.target.value)} /></label>
       {keys.map((key) => {
         const value = feature[key] ?? FEATURE_DEFAULTS[feature.type]?.[key];
-        if (CHOICES[key]) {
+        if (CHOICES[key] && typeof value === "string") {
           return <label key={key}>{key.replace("_", " ")}<select value={String(value)}
             onChange={(e) => set(key, e.target.value)}>{CHOICES[key].map((c) => <option key={c}>{c}</option>)}</select></label>;
         }
@@ -436,10 +444,39 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
   };
   const addFeature = (type: string) => {
     if (!doc || !type) return;
-    const f: PartFeature = { id: newId(type, features), type, ...structuredClone(FEATURE_DEFAULTS[type]) };
+    const pocket = type === "pocket";
+    const base = pocket ? "pad" : type;
+    const f: PartFeature = { id: newId(pocket ? "pocket" : type, features), type: base, ...structuredClone(FEATURE_DEFAULTS[base]) };
+    // Holes, slots and pockets start on the top face of the part built so far (part frame).
+    const b = part?.bounds;
+    if (b && features.length > 0 && (pocket || base === "hole" || base === "slot")) {
+      const cx = (b[0][0] + b[1][0]) / 2, cy = (b[0][1] + b[1][1]) / 2, top = b[1][2];  // bounds are in the part frame
+      if (pocket) {
+        Object.assign(f, { name: "Pocket", op: "cut", sketch: rectSketch(40, 30), depth: 11, at: { x: cx - 20, y: cy - 15, z: top - 10 } });
+      } else {
+        f.at = { x: +cx.toFixed(3), y: +cy.toFixed(3), z: +top.toFixed(3) };
+      }
+    }
     setFeature(f.id);
     save({ ...doc, features: [...features, f] });
   };
+  const addRef = useRef(addFeature);
+  addRef.current = addFeature;
+  const saveRef = useRef(() => { if (doc) save({ ...doc }); });
+  saveRef.current = () => { if (doc) save({ ...doc }); };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) || t.isContentEditable || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && key === "u") { e.preventDefault(); saveRef.current(); return; }
+      if (e.ctrlKey || e.metaKey || e.shiftKey || !HOTKEYS[key]) return;
+      e.preventDefault();
+      addRef.current(HOTKEYS[key]);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     <div className="bench wide part-design">
@@ -532,8 +569,12 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
                   </div>
                   {f.id === failed && <div className="bad-text">{part.errors[0].message}</div>}
                   {part.info?.[f.id]?.flat_length != null && (
-                    <div className="hint">Flat pattern: {part.info[f.id].flat_length.toFixed(1)} × {part.info[f.id].flat_width.toFixed(0)} mm,
+                    <div className="hint">Flat pattern: {Number(part.info[f.id].flat_length).toFixed(1)} × {Number(part.info[f.id].flat_width).toFixed(0)} mm,
                       {" "}{part.info[f.id].bends} bend(s) (K-factor allowance)</div>
+                  )}
+                  {typeof part.info?.[f.id]?.callout === "string" && (
+                    <div className="hint">Hole: {String(part.info[f.id].callout)}{part.info[f.id].thread_depth != null
+                      ? `, thread ↧${Number(part.info[f.id].thread_depth).toFixed(1)} (cosmetic)` : ""}</div>
                   )}
                   {f.id === feature && <FeatureFields feature={f} onChange={(next) => editFeature(i, next)} />}
                   {f.id === feature && (
@@ -558,8 +599,11 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
               <select value="" disabled={busy} onChange={(e) => addFeature(e.target.value)}>
                 <option value="">choose…</option>
                 {Object.keys(FEATURE_DEFAULTS).map((t) => <option key={t} value={t}>{LABELS[t]}</option>)}
+                <option value="pocket">Pocket (sketch cut from the top face)</option>
               </select>
             </label>
+            <span className="hint">Keys: <kbd>P</kbd> pad · <kbd>O</kbd> pocket · <kbd>H</kbd> hole · <kbd>C</kbd> chamfer ·
+              {" "}<kbd>Ctrl</kbd>+<kbd>U</kbd> update · <kbd>F3</kbd> tree · <kbd>F</kbd> focus view</span>
           </>
         )}
       </div>

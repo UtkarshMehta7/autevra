@@ -16,6 +16,7 @@ from autevra.cad import kernel as k
 from autevra.cad import topology as topo
 from autevra.part import expressions as ex
 from autevra.part import features as f
+from autevra.part import holes as hole_table
 from autevra.part import imports
 from autevra.part import sketch as sk
 
@@ -33,7 +34,7 @@ class BuildResult:
     shape: k.Shape | None
     errors: list[FeatureError] = field(default_factory=list)
     built: list[str] = field(default_factory=list)  # ids of features applied
-    info: dict[str, dict[str, float]] = field(default_factory=dict)  # per feature (flat size)
+    info: dict[str, dict[str, float | str]] = field(default_factory=dict)  # flat size, holes
     # Per feature: the topology after it, and for a boolean on an existing body the section
     # curves along which the kernel joined, cut or intersected the tool (inspection).
     topology: dict[str, dict] = field(default_factory=dict)
@@ -135,6 +136,8 @@ def _solid(feat: f.Box | f.Cylinder | f.Sphere | f.Extrude | f.Revolve | f.Loft 
             return cq.Solid.makeLoft(wires, ruled=feat.ruled)
         case f.Sweep():
             return _sweep(feat)
+        case f.Slot():
+            return _slot(feat)
         case f.Wing():
             return _wing(feat)
         case f.SheetMetal():
@@ -286,6 +289,113 @@ def _sweep(feat: f.Sweep) -> k.Shape:
     return cq.Solid.sweep(outer, inner, path, makeSolid=True, transitionMode="round")
 
 
+def hole_geometry(feat: f.Hole) -> dict[str, float | str]:
+    """Drill, counterbore and countersink sizes of a hole and its drawing callout."""
+    if feat.kind == "simple":
+        return {"drill": feat.diameter, "callout": f"⌀{feat.diameter:g}"}
+    hs = hole_table.size(feat.size)
+    if feat.kind == "tapped":
+        out: dict[str, float | str] = {"drill": hs.tap_drill, "thread": f"{feat.size}×{hs.pitch:g}",
+                                       "pitch": hs.pitch}  # fmt: skip
+        out["callout"] = f"{feat.size}×{hs.pitch:g} tap drill ⌀{hs.tap_drill:g}"
+        return out
+    drill = hs.clearance[hole_table.FITS[feat.fit]]
+    out = {"drill": drill, "callout": f"⌀{drill:g} ({feat.size} {feat.fit} clearance)"}
+    if feat.kind == "counterbore":
+        cd, ct = feat.cbore_diameter or hs.cbore_d, feat.cbore_depth or hs.cbore_depth
+        out |= {"cbore_diameter": cd, "cbore_depth": ct}
+        out["callout"] = f"⌀{drill:g} ⌴⌀{cd:g} ↧{ct:g} ({feat.size})"
+    elif feat.kind == "countersink":
+        sd = feat.csink_diameter or hs.csink_d
+        out |= {"csink_diameter": sd, "csink_angle": feat.csink_angle}
+        out["callout"] = f"⌀{drill:g} ⌵⌀{sd:g}×{feat.csink_angle:g}° ({feat.size})"
+    return out
+
+
+def _hole(feat: f.Hole, result: k.Shape | None) -> tuple[k.Shape, dict[str, float | str]]:
+    """The hole's tool (revolved profile, axis down -Z from the entry point) and its info."""
+    g = hole_geometry(feat)
+    r = float(g["drill"]) / 2.0
+    if feat.through:
+        if result is None:
+            raise ValueError("a through hole needs a solid before it")
+        bb = result.BoundingBox()
+        depth = 2.0 * bb.DiagonalLength + 1.0
+    else:
+        depth = feat.depth
+    up = max(0.5, r) if feat.op is f.Op.CUT else 0.0  # clear the entry face cleanly
+    pts: list[tuple[float, float]] = [(0.0, up)]
+    if "cbore_diameter" in g:
+        rc, tc = float(g["cbore_diameter"]) / 2.0, float(g["cbore_depth"])
+        if rc <= r or tc >= depth:
+            raise ValueError("counterbore must be wider than the drill and shallower than the hole")
+        pts += [(rc, up), (rc, -tc), (r, -tc)]
+    elif "csink_diameter" in g:
+        rs = float(g["csink_diameter"]) / 2.0
+        if rs <= r:
+            raise ValueError("countersink must be wider than the drill")
+        cone = (rs - r) / math.tan(math.radians(feat.csink_angle / 2.0))
+        pts += [(rs, up), (rs, 0.0), (r, -cone)]
+    else:
+        pts.append((r, up))
+    pts.append((r, -depth))
+    if feat.bottom == "drill" and not feat.through:
+        pts.append((0.0, -depth - r / math.tan(math.radians(59.0))))
+    else:
+        pts.append((0.0, -depth))
+    wire = cq.Wire.makePolygon([cq.Vector(a, 0, b) for a, b in pts], close=True)
+    face = cq.Face.makeFromWires(wire)
+    tool = cq.Solid.revolve(face, 360.0, cq.Vector(0, 0, 0), cq.Vector(0, 0, 1))
+    info: dict[str, float | str] = {**g, "depth": depth if not feat.through else -1.0}
+    if feat.kind == "tapped":
+        pitch = float(g["pitch"])
+        default = depth if feat.through else max(depth - 2 * pitch, pitch)
+        info["thread_depth"] = feat.thread_depth or default
+    return tool, info
+
+
+def _slot(feat: f.Slot) -> k.Shape:
+    up = 0.5 if feat.op is f.Op.CUT else 0.0
+    wp = cq.Workplane("XY", origin=(0, 0, up)).slot2D(feat.length, feat.width)
+    return wp.extrude(-(feat.depth + up)).val()
+
+
+def _draft(shape: k.Shape, feat: f.Draft) -> k.Shape:
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_DraftAngle
+    from OCP.gp import gp_Dir, gp_Pln, gp_Pnt
+
+    sign = 1.0 if feat.pull[0] == "+" else -1.0
+    d = _AXIS[f.Axis(feat.pull[1])] * sign
+
+    def side(fc: cq.Face) -> bool:  # planes parallel to the pull, cylinders along it
+        kind = fc.geomType()
+        if kind == "PLANE":
+            return abs(fc.normalAt().dot(d)) < 1e-6
+        if kind == "CYLINDER":
+            ax = fc._geomAdaptor().Cylinder().Axis().Direction()
+            return abs(abs(ax.X() * d.x + ax.Y() * d.y + ax.Z() * d.z) - 1.0) < 1e-6
+        return False
+
+    faces = [fc for fc in shape.Faces() if side(fc)]
+    if not faces:
+        raise ValueError(f"no face runs parallel to the pull direction {feat.pull}")
+    bb = shape.BoundingBox()
+    lo = {"x": bb.xmin, "y": bb.ymin, "z": bb.zmin}[feat.pull[1]]
+    hi = {"x": bb.xmax, "y": bb.ymax, "z": bb.zmax}[feat.pull[1]]
+    base = (lo if sign > 0 else -hi) if feat.neutral is None else feat.neutral
+    origin = d * base
+    plane = gp_Pln(gp_Pnt(origin.x, origin.y, origin.z), gp_Dir(d.x, d.y, d.z))
+    algo = BRepOffsetAPI_DraftAngle(shape.wrapped)
+    for fc in faces:
+        algo.Add(fc.wrapped, gp_Dir(d.x, d.y, d.z), math.radians(feat.angle), plane, True)
+        if not algo.AddDone():
+            raise ValueError("the kernel cannot draft one of the side faces (try a smaller angle)")
+    algo.Build()
+    if not algo.IsDone():
+        raise ValueError("draft failed")
+    return cq.Shape.cast(algo.Shape())
+
+
 def _edges(shape: k.Shape, selector: str) -> list[cq.Edge]:
     """Edges picked by a CadQuery selector string (all edges when empty)."""
     edges = shape.Edges()
@@ -300,8 +410,10 @@ def _edges(shape: k.Shape, selector: str) -> list[cq.Edge]:
     return picked
 
 
-def _modify(shape: k.Shape, feat: f.Shell | f.Fillet | f.Chamfer | f.Mirror) -> k.Shape:
+def _modify(shape: k.Shape, feat: f.Shell | f.Fillet | f.Chamfer | f.Mirror | f.Draft) -> k.Shape:
     match feat:
+        case f.Draft():
+            return _draft(shape, feat)
         case f.Fillet():
             return shape.fillet(feat.radius, _edges(shape, feat.edges))
         case f.Chamfer():
@@ -449,7 +561,15 @@ def build_part(doc: f.PartDoc) -> BuildResult:
             feat = _bind(feat, values)
             if isinstance(feat, f.SheetMetal):
                 out.info[feat.id] = _sheet(feat)[1]
-            if feat.type in f.SOLID_TYPES:
+            if isinstance(feat, f.Hole):
+                raw, out.info[feat.id] = _hole(feat, result)
+                tool = _place(raw, feat.at)
+                op = feat.op
+                if result is not None:
+                    out.sections[feat.id] = _boolean_section(result, [tool], op)
+                result = _apply(result, op, [tool])
+                last = (tool, op)
+            elif feat.type in f.SOLID_TYPES:
                 tool = _place(_solid(feat), feat.at)  # type: ignore[arg-type]
                 op = feat.op  # type: ignore[union-attr]
                 if result is not None:
