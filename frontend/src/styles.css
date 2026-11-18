@@ -761,3 +761,6 @@ pre.gcode { max-height: 220px; overflow: auto; background: #14171c; border: 1px 
 .mate-pick select { max-width: 150px; }
 .mates-panel td.wrap { white-space: normal; }
 .mates-panel td.good { color: var(--good); } .mates-panel td.bad { color: var(--bad); } .mates-panel td.warn { color: var(--warn); }
+.vdi-split { display: flex; height: 18px; max-width: 440px; border-radius: 3px; overflow: hidden; font-size: 10px; }
+.vdi-split span { display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; color: #10141a; }
+.vdi-split .t { background: var(--accent); } .vdi-split .h { background: var(--warn); }

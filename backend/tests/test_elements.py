@@ -221,3 +221,25 @@ def test_api_and_gear_parts(client: TestClient):
     ).json()
     assert [p["document"]["name"] for p in parts] == ["Pinion z12 m2", "Gear z20 m2"]
     assert parts[1]["document"]["at"]["x"] == rel(32)
+
+
+def test_vdi2230_permissible_preload_and_torque():
+    v = joints.VdiIn(d=14, pitch=1.5, grade="10.9", mu_thread=0.12, mu_head=0.12)
+    out = joints.vdi2230(v)
+    # VDI 2230 table A1 lists about 95 kN for M14x1.5 10.9 at mu_G 0.12
+    assert out["F_M_zul_kN"] == rel(95.0, rel=0.01)
+    d2 = out["d2"]
+    lever = 0.16 * 1.5 + 0.58 * d2 * 0.12 + out["D_Km"] / 2 * 0.12
+    assert out["torque_Nm"] == rel(out["F_M_zul_kN"] * lever)
+    assert out["torque_Nm"] == rel(out["thread_torque_Nm"] + out["head_torque_Nm"])
+    assert out["F_M_min_kN"] == rel(out["F_M_zul_kN"] / 1.6)
+    assert out["embedding_um"] == 7.0  # thread 3 + head 2.5 + one inner interface 1.5
+
+
+def test_vdi2230_flags_slip_and_surface_pressure():
+    slip = joints.vdi2230(joints.VdiIn(shear_kN=20, mu_interface=0.1))
+    assert slip["F_K_req_kN"] == rel(200) and any("Residual clamp" in w for w in slip["warnings"])
+    soft = joints.vdi2230(joints.VdiIn(member="AlMgSi1 F31", head_bearing=17))
+    assert soft["p_max"] > soft["p_G"] and any("hardened washer" in w for w in soft["warnings"])
+    better = joints.vdi2230(joints.VdiIn(alpha_a=1.1))  # angle-controlled tightening
+    assert better["F_KR_min_kN"] > joints.vdi2230(joints.VdiIn())["F_KR_min_kN"]

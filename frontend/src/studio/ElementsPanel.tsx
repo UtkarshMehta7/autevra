@@ -5,11 +5,12 @@ import { api, type ElementOut } from "../api/client";
  * fatigue (Goodman family, S-N life, rainflow damage), helical springs and spur gear pairs.
  * Calculations run in the backend (autevra/elements); each result names its method. */
 
-type Kind = "bolt" | "weld" | "fatigue" | "fatigue/history" | "spring" | "gears" | "transmission";
-type Tab = "bolt" | "weld" | "fatigue" | "spring" | "gears" | "transmission";
+type Kind = "bolt" | "vdi2230" | "weld" | "fatigue" | "fatigue/history" | "spring" | "gears" | "transmission";
+type Tab = "bolt" | "vdi2230" | "weld" | "fatigue" | "spring" | "gears" | "transmission";
 
 const TABS: { id: Tab; label: string; method: string }[] = [
   { id: "bolt", label: "Bolted joint", method: "ISO 898-1 strength, T = K·F·d, Shigley joint stiffness and Goodman bolt fatigue" },
+  { id: "vdi2230", label: "VDI 2230", method: "VDI 2230 Part 1: permissible preload with thread torsion, torque split into thread and head friction, tightening scatter, embedding, residual clamp load, working stress, rolled-thread fatigue, surface pressure" },
   { id: "weld", label: "Fillet weld", method: "Throat a = 0.707·z; EN 1993-1-8 directional method" },
   { id: "fatigue", label: "Fatigue", method: "Marin factors, Goodman / Soderberg / Gerber / ASME elliptic, Basquin S-N, ASTM E1049 rainflow, Miner" },
   { id: "spring", label: "Spring", method: "EN 13906-1 rate and stress (Bergsträsser), solid height, buckling, surge" },
@@ -156,6 +157,79 @@ function BoltTab() {
           ...(b.shear_kN > 0 ? [["slip factor", num(out, "slip_factor"), "", tone(num(out, "slip_factor"), 1.25)]] as [string, number, string, ("good" | "warn" | "bad")][] : []),
         ]} />}
         {diag && <JointDiagram d={diag} />}
+        <Warnings out={out} error={error} />
+      </div>
+    </div>
+  );
+}
+
+// ---------- VDI 2230 ----------
+
+const VDI_PRESETS: Record<string, Record<string, number | string>> = {
+  "Wheel bolt M14×1.5 10.9 on a steel hub": { d: 14, pitch: 1.5, grade: "10.9", mu_thread: 0.12, mu_head: 0.12, alpha_a: 1.6, grip: 25, inner_interfaces: 1, axial_kN: 8, shear_kN: 6, mu_interface: 0.15, member: "C45", head_bearing: 22, hole: 15 },
+  "Cylinder head M10 10.9 in aluminium (angle-controlled)": { d: 10, pitch: 1.5, grade: "10.9", mu_thread: 0.1, mu_head: 0.1, alpha_a: 1.2, grip: 90, inner_interfaces: 1, axial_kN: 12, shear_kN: 0, mu_interface: 0.15, seal_kN: 30, member: "AlMgSi1 F31", head_bearing: 16, hole: 11 },
+  "Subframe M12 8.8 into steel": { d: 12, pitch: 1.75, grade: "8.8", mu_thread: 0.14, mu_head: 0.14, alpha_a: 1.7, grip: 40, inner_interfaces: 2, axial_kN: 6, shear_kN: 4, mu_interface: 0.15, member: "S355", head_bearing: 18, hole: 13.5 },
+};
+
+function VdiTab() {
+  const [v, setV] = useState<Record<string, number | string>>({ ...VDI_PRESETS["Wheel bolt M14×1.5 10.9 on a steel hub"] });
+  const { out, error } = useCalc("vdi2230", v);
+  const n = (k: string) => Number(v[k] ?? 0);
+  const set = (k: string) => (x: number) => setV({ ...v, [k]: x });
+  const thread = num(out, "thread_torque_Nm"), head = num(out, "head_torque_Nm");
+  return (
+    <div className="el-body">
+      <div className="el-inputs">
+        <label className="el-field wide">preset
+          <select value="" onChange={(e) => e.target.value && setV({ ...VDI_PRESETS[e.target.value] })}>
+            <option value="">choose an automotive joint…</option>
+            {Object.keys(VDI_PRESETS).map((k) => <option key={k}>{k}</option>)}
+          </select>
+        </label>
+        <label className="el-field">thread
+          <select value={`${v.d}×${v.pitch}`} onChange={(e) => { const [d, pp] = e.target.value.split("×").map(Number); setV({ ...v, d, pitch: pp }); }}>
+            {[[8, 1.25], [10, 1.5], [12, 1.75], [12, 1.5], [14, 1.5], [14, 2], [16, 1.5], [16, 2], [20, 2.5]].map(([d, pp]) => <option key={`${d}×${pp}`} value={`${d}×${pp}`}>M{d}×{pp}</option>)}
+          </select>
+        </label>
+        <Pick label="property class" value={String(v.grade)} options={["8.8", "10.9", "12.9"]} onChange={(x) => setV({ ...v, grade: x })} />
+        <Num label="thread friction μG" value={n("mu_thread")} step={0.01} onChange={set("mu_thread")} />
+        <Num label="head friction μK" value={n("mu_head")} step={0.01} onChange={set("mu_head")} />
+        <Pick label="tightening" value={String(v.alpha_a)} options={[{ value: "1.1", label: "yield/angle-controlled (αA 1.1)" }, { value: "1.2", label: "angle-controlled (αA 1.2)" }, { value: "1.6", label: "torque wrench (αA 1.6)" }, { value: "1.7", label: "torque wrench (αA 1.7)" }, { value: "2.5", label: "impact wrench (αA 2.5)" }]} onChange={(x) => setV({ ...v, alpha_a: Number(x) })} />
+        <Num label="grip length" value={n("grip")} unit="mm" onChange={set("grip")} />
+        <Num label="head bearing ⌀ dw" value={n("head_bearing")} unit="mm" step={0.5} onChange={set("head_bearing")} />
+        <Num label="hole ⌀ Dha" value={n("hole")} unit="mm" step={0.5} onChange={set("hole")} />
+        <Num label="plate interfaces" value={n("inner_interfaces")} onChange={(x) => setV({ ...v, inner_interfaces: Math.max(0, Math.round(x)) })} />
+        <Num label="axial load FA" value={n("axial_kN")} unit="kN" onChange={set("axial_kN")} />
+        <Num label="transverse load FQ" value={n("shear_kN")} unit="kN" onChange={set("shear_kN")} />
+        <Num label="interface friction μT" value={n("mu_interface")} step={0.01} onChange={set("mu_interface")} />
+        <Num label="sealing clamp load" value={n("seal_kN")} unit="kN" onChange={set("seal_kN")} />
+        <Pick label="clamped part" value={String(v.member)} options={["S235", "S355", "C45", "42CrMo4", "EN-GJL-250", "EN-GJS-500", "AlMgSi1 F31", "AlZnMgCu0.5 F50"]} onChange={(x) => setV({ ...v, member: x })} />
+      </div>
+      <div className="el-out">
+        {out && <>
+          <div className="cam-tiles">
+            <div><b>{fmt(num(out, "torque_Nm"))} N·m</b><span>tightening torque MA</span></div>
+            <div><b>{fmt(num(out, "F_M_zul_kN"))} kN</b><span>max assembly preload FM zul</span></div>
+            <div><b>{fmt(num(out, "F_M_min_kN"))} kN</b><span>min preload (÷ αA)</span></div>
+            <div><b className={num(out, "clamp_margin") < 1 ? "bad" : "good"}>{fmt(num(out, "F_KR_min_kN"))} kN</b><span>residual clamp (needs {fmt(num(out, "F_K_req_kN"))})</span></div>
+          </div>
+          <div className="vdi-split" title="Where the tightening torque goes">
+            <span style={{ flex: thread }} className="t">thread {fmt(thread)} N·m</span>
+            <span style={{ flex: head }} className="h">head {fmt(head)} N·m</span>
+          </div>
+          <Results rows={[
+            ["load factor Φ = n·δP/(δS+δP)", num(out, "phi"), ""],
+            ["embedding fZ", num(out, "embedding_um"), "µm"],
+            ["preload lost to embedding FZ", num(out, "F_Z_kN"), "kN"],
+            ["max bolt force FS max", num(out, "F_S_max_kN"), "kN"],
+            ["working stress σred (kτ 0.5)", num(out, "sigma_red"), "MPa"],
+            ["yield safety SF", num(out, "S_F"), "", tone(num(out, "S_F"), 1.0)],
+            ["alternating stress σa", num(out, "sigma_a"), "MPa"],
+            ["fatigue safety SD (rolled thread)", num(out, "S_D"), "", tone(num(out, "S_D"), 1.2)],
+            ["surface pressure p max", num(out, "p_max"), "MPa"],
+            ["surface pressure safety SP", num(out, "S_P"), "", tone(num(out, "S_P"), 1.0)],
+          ]} />
+        </>}
         <Warnings out={out} error={error} />
       </div>
     </div>
@@ -597,6 +671,7 @@ export function ElementsPanel({ projectId, onModelChanged }: { projectId?: strin
       </div>
       <p className="small muted el-method">{meta.method}. Design estimates for sizing, not certification.</p>
       {tab === "bolt" && <BoltTab />}
+      {tab === "vdi2230" && <VdiTab />}
       {tab === "weld" && <WeldTab />}
       {tab === "fatigue" && <FatigueTab />}
       {tab === "spring" && <SpringTab />}

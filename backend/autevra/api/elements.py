@@ -25,6 +25,11 @@ def bolt(body: joints.BoltJointIn) -> dict:
     return _run(joints.bolt_joint, body)
 
 
+@router.post("/elements/vdi2230")
+def bolt_vdi(body: joints.VdiIn) -> dict:
+    return _run(joints.vdi2230, body)
+
+
 @router.post("/elements/weld")
 def weld(body: joints.FilletWeldIn) -> dict:
     return _run(joints.fillet_weld, body)

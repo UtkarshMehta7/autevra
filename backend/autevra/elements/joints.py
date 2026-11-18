@@ -234,3 +234,139 @@ def fillet_weld(w: FilletWeldIn) -> dict:
         "capacity_kN": capacity / 1e3,
         "warnings": warnings,
     }
+
+
+# --- VDI 2230 Part 1 (2015), single bolt, concentric clamping and loading ---
+
+# limiting surface pressure p_G under the head, MPa (VDI 2230 table A9, selection)
+SURFACE_PRESSURE = {
+    "S235": 490.0,
+    "S355": 760.0,
+    "C45": 630.0,
+    "42CrMo4": 850.0,
+    "EN-GJL-250": 850.0,
+    "EN-GJS-500": 900.0,
+    "AlMgSi1 F31": 360.0,
+    "AlZnMgCu0.5 F50": 370.0,
+}
+# embedding per interface, µm, for axial load and Rz < 10 µm (VDI 2230 table 5)
+EMBED_THREAD, EMBED_HEAD, EMBED_INNER = 3.0, 2.5, 1.5
+
+
+class VdiIn(BaseModel):
+    d: float = Field(14.0, gt=3.0, le=64.0)
+    pitch: float = Field(1.5, gt=0.3, le=6.0)
+    grade: Literal["8.8", "10.9", "12.9"] = "10.9"
+    mu_thread: float = Field(0.12, ge=0.04, le=0.3)  # mu_G
+    mu_head: float = Field(0.12, ge=0.04, le=0.3)  # mu_K
+    alpha_a: float = Field(1.6, ge=1.0, le=4.0)  # tightening factor: torque wrench 1.6-1.8
+    utilisation: float = Field(0.9, gt=0.3, le=1.0)  # nu, of the yield stress in assembly
+    head_bearing: float | None = Field(None, gt=0.0)  # d_w, mm (default 1.5 d)
+    hole: float | None = Field(None, gt=0.0)  # D_ha, mm (default ISO 273 medium ~ 1.1 d)
+    grip: float = Field(25.0, gt=1.0, le=1000.0)
+    inner_interfaces: int = Field(1, ge=0, le=10)  # plate-to-plate interfaces
+    load_introduction: float = Field(0.5, gt=0.0, le=1.0)  # n
+    axial_kN: float = Field(10.0, ge=0.0)  # F_A max per bolt  # noqa: N815
+    shear_kN: float = Field(5.0, ge=0.0)  # F_Q max per bolt  # noqa: N815
+    mu_interface: float = Field(0.15, gt=0.0, le=1.0)  # mu_T between the plates
+    seal_kN: float = Field(0.0, ge=0.0)  # extra clamp load for sealing  # noqa: N815
+    member: str = Field("S355", max_length=30)
+
+
+def vdi2230(v: VdiIn) -> dict:
+    """VDI 2230 check of a bolted joint: permissible assembly preload (R7), tightening
+    torque (R8), preload scatter, embedding loss (R4), required and residual clamp load,
+    working stress (R8/R9), fatigue of rolled threads (R9) and surface pressure (R10)."""
+    th = thread(v.d, v.pitch)
+    d2, d3 = th["d2"], th["d3"]
+    a0 = th["stress_area_mm2"]
+    d0 = (d2 + d3) / 2.0
+    rm, rp, _ = strengths(v.d, v.grade)
+    dw = v.head_bearing or 1.5 * v.d
+    dha = v.hole or 1.1 * v.d
+    if dw <= dha:
+        raise ValueError("head bearing diameter must exceed the hole")
+    dkm = (dw + dha) / 2.0
+    # R7: permissible assembly preload (equivalent stress nu Rp with thread torsion)
+    k = 1.5 * d2 / d0 * (v.pitch / (math.pi * d2) + 1.155 * v.mu_thread)
+    fm_zul = a0 * v.utilisation * rp / math.sqrt(1.0 + 3.0 * k * k)
+    # R8: tightening torque M_A = F_M (0.16 P + 0.58 d2 mu_G + D_Km / 2 mu_K)
+    lever = 0.16 * v.pitch + 0.58 * d2 * v.mu_thread + dkm / 2.0 * v.mu_head
+    torque = fm_zul * lever / 1000.0
+    fm_min = fm_zul / v.alpha_a
+    # stiffness and load factor
+    kb = a0 * E_STEEL / v.grip  # threaded over the grip (conservative)
+    km = member_stiffness(v.d, v.grip, E_STEEL)
+    phi = v.load_introduction * kb / (kb + km)
+    # R4: embedding loss F_Z = f_Z / (delta_S + delta_P)
+    fz_um = EMBED_THREAD + EMBED_HEAD + v.inner_interfaces * EMBED_INNER
+    f_z = fz_um * 1e-3 * kb * km / (kb + km)
+    fa, fq = v.axial_kN * 1e3, v.shear_kN * 1e3
+    f_k_req = max(fq / v.mu_interface, v.seal_kN * 1e3)
+    f_kr = fm_min - f_z - (1.0 - phi) * fa  # residual clamp load at the worst case
+    # working state: maximum bolt force and equivalent stress (residual torsion k_tau = 0.5)
+    fs_max = fm_zul + phi * fa
+    sigma = fs_max / a0
+    tau = (fm_zul * (0.16 * v.pitch + 0.58 * d2 * v.mu_thread)) / (math.pi / 16.0 * d0**3)
+    sigma_red = math.sqrt(sigma**2 + 3.0 * (0.5 * tau) ** 2)
+    # R9: alternating stress against rolled-thread endurance (rolled before heat treatment)
+    sigma_a = phi * fa / (2.0 * a0)
+    sigma_asv = 0.85 * (150.0 / v.d + 45.0)
+    # R10: surface pressure under the head at the permissible preload
+    ap = math.pi / 4.0 * (dw**2 - dha**2)
+    p_max = (fm_zul + phi * fa) / ap
+    p_g = SURFACE_PRESSURE.get(v.member)
+    out = {
+        "d2": d2,
+        "d3": d3,
+        "stress_area_mm2": a0,
+        "Rp": rp,
+        "Rm": rm,
+        "D_Km": dkm,
+        "F_M_zul_kN": fm_zul / 1e3,
+        "F_M_min_kN": fm_min / 1e3,
+        "torque_Nm": torque,
+        "thread_torque_Nm": fm_zul * (0.16 * v.pitch + 0.58 * d2 * v.mu_thread) / 1e3,
+        "head_torque_Nm": fm_zul * dkm / 2.0 * v.mu_head / 1e3,
+        "phi": phi,
+        "embedding_um": fz_um,
+        "F_Z_kN": f_z / 1e3,
+        "F_K_req_kN": f_k_req / 1e3,
+        "F_KR_min_kN": f_kr / 1e3,
+        "clamp_margin": f_kr / f_k_req if f_k_req > 0 else math.inf,
+        "F_S_max_kN": fs_max / 1e3,
+        "sigma_red": sigma_red,
+        "S_F": rp / sigma_red,
+        "sigma_a": sigma_a,
+        "sigma_ASV": sigma_asv,
+        "S_D": sigma_asv / sigma_a if sigma_a else math.inf,
+        "p_max": p_max,
+        "p_G": p_g,
+        "S_P": p_g / p_max if p_g else None,
+    }
+    warnings = []
+    if f_kr < f_k_req:
+        warnings.append(
+            f"Residual clamp load {f_kr / 1e3:.1f} kN is below the {f_k_req / 1e3:.1f} kN needed "
+            "(slip or leakage): use more or larger bolts, a better tightening method, "
+            "or more friction."
+        )
+    if f_kr <= 0:
+        warnings.append("The joint opens under the axial load at the lowest preload.")
+    if sigma_red > rp:
+        warnings.append(f"Working stress {sigma_red:.0f} MPa exceeds the yield {rp:.0f} MPa.")
+    if sigma_a > sigma_asv:
+        warnings.append(
+            f"Alternating stress {sigma_a:.0f} MPa exceeds the thread endurance "
+            f"{sigma_asv:.0f} MPa."
+        )
+    if p_g and p_max > p_g:
+        warnings.append(
+            f"Surface pressure {p_max:.0f} MPa under the head exceeds {p_g:.0f} MPa "
+            f"for {v.member}: "
+            "add a hardened washer or a flange head."
+        )
+    if p_g is None:
+        warnings.append(f"No limiting surface pressure on file for '{v.member}'.")
+    out["warnings"] = warnings
+    return out
