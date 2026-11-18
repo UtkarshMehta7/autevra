@@ -284,6 +284,12 @@ def plan(doc: f.PartDoc, cfg: TurnIn) -> dict:
                     f"use a {math.floor((z1 - z0) * 10) / 10:g} mm insert or wider."
                 )
                 continue
+            if z1 - z0 > 4 * GROOVE_W:
+                notes.append(
+                    f"A {z1 - z0:.0f} mm section at z {z0:.0f}-{z1:.0f} sits behind a larger diameter: it is "
+                    "programmed as multi-plunge grooving; turning it from the other end (second setup) "
+                    "or with a left-hand tool gives a better finish."
+                )
             # plunges from wall to wall: the first touches z0, the last z1, overlapping
             lo, hi = z0 + GROOVE_W / 2, max(z1 - GROOVE_W / 2, z0 + GROOVE_W / 2)
             count = max(1, math.ceil((hi - lo) / (0.8 * GROOVE_W)) + 1) if hi > lo + 1e-9 else 1
