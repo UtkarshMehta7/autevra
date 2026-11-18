@@ -316,8 +316,10 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
         ground.position.set(scale > 1 ? mid.x : 0, scale > 1 ? mid.y : 0, Math.min(0, all.min.z));
       }
     }
-    if (!c.framed) {
-      const box = new THREE.Box3().setFromObject(c.root);
+    // Frame once there is geometry: an empty project (a new machine or aircraft) is framed
+    // when its first parts arrive, not left at a car-sized default.
+    const box = new THREE.Box3().setFromObject(c.root);
+    if (!c.framed && !box.isEmpty()) {
       const centre = box.getCenter(new THREE.Vector3());
       c.controls.target.copy(centre);
       // stand back in proportion to the model (an engine, a car and an aircraft all fill

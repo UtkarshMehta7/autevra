@@ -17,7 +17,7 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
 const DIMENSIONS = new Set(["distance", "hdistance", "vdistance", "length", "radius", "diameter", "angle"]);
 const KIND_LABEL: Record<string, string> = {
   coincident: "Coincident", horizontal: "Horizontal", vertical: "Vertical", parallel: "Parallel",
-  perpendicular: "Perpendicular", equal: "Equal", tangent: "Tangent", point_on: "On curve",
+  perpendicular: "Perpendicular", equal: "Equal", tangent: "Tangent", concentric: "Concentric", point_on: "On curve",
   midpoint: "Midpoint", symmetric: "Symmetric", distance: "Distance", hdistance: "H distance",
   vdistance: "V distance", length: "Length", radius: "Radius", diameter: "Diameter", angle: "Angle",
 };
@@ -68,7 +68,7 @@ export function available(sk: Sketch, sel: string[]): { kind: string; refs: stri
   if (rounds.length === 1 && n === 1) {
     out.push({ kind: "radius", refs: rounds, value: radius(rounds[0]) }, { kind: "diameter", refs: rounds, value: 2 * radius(rounds[0]) });
   }
-  if (rounds.length === 2 && n === 2) out.push({ kind: "equal", refs: rounds }, { kind: "tangent", refs: rounds });
+  if (rounds.length === 2 && n === 2) out.push({ kind: "equal", refs: rounds }, { kind: "tangent", refs: rounds }, { kind: "concentric", refs: rounds });
   if (lines.length === 1 && rounds.length === 1 && n === 2) out.push({ kind: "tangent", refs: [lines[0], rounds[0]] });
   if (pts.length === 1 && lines.length === 1 && n === 2) {
     out.push({ kind: "point_on", refs: [pts[0], lines[0]] }, { kind: "midpoint", refs: [pts[0], lines[0]] });

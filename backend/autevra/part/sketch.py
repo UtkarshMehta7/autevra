@@ -70,6 +70,7 @@ KINDS: dict[str, tuple[str, bool]] = {
     "perpendicular": ("ll", False),
     "equal": ("ee", False),  # two lines (length) or two circles/arcs (radius)
     "tangent": ("ec", False),  # line-circle or circle-circle
+    "concentric": ("cc", False),  # two circles or arcs sharing a centre
     "point_on": ("pe", False),  # a point on a line (infinite) or a circle/arc
     "midpoint": ("pl", False),
     "symmetric": ("ppl", False),  # two points mirrored about a line
@@ -83,8 +84,8 @@ KINDS: dict[str, tuple[str, bool]] = {
 }
 Kind = Literal[
     "coincident", "horizontal", "vertical", "parallel", "perpendicular", "equal", "tangent",
-    "point_on", "midpoint", "symmetric", "distance", "hdistance", "vdistance", "length",
-    "radius", "diameter", "angle",
+    "concentric", "point_on", "midpoint", "symmetric", "distance", "hdistance", "vdistance",
+    "length", "radius", "diameter", "angle",
 ]  # fmt: skip
 
 
@@ -273,6 +274,8 @@ class _System:
         match c.kind:
             case "coincident":
                 return self.xy(refs[0], x) - self.xy(refs[1], x)
+            case "concentric":
+                return self.p(refs[0], x, "center") - self.p(refs[1], x, "center")
             case "horizontal":
                 a, b = self.ends(refs[0], x)
                 return b[1] - a[1]
@@ -498,6 +501,8 @@ def _equations(sk: Sketch, parts: list[np.ndarray]) -> list[Equation]:
         match c.kind:
             case "coincident":
                 return f"{pt(r[0])} − {pt(r[1])} = 0"
+            case "concentric":
+                return f"{centre(r[0])} − {centre(r[1])} = 0"
             case "horizontal":
                 a, b = seg(r[0])
                 return f"y({b}) − y({a}) = 0"

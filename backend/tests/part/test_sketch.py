@@ -149,13 +149,20 @@ def test_an_open_profile_is_reported() -> None:
 
 @pytest.mark.cad
 def test_pad_and_pocket_from_sketches_with_bound_dimensions() -> None:
-    doc = f.PartDoc.model_validate({
-        "parameters": {"w": 120},
-        "features": [
-            {"id": "pad", "type": "pad", "sketch": plate_with_hole(), "depth": 10,
-             "bindings": {"sketch.constraints.4.value": "w"}},
-        ],
-    })  # fmt: skip
+    doc = f.PartDoc.model_validate(
+        {
+            "parameters": {"w": 120},
+            "features": [
+                {
+                    "id": "pad",
+                    "type": "pad",
+                    "sketch": plate_with_hole(),
+                    "depth": 10,
+                    "bindings": {"sketch.constraints.4.value": "w"},
+                },
+            ],
+        }
+    )
     result = build_part(doc)
     assert not result.errors
     (x0, y0, z0), (x1, y1, z1) = k.bounds(result.shape)
@@ -189,8 +196,9 @@ def test_shaft_revolves_an_arc_profile() -> None:
     }
     out = sk.solve(sk.Sketch.model_validate(data))
     assert out.ok
-    doc = f.PartDoc.model_validate({"features": [
-        {"id": "s", "type": "shaft", "sketch": data, "plane": "xz"}]})  # fmt: skip
+    doc = f.PartDoc.model_validate(
+        {"features": [{"id": "s", "type": "shaft", "sketch": data, "plane": "xz"}]}
+    )
     result = build_part(doc)
     assert not result.errors, result.errors
     # a sphere-like solid of revolution, about the Z axis
@@ -203,11 +211,17 @@ def test_sketch_solve_api(client: TestClient) -> None:
     assert out.status_code == 200
     body = out.json()
     assert body["ok"] and body["dof"] == 0
-    drag = client.post("/api/sketch/solve", json={
-        "sketch": rectangle(), "drag": {"point": "p2", "x": 140, "y": 99}})  # fmt: skip
+    drag = client.post(
+        "/api/sketch/solve",
+        json={"sketch": rectangle(), "drag": {"point": "p2", "x": 140, "y": 99}},
+    )
     assert drag.json()["ok"]  # fully constrained: the point snaps back
-    bad = client.post("/api/sketch/solve", json={"sketch": {"points": [], "entities": [
-        {"type": "line", "id": "l", "a": "x", "b": "y"}]}})  # fmt: skip
+    bad = client.post(
+        "/api/sketch/solve",
+        json={
+            "sketch": {"points": [], "entities": [{"type": "line", "id": "l", "a": "x", "b": "y"}]}
+        },
+    )
     assert bad.status_code == 422
 
 
@@ -224,3 +238,26 @@ def test_a_solve_reports_its_equations_rank_and_convergence() -> None:
     assert out.iterations and out.iterations[-1].accepted
     costs = [it.cost for it in out.iterations if it.accepted]
     assert costs == sorted(costs, reverse=True)  # accepted steps only ever lower |F|^2
+
+
+def test_concentric_circles_share_a_centre() -> None:
+    from autevra.part import sketch as sk
+
+    s = sk.Sketch.model_validate(
+        {
+            "points": [{"id": "c1", "x": 0, "y": 0, "fixed": True}, {"id": "c2", "x": 7, "y": -3}],
+            "entities": [
+                {"type": "circle", "id": "a", "center": "c1", "radius": 20},
+                {"type": "circle", "id": "b", "center": "c2", "radius": 8},
+            ],
+            "constraints": [
+                {"kind": "concentric", "refs": ["a", "b"]},
+                {"kind": "radius", "refs": ["a"], "value": 20},
+                {"kind": "radius", "refs": ["b"], "value": 8},
+            ],
+        }
+    )
+    r = sk.solve(s)
+    c2 = next(p for p in r.sketch.points if p.id == "c2")
+    assert (c2.x, c2.y) == (pytest.approx(0, abs=1e-9), pytest.approx(0, abs=1e-9))
+    assert r.dof == 0

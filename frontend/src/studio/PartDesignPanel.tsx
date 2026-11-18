@@ -391,6 +391,9 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
+  // Sketch support: a planar face of the part the next pad, pocket, hole or slot sits on.
+  const [planes, setPlanes] = useState<{ index: number; label: string; centre: number[]; normal: number[] }[]>([]);
+  const [onFace, setOnFace] = useState<number | null>(null);
   // Starting points from several domains, served by the backend (each one builds).
   const [presets, setPresets] = useState<Record<string, PartDoc>>({});
   useEffect(() => { api.partPresets().then(setPresets).catch(() => setPresets({})); }, []);
@@ -403,6 +406,13 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
   }, [projectId]);
 
   const part = parts.find((p) => p.id === selected) ?? null;
+  useEffect(() => {
+    setOnFace(null);
+    if (!part || part.volume == null) { setPlanes([]); return; }
+    api.mateFaces(projectId, part.id).then((list) => setPlanes((list as { index: number; kind: string; label: string; sig: { centre: number[]; direction: number[] } }[])
+      .filter((f) => f.kind === "plane").map((f) => ({ index: f.index, label: f.label, centre: f.sig.centre, normal: f.sig.direction }))))
+      .catch(() => setPlanes([]));
+  }, [projectId, part?.id, part?.volume]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = useCallback(async (action: () => Promise<PartOut | void>, removed?: string) => {
     setBusy(true);
@@ -447,9 +457,30 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
     const pocket = type === "pocket";
     const base = pocket ? "pad" : type;
     const f: PartFeature = { id: newId(pocket ? "pocket" : type, features), type: base, ...structuredClone(FEATURE_DEFAULTS[base]) };
-    // Holes, slots and pockets start on the top face of the part built so far (part frame).
-    const b = part?.bounds;
-    if (b && features.length > 0 && (pocket || base === "hole" || base === "slot")) {
+    const face = onFace != null ? planes.find((f) => f.index === onFace) : undefined;
+    if (face && ["pad", "hole", "slot"].includes(base)) {
+      // Sketch on the picked face: local +Z along the face's outward normal (R = Ry Rx), so
+      // a pad grows out of the face, a hole or slot cuts into it, and a pocket is a pad that
+      // starts inside the material and ends at the face.
+      const [nx, ny, nz] = face.normal;
+      const a = -Math.asin(Math.max(-1, Math.min(1, ny))), bb = Math.atan2(nx, nz);
+      const rot = (v: number[]) => { // Ry(bb) * Rx(a) * v
+        const y1 = v[1] * Math.cos(a) - v[2] * Math.sin(a), z1 = v[1] * Math.sin(a) + v[2] * Math.cos(a);
+        return [v[0] * Math.cos(bb) + z1 * Math.sin(bb), y1, -v[0] * Math.sin(bb) + z1 * Math.cos(bb)];
+      };
+      let origin = [...face.centre];
+      if (base === "pad") {
+        const local = pocket ? [-20, -15, -10] : [-20, -15, 0];
+        const off = rot(local);
+        origin = origin.map((c, i) => c + off[i]);
+        if (pocket) Object.assign(f, { name: "Pocket", op: "cut", sketch: rectSketch(40, 30), depth: 11 });
+        else Object.assign(f, { sketch: rectSketch(40, 30), depth: 20 });
+      }
+      const r3 = (v: number) => +v.toFixed(4);
+      f.at = { x: r3(origin[0]), y: r3(origin[1]), z: r3(origin[2]), rx: r3((a * 180) / Math.PI), ry: r3((bb * 180) / Math.PI), rz: 0 };
+      if (base === "pad") f.plane = "xy";
+    } else if (part?.bounds && features.length > 0 && (pocket || base === "hole" || base === "slot")) {
+      const b = part.bounds;
       const cx = (b[0][0] + b[1][0]) / 2, cy = (b[0][1] + b[1][1]) / 2, top = b[1][2];  // bounds are in the part frame
       if (pocket) {
         Object.assign(f, { name: "Pocket", op: "cut", sketch: rectSketch(40, 30), depth: 11, at: { x: cx - 20, y: cy - 15, z: top - 10 } });
@@ -600,6 +631,13 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
                 <option value="">choose…</option>
                 {Object.keys(FEATURE_DEFAULTS).map((t) => <option key={t} value={t}>{LABELS[t]}</option>)}
                 <option value="pocket">Pocket (sketch cut from the top face)</option>
+              </select>
+            </label>
+            <label>on face
+              <select value={onFace ?? ""} onChange={(e) => setOnFace(e.target.value === "" ? null : Number(e.target.value))}
+                title="Sketch support for the next pad, pocket, hole or slot">
+                <option value="">top face (default)</option>
+                {planes.map((f) => <option key={f.index} value={f.index}>#{f.index} {f.label} at ({f.centre.map((c) => c.toFixed(0)).join(", ")})</option>)}
               </select>
             </label>
             <span className="hint">Keys: <kbd>P</kbd> pad · <kbd>O</kbd> pocket · <kbd>H</kbd> hole · <kbd>C</kbd> chamfer ·
