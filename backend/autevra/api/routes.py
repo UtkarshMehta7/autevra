@@ -950,3 +950,35 @@ EXCEPTION_HANDLERS = {
     RunNotFoundError: run_not_found_handler,
     PartNotFoundError: part_not_found_handler,
 }
+
+
+class FreehandCleanIn(BaseModel):
+    strokes: list[list[tuple[float, float]]] = Field(min_length=1, max_length=200)
+    tolerance: float | None = Field(None, gt=0.0)
+    snap: float | None = Field(None, gt=0.0)
+
+
+@router.post("/freehand/clean")
+def freehand_clean(body: FreehandCleanIn) -> dict:
+    """Clean rough strokes into a constrained sketch (lines, arcs, circles, inferred
+    constraints) for preview."""
+    from autevra.part import freehand
+
+    try:
+        out = freehand.clean_view(body.strokes, body.tolerance, body.snap)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    return {**out, "sketch": out["sketch"].model_dump()}
+
+
+@router.post("/projects/{project_id}/freehand", response_model=schemas.PartOut, status_code=201)
+def freehand_part(project_id: str, body: dict, ws: WorkspaceDep) -> schemas.PartOut:
+    """A Part Design part from rough sketches: extruded, revolved, or the intersection of
+    the front, top and side views."""
+    from autevra.part import freehand
+
+    try:
+        doc, report = freehand.part(freehand.FreehandIn.model_validate(body))
+        return ws.create_part(project_id, PartDoc.model_validate(doc))
+    except (ValueError, CommandError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None

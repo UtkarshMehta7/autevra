@@ -774,3 +774,11 @@ pre.gcode { max-height: 220px; overflow: auto; background: #14171c; border: 1px 
 .lc-head { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
 .chip { font-size: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 1px 6px; color: var(--muted); white-space: nowrap; }
 .library-panel .el-field input, .library-panel .el-field textarea { width: 100%; }
+.fh-canvas { width: 100%; max-width: 760px; background: #f4f1e8; border: 1px solid var(--line); border-radius: 4px; touch-action: none; cursor: crosshair; }
+.fh-grid { stroke: #d9d3c2; stroke-width: 0.5; }
+.fh-stroke { fill: none; stroke: #5a5a5a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.55; }
+.fh-stroke.live { opacity: 0.9; }
+.fh-geo { fill: none; stroke: #1f6fd6; stroke-width: 2.4; }
+.fh-vertex { fill: #1f6fd6; }
+.freehand-panel .cam-notes .good { color: var(--good); } .freehand-panel .cam-notes .bad { color: var(--bad); }
+.fh-canvas .lbl { fill: #6b6b6b; font-size: 11px; }
