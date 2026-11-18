@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { api, type ElementOut } from "../api/client";
 
 /** Machine elements workspace (shared by every module): bolted joints, fillet welds,
  * fatigue (Goodman family, S-N life, rainflow damage), helical springs and spur gear pairs.
  * Calculations run in the backend (autevra/elements); each result names its method. */
 
-type Kind = "bolt" | "weld" | "fatigue" | "fatigue/history" | "spring" | "gears";
-type Tab = "bolt" | "weld" | "fatigue" | "spring" | "gears";
+type Kind = "bolt" | "weld" | "fatigue" | "fatigue/history" | "spring" | "gears" | "transmission";
+type Tab = "bolt" | "weld" | "fatigue" | "spring" | "gears" | "transmission";
 
 const TABS: { id: Tab; label: string; method: string }[] = [
   { id: "bolt", label: "Bolted joint", method: "ISO 898-1 strength, T = K·F·d, Shigley joint stiffness and Goodman bolt fatigue" },
@@ -14,6 +14,7 @@ const TABS: { id: Tab; label: string; method: string }[] = [
   { id: "fatigue", label: "Fatigue", method: "Marin factors, Goodman / Soderberg / Gerber / ASME elliptic, Basquin S-N, ASTM E1049 rainflow, Miner" },
   { id: "spring", label: "Spring", method: "EN 13906-1 rate and stress (Bergsträsser), solid height, buckling, surge" },
   { id: "gears", label: "Spur gears", method: "ISO 21771 geometry with profile shift, contact ratio, undercut; Lewis bending, nominal Hertz stress" },
+  { id: "transmission", label: "Transmission", method: "Ratios from gradeability, launch and top speed (geometric or progressive steps); two-shaft helical transaxle on one centre distance; ISO 6336-style rating with life factors from a duty cycle; traction diagram and 0–100 km/h" },
 ];
 
 // ISO 261 coarse threads: [d, pitch]
@@ -461,6 +462,128 @@ function GearsTab({ projectId, onModelChanged }: { projectId?: string; onModelCh
   );
 }
 
+// ---------- transmission ----------
+
+type GearRow = { gear: number; gearbox_ratio: number; overall: number; step: number | null; v_redline_kmh: number; gradeability_pct: number; grip_limited: boolean;
+  pair: { module: number; z1: number; z2: number; helix_deg: number; contact_ratio: number; overlap_ratio: number; sigma_F: number; sigma_FP: number; sigma_H: number; sigma_HP: number; SF: number; SH: number; error_pct: number; usage_share: number; load_cycles: number; overloaded?: boolean } };
+
+const GEAR_COLORS = ["#4f8fe6", "#5cbf8a", "#e0a33a", "#b08be0", "#e06a5a", "#4fd1c5", "#d6d65a", "#e07ab8", "#8fa3b8", "#c08a5a"];
+
+function Chart({ series, xLabel, yLabel, xMax, yMax, extra }: { series: { pts: number[][]; color: string; dash?: string; label?: string }[]; xLabel: string; yLabel: string; xMax: number; yMax: number; extra?: (X: (v: number) => number, Y: (v: number) => number) => ReactElement }) {
+  const W = 440, H = 220, L = 38, B = 26, T = 8, R = 8;
+  const X = (v: number) => L + (v / xMax) * (W - L - R);
+  const Y = (v: number) => H - B - (v / yMax) * (H - B - T);
+  const ticks = (max: number) => { const step = Math.pow(10, Math.floor(Math.log10(max / 4))); const m = [1, 2, 5].map((k) => k * step).find((k) => max / k <= 6) ?? step * 10; return Array.from({ length: Math.floor(max / m) + 1 }, (_, i) => i * m); };
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="el-chart tr-chart" role="img" aria-label={`${yLabel} against ${xLabel}`}>
+      {ticks(xMax).map((v) => <g key={`x${v}`}><line x1={X(v)} y1={T} x2={X(v)} y2={H - B} className="grid" /><text x={X(v)} y={H - B + 11} textAnchor="middle" className="lbl muted">{v}</text></g>)}
+      {ticks(yMax).map((v) => <g key={`y${v}`}><line x1={L} y1={Y(v)} x2={W - R} y2={Y(v)} className="grid" /><text x={L - 3} y={Y(v) + 3} textAnchor="end" className="lbl muted">{v >= 1000 ? `${v / 1000}k` : v}</text></g>)}
+      {series.map((s, i) => <polyline key={i} points={s.pts.map(([x, y]) => `${X(Math.min(x, xMax))},${Y(Math.max(0, Math.min(y, yMax)))}`).join(" ")} fill="none" stroke={s.color} strokeWidth={1.6} strokeDasharray={s.dash} />)}
+      {extra?.(X, Y)}
+      <text x={(W + L) / 2} y={H - 2} textAnchor="middle" className="lbl muted">{xLabel}</text>
+      <text x={10} y={T + 4} className="lbl muted">{yLabel}</text>
+    </svg>
+  );
+}
+
+function TransmissionTab({ projectId }: { projectId?: string }) {
+  const [v, setV] = useState({ mass_kg: 1600, tyre_radius_m: 0.32, drag_area_m2: 0.7, rolling_resistance: 0.012, driveline_efficiency: 0.92, driven_axle_share: 0.58, drive: "front", cg_height_m: 0.55, wheelbase_m: 2.7, grip: 1.0 });
+  const [eng, setEng] = useState({ idle_rpm: 800, peak_torque_Nm: 320, torque_from_rpm: 1800, torque_to_rpm: 4000, peak_power_kW: 150, power_rpm: 5800, redline_rpm: 6500 });
+  const [d, setD] = useState({ gears: 6, gradeability: 35, first_gear_top_kmh: 60, top_strategy: "overdrive", progression: "progressive", phi2: 1.07, top_gearbox_ratio: 0.8, face_width: 18, helix_deg: 25, life_km: 250000, full_load_share: 0.05 });
+  const [a, setA] = useState<number | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const { out, error } = useCalc("transmission", { ...v, engine: eng, ...d, centre_distance: a });
+  const fill = async () => {
+    if (!projectId) return;
+    try {
+      const inp = await api.transmissionInputs(projectId) as Record<string, unknown> & { engine: typeof eng; notes: string[] };
+      setV({ mass_kg: inp.mass_kg as number, tyre_radius_m: +(inp.tyre_radius_m as number).toFixed(3), drag_area_m2: +(inp.drag_area_m2 as number).toFixed(3), rolling_resistance: inp.rolling_resistance as number, driveline_efficiency: inp.driveline_efficiency as number, driven_axle_share: +(inp.driven_axle_share as number).toFixed(3), drive: inp.drive as string, cg_height_m: inp.cg_height_m as number, wheelbase_m: inp.wheelbase_m as number, grip: v.grip });
+      setEng(inp.engine);
+      setNote(inp.notes.length ? inp.notes.join(" ") : "Filled from this vehicle's parameters (engine curve shaped from its peak power).");
+    } catch (e) { setNote(e instanceof Error ? e.message : String(e)); }
+  };
+  const gears = (out?.gears ?? []) as GearRow[];
+  const traction = (out?.traction ?? []) as number[][][];
+  const road = (out?.road_load ?? []) as number[][];
+  const vmax = Math.max(num(out, "v_max_kmh"), ...gears.map((g) => g.v_redline_kmh).slice(-1), 50);
+  const fmax = Math.max(...traction.flatMap((c) => c.map((p) => p[1])), 1000) * 1.1;
+  const xMax = Math.ceil(Math.min(vmax * 1.15, 400) / 20) * 20;
+  const t100 = num(out, "zero_to_100_s");
+  return (
+    <div className="el-body">
+      <div className="el-inputs">
+        {projectId && <button onClick={fill}>Fill from this vehicle</button>}
+        {note && <p className="small muted">{note}</p>}
+        <h4>Vehicle</h4>
+        <Num label="mass" value={v.mass_kg} unit="kg" step={10} onChange={(x) => setV({ ...v, mass_kg: x })} />
+        <Num label="rolling radius" value={v.tyre_radius_m} unit="m" step={0.005} onChange={(x) => setV({ ...v, tyre_radius_m: x })} />
+        <Num label="drag area cd·A" value={v.drag_area_m2} unit="m²" step={0.01} onChange={(x) => setV({ ...v, drag_area_m2: x })} />
+        <Num label="rolling resistance" value={v.rolling_resistance} step={0.001} onChange={(x) => setV({ ...v, rolling_resistance: x })} />
+        <Num label="driveline efficiency" value={v.driveline_efficiency} step={0.01} onChange={(x) => setV({ ...v, driveline_efficiency: x })} />
+        <Pick label="driven wheels" value={v.drive} options={[{ value: "front", label: "front" }, { value: "rear", label: "rear" }, { value: "all", label: "all (AWD)" }]} onChange={(x) => setV({ ...v, drive: x, driven_axle_share: x === "all" ? 1 : v.driven_axle_share === 1 ? 0.55 : v.driven_axle_share })} />
+        <Num label="static load on driven axle" value={v.driven_axle_share} step={0.01} onChange={(x) => setV({ ...v, driven_axle_share: x })} />
+        <Num label="CG height" value={v.cg_height_m} unit="m" step={0.01} onChange={(x) => setV({ ...v, cg_height_m: x })} />
+        <Num label="wheelbase" value={v.wheelbase_m} unit="m" step={0.01} onChange={(x) => setV({ ...v, wheelbase_m: x })} />
+        <Num label="tyre grip μ" value={v.grip} step={0.05} onChange={(x) => setV({ ...v, grip: x })} />
+        <h4>Engine (full load)</h4>
+        <Num label="peak torque" value={eng.peak_torque_Nm} unit="N·m" step={5} onChange={(x) => setEng({ ...eng, peak_torque_Nm: x })} />
+        <Num label="torque plateau from" value={eng.torque_from_rpm} unit="rpm" step={100} onChange={(x) => setEng({ ...eng, torque_from_rpm: x })} />
+        <Num label="torque plateau to" value={eng.torque_to_rpm} unit="rpm" step={100} onChange={(x) => setEng({ ...eng, torque_to_rpm: x })} />
+        <Num label="peak power" value={eng.peak_power_kW} unit="kW" step={5} onChange={(x) => setEng({ ...eng, peak_power_kW: x })} />
+        <Num label="at" value={eng.power_rpm} unit="rpm" step={100} onChange={(x) => setEng({ ...eng, power_rpm: x })} />
+        <Num label="redline" value={eng.redline_rpm} unit="rpm" step={100} onChange={(x) => setEng({ ...eng, redline_rpm: x })} />
+        <h4>Gearbox</h4>
+        <Num label="gears" value={d.gears} onChange={(x) => setD({ ...d, gears: Math.min(10, Math.max(3, Math.round(x))) })} />
+        <Num label="gradeability in 1st" value={d.gradeability} unit="%" onChange={(x) => setD({ ...d, gradeability: x })} />
+        <Num label="1st gear top speed" value={d.first_gear_top_kmh} unit="km/h" onChange={(x) => setD({ ...d, first_gear_top_kmh: x })} />
+        <Pick label="top gear" value={d.top_strategy} options={[{ value: "overdrive", label: "overdrive (economy)" }, { value: "power", label: "at the power peak" }]} onChange={(x) => setD({ ...d, top_strategy: x })} />
+        <Pick label="steps" value={d.progression} options={["progressive", "geometric"]} onChange={(x) => setD({ ...d, progression: x })} />
+        <Num label="top gearbox ratio" value={d.top_gearbox_ratio} step={0.01} onChange={(x) => setD({ ...d, top_gearbox_ratio: x })} />
+        <label className="el-field">centre distance
+          <span><input type="number" value={a ?? ""} placeholder={`auto ${fmt(num(out, "centre_distance"))}`} onChange={(e) => setA(e.target.value ? Number(e.target.value) : null)} /><em>mm</em></span>
+        </label>
+        <Num label="face width" value={d.face_width} unit="mm" onChange={(x) => setD({ ...d, face_width: x })} />
+        <Num label="helix angle" value={d.helix_deg} unit="°" onChange={(x) => setD({ ...d, helix_deg: x })} />
+        <Num label="design life" value={d.life_km} unit="km" step={10000} onChange={(x) => setD({ ...d, life_km: x })} />
+        <Num label="full-load share" value={d.full_load_share} step={0.01} onChange={(x) => setD({ ...d, full_load_share: x })} />
+      </div>
+      <div className="el-out">
+        {out && gears.length > 0 && <>
+          <div className="cam-tiles">
+            <div><b>{Number.isFinite(t100) ? `${t100.toFixed(1)} s` : "—"}</b><span>0–100 km/h</span></div>
+            <div><b>{fmt(num(out, "v_max_kmh"))} km/h</b><span>top speed</span></div>
+            <div><b>{fmt(num(out, "spread"))}</b><span>ratio spread</span></div>
+            <div><b>{fmt(num(out, "final_drive"))}</b><span>final drive</span></div>
+            <div><b>{fmt(num(out, "rpm_at_100_top"))}</b><span>rpm at 100 km/h, top</span></div>
+            <div><b>{fmt(num(out, "centre_distance"))} mm</b><span>centre distance</span></div>
+          </div>
+          <Chart xLabel="speed (km/h)" yLabel="tractive force (N)" xMax={xMax} yMax={fmax}
+            series={[...traction.map((c, i) => ({ pts: c, color: GEAR_COLORS[i % 10] })), { pts: road, color: "#e6e6e6", dash: "4 3" }]}
+            extra={(X, Y) => <><line x1={X(0)} y1={Y(num(out, "grip_limit_N"))} x2={X(xMax)} y2={Y(num(out, "grip_limit_N"))} stroke="#e06a5a" strokeDasharray="2 3" /><text x={X(xMax) - 4} y={Y(num(out, "grip_limit_N")) - 4} textAnchor="end" className="lbl">grip limit</text>
+              {gears.map((g, i) => <text key={i} x={X(Math.min(g.v_redline_kmh, xMax)) - 2} y={Y(Math.min(traction[i]?.[traction[i].length - 1]?.[1] ?? 0, fmax)) - 4} textAnchor="end" className="lbl" fill={GEAR_COLORS[i % 10]}>{g.gear}</text>)}
+              <text x={X(xMax * 0.98)} y={Y(road[road.length - 1]?.[1] ?? 0) - 4} textAnchor="end" className="lbl muted">road load</text></>} />
+          <Chart xLabel="speed (km/h)" yLabel="engine speed (rpm)" xMax={xMax} yMax={eng.redline_rpm * 1.08}
+            series={gears.map((g, i) => ({ pts: [[0, 0], [g.v_redline_kmh, eng.redline_rpm]], color: GEAR_COLORS[i % 10] }))}
+            extra={(X, Y) => <><line x1={X(0)} y1={Y(eng.redline_rpm)} x2={X(xMax)} y2={Y(eng.redline_rpm)} stroke="#e06a5a" strokeDasharray="2 3" />
+              <rect x={X(0)} y={Y(eng.torque_to_rpm)} width={X(xMax) - X(0)} height={Y(eng.torque_from_rpm) - Y(eng.torque_to_rpm)} fill="#5cbf8a" opacity={0.08} />
+              <text x={X(2)} y={Y(eng.torque_to_rpm) + 10} className="lbl muted">torque plateau</text></>} />
+          <table className="bd-table el-results tr-table"><thead><tr><th>gear</th><th className="num">ratio</th><th className="num">overall</th><th className="num">step</th><th className="num">v@red km/h</th><th className="num">grade %</th><th className="num">mₙ</th><th className="num">z₁/z₂</th><th className="num">β°</th><th className="num">εα/εβ</th><th className="num">S_F</th><th className="num">S_H</th></tr></thead><tbody>
+            {gears.map((g) => (
+              <tr key={g.gear}><td>{g.gear}</td><td className="num">{g.gearbox_ratio.toFixed(3)}</td><td className="num">{g.overall.toFixed(2)}</td><td className="num">{g.step ? g.step.toFixed(2) : ""}</td>
+                <td className="num">{g.v_redline_kmh.toFixed(0)}</td><td className={`num ${g.grip_limited ? "warn" : ""}`}>{g.gradeability_pct.toFixed(0)}{g.grip_limited ? "*" : ""}</td>
+                <td className="num">{g.pair.module}</td><td className="num">{g.pair.z1}/{g.pair.z2}</td><td className="num">{g.pair.helix_deg.toFixed(1)}</td>
+                <td className="num">{g.pair.contact_ratio.toFixed(2)}/{g.pair.overlap_ratio.toFixed(2)}</td>
+                <td className={`num ${tone(g.pair.SF, 1.3)}`}>{g.pair.SF.toFixed(2)}</td><td className={`num ${tone(g.pair.SH, 1.0)}`}>{g.pair.SH.toFixed(2)}</td></tr>
+            ))}
+          </tbody></table>
+          <p className="small muted">S_F, S_H: ISO 6336-style safety at peak torque with life factors for {d.life_km.toLocaleString()} km at {(d.full_load_share * 100).toFixed(0)} % full load (required ≥ 1.3 bending, ≥ 1.0 contact). * grip limited. Shafts: input ⌀{fmt(num(out, "input_shaft_mm"))}, output ⌀{fmt(num(out, "output_shaft_mm"))} mm (torsion, 55 MPa).</p>
+        </>}
+        <Warnings out={out} error={error} />
+      </div>
+    </div>
+  );
+}
+
 export function ElementsPanel({ projectId, onModelChanged }: { projectId?: string; onModelChanged: () => void }) {
   const [tab, setTab] = useState<Tab>(() => {
     try { return (localStorage.getItem("autevra.elements.tab") as Tab) || "gears"; } catch { return "gears"; }
@@ -478,6 +601,7 @@ export function ElementsPanel({ projectId, onModelChanged }: { projectId?: strin
       {tab === "fatigue" && <FatigueTab />}
       {tab === "spring" && <SpringTab />}
       {tab === "gears" && <GearsTab projectId={projectId} onModelChanged={onModelChanged} />}
+      {tab === "transmission" && <TransmissionTab projectId={projectId} />}
     </section>
   );
 }

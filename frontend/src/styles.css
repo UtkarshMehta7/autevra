@@ -753,3 +753,7 @@ textarea.json.bad { border-color: var(--bad); }
 .cam-notes { color: var(--muted); margin: 0; padding-left: 16px; }
 .machining-panel .bd-table td { white-space: normal; }
 pre.gcode { max-height: 220px; overflow: auto; background: #14171c; border: 1px solid var(--line); padding: 6px 8px; font-size: 11px; line-height: 1.35; }
+.el-chart.tr-chart { max-width: 520px; }
+.el-chart .grid { stroke: #ffffff; stroke-opacity: 0.06; }
+.tr-table td, .tr-table th { padding: 2px 4px; }
+.el-inputs h4 { margin: 8px 0 2px; font-size: 12px; color: var(--text); }
