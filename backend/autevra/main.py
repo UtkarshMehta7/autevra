@@ -13,6 +13,7 @@ from autevra.ai.llm.clients import LLMClient, make_client
 from autevra.api import access
 from autevra.api.aerospace import router as aerospace_router
 from autevra.api.change import router as change_router
+from autevra.api.elements import router as elements_router
 from autevra.api.installs import router as installs_router
 from autevra.api.inventory import router as inventory_router
 from autevra.api.marine import router as marine_router
@@ -62,6 +63,7 @@ def create_app(settings: Settings | None = None, llm: LLMClient | None = None) -
     app.include_router(aerospace_router, prefix="/api")
     app.include_router(product_router, prefix="/api")
     app.include_router(inventory_router, prefix="/api")
+    app.include_router(elements_router, prefix="/api")
     app.include_router(mechanical_router, prefix="/api")
     app.include_router(marine_router, prefix="/api")
     app.include_router(installs_router, prefix="/api")

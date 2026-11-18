@@ -133,6 +133,9 @@ export function backendHint(): string {
     : "The hosted backend may be starting after a pause; reload in a minute.";
 }
 
+/** A machine-element calculation: numbers, nested results and warnings. */
+export type ElementOut = { warnings: string[]; [key: string]: unknown };
+
 const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
@@ -288,6 +291,9 @@ export const api = {
   reviews: (id: string) => request<unknown[]>(`/projects/${id}/reviews`),
   clearance: (id: string, required: number) => request<unknown[]>(`/projects/${id}/clearance?required=${required}`),
   fourbar: (body: unknown) => post<FourBarOut>("/mechanisms/fourbar", body),
+  element: (kind: "bolt" | "weld" | "fatigue" | "fatigue/history" | "spring" | "gears", body: unknown) =>
+    post<ElementOut>(`/elements/${kind}`, body),
+  addGears: (id: string, body: unknown) => post<PartOut[]>(`/projects/${id}/elements/gears`, body),
   sliderCrank: (body: unknown) => post<SliderCrankOut>("/mechanisms/slider-crank", body),
   sweep: (id: string, part: string, joint: unknown, required: number) =>
     post<SweepReport>(`/projects/${id}/parts/${part}/sweep`, { joint, required, volume: false }),

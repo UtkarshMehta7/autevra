@@ -689,3 +689,58 @@ textarea.json.bad { border-color: var(--bad); }
 .mech-facts { display: flex; flex-direction: column; gap: 3px; } .mech-facts .bad { color: var(--bad); max-width: 240px; }
 .pfmea { margin-top: 10px; } .pfmea .row { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; } .pfmea button.on { border-color: var(--accent); color: var(--accent); }
 .pfmea-table td { white-space: normal; vertical-align: top; max-width: 190px; }
+
+/* Machine elements workspace */
+.elements-panel { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; }
+.el-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.el-tabs button { padding: 4px 10px; font-size: 12px; }
+.el-tabs button.active { border-color: var(--accent); color: var(--accent); }
+.el-method { margin: 0; }
+.el-body { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 14px; align-items: start; }
+@media (max-width: 760px) { .el-body { grid-template-columns: 1fr; } }
+.el-inputs { display: flex; flex-direction: column; gap: 5px; }
+.el-field { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.el-field.wide { flex-direction: column; align-items: stretch; }
+.el-field span { display: flex; align-items: center; gap: 4px; }
+.el-field input { width: 76px; text-align: right; }
+.el-field select { max-width: 140px; }
+.el-field em { font-style: normal; font-size: 11px; min-width: 34px; }
+.el-field textarea { width: 100%; font: inherit; font-size: 12px; color: var(--text); background: #262b33; border: 1px solid var(--line); }
+.el-out { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.el-out h4 { margin: 8px 0 0; font-size: 12px; }
+.el-split { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.el-results { max-width: 440px; }
+.el-results td.good, .el-out .good { color: var(--good); }
+.el-results td.warn { color: var(--warn); }
+.el-results td.bad, .el-out .bad { color: var(--bad); }
+.el-ok { color: var(--good); font-size: 12px; margin: 0; }
+.el-warn { color: var(--warn); font-size: 12px; margin: 0; padding-left: 16px; }
+.el-marin { margin: 0; }
+.el-chart { width: 100%; max-width: 440px; background: #1b1f25; border: 1px solid var(--line); border-radius: 4px; }
+.el-chart.small-chart { max-width: 170px; }
+.el-chart .axis { stroke: var(--muted); stroke-width: 1; }
+.el-chart .guide { stroke: var(--muted); stroke-dasharray: 3 3; stroke-width: 0.8; fill: none; }
+.el-chart .lbl { fill: var(--text); font-size: 9px; }
+.el-chart .lbl.muted { fill: var(--muted); }
+.el-chart .s-bolt, .el-chart .c-goodman { stroke: var(--accent); stroke-width: 2; fill: none; }
+.el-chart .s-member { stroke: var(--warn); stroke-width: 2; }
+.el-chart .s-load { stroke: var(--bad); stroke-width: 2; }
+.el-chart .s-bolt-t { fill: var(--accent); }
+.el-chart .s-member-t { fill: var(--warn); }
+.el-chart .dot { fill: var(--text); }
+.el-chart .dot.good { fill: var(--good); } .el-chart .dot.warn { fill: var(--warn); } .el-chart .dot.bad { fill: var(--bad); }
+.el-chart .dot-bolt { fill: var(--accent); } .el-chart .dot-member { fill: var(--warn); }
+.el-chart .c-gerber { stroke: var(--good); stroke-width: 1.5; fill: none; }
+.el-chart .c-soderberg { stroke: var(--warn); stroke-width: 1.5; fill: none; }
+.el-chart .c-ellipse { stroke: #b08be0; stroke-width: 1.5; fill: none; stroke-dasharray: 4 2; }
+.el-chart .c-langer { stroke: var(--bad); stroke-width: 1; fill: none; stroke-dasharray: 2 2; }
+.el-chart .plate { fill: #3a414c; stroke: var(--muted); stroke-width: 0.6; }
+.el-chart .bead { fill: var(--warn); opacity: 0.8; }
+.el-chart .coil { stroke: #9aa6b5; fill: none; stroke-linejoin: round; }
+.el-chart .gear { stroke: none; }
+.el-chart .gear.g1 { fill: #9aa3ad; }
+.el-chart .gear.g2 { fill: #c69a50; }
+.el-chart .pitch { fill: none; stroke: #ffffff; stroke-opacity: 0.55; stroke-width: 0.7; stroke-dasharray: 4 3; }
+.el-chart .base { fill: none; stroke: #ffffff; stroke-opacity: 0.35; stroke-width: 0.6; stroke-dasharray: 1 2; }
+.gear-chart { max-width: 460px; max-height: 240px; }
+.legend .lbl { font-size: 8px; }
