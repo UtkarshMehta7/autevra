@@ -187,6 +187,7 @@ export const api = {
   stepUrl: (id: string) => `${API}/projects/${id}/export.step`,
   glbUrl: (id: string) => `${API}/projects/${id}/export.glb`,
   stlUrl: (id: string) => `${API}/projects/${id}/export.stl`,
+  assemblyDrawingUrl: (id: string) => `${API}/projects/${id}/drawing.svg`,
   igesUrl: (id: string) => `${API}/projects/${id}/export.igs`,
   tests: () => request<TestDefinition[]>("/tests"),
   runTests: (id: string, body: { test_id: string; target: string; scenario_id?: string | null }) =>

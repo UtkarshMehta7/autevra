@@ -819,12 +819,43 @@ def part_drawing(project_id: str, part_id: str, ws: WorkspaceDep) -> Response:
     _, report = model_service.build_part(doc, ws.cache)
     if report.shape is None:
         raise HTTPException(status_code=422, detail="the part has no solid to draw")
-    svg = drawing.drawing_svg(report.shape, doc.name)
+    from autevra.part import features as feats
+
+    notes = []
+    for ft in doc.features:
+        info = report.info.get(ft.id, {})
+        if isinstance(ft, feats.Hole) and not ft.suppressed and "callout" in info:
+            depth = " THRU" if ft.through else f" ↧{ft.depth:g}"
+            vertical = abs(ft.at.rx) < 1e-9 and abs(ft.at.ry) < 1e-9
+            text = f"{info['callout']}{depth}"
+            notes.append(drawing.HoleNote(ft.at.x, ft.at.y, ft.at.z, text, vertical))
+    svg = drawing.drawing_svg(report.shape, doc.name, holes=notes)
     return Response(
         svg,
         media_type="image/svg+xml",
         headers={"Content-Disposition": f'attachment; filename="{part_id}-drawing.svg"'},
     )
+
+
+@router.get("/projects/{project_id}/drawing.svg")
+def assembly_drawing(project_id: str, ws: WorkspaceDep) -> Response:
+    """An A3 assembly drawing of the project's own parts (Part Design, Inventory, Machine
+    elements, imports): isometric view, balloons and the bill of materials."""
+    from autevra.cad import kernel as kern
+    from autevra.part import drawing
+
+    model = ws._full_model(project_id)
+    own = [p for p in model.parts if p.id.startswith("part_")] or model.parts
+    items = []
+    for p in own[:60]:
+        shape = model.shapes[p.geometry].moved(kern.location(p.matrix))
+        items.append((p.name, shape, p.finish, kern.volume(shape) / 1000.0))
+    try:
+        svg = drawing.assembly_svg(items, ws.project(project_id).name)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    disposition = 'attachment; filename="assembly-drawing.svg"'
+    return Response(svg, media_type="image/svg+xml", headers={"Content-Disposition": disposition})
 
 
 @router.get("/projects/{project_id}/parts/{part_id}/design-table.csv")
