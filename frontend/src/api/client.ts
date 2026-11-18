@@ -172,6 +172,8 @@ export const api = {
     request<ModelPayload>(`/projects/${id}/model?known=${encodeURIComponent([...known].join(","))}`),
   stepUrl: (id: string) => `${API}/projects/${id}/export.step`,
   glbUrl: (id: string) => `${API}/projects/${id}/export.glb`,
+  stlUrl: (id: string) => `${API}/projects/${id}/export.stl`,
+  igesUrl: (id: string) => `${API}/projects/${id}/export.igs`,
   tests: () => request<TestDefinition[]>("/tests"),
   runTests: (id: string, body: { test_id: string; target: string; scenario_id?: string | null }) =>
     post<TestRunResponse>(`/projects/${id}/tests/run`, body),

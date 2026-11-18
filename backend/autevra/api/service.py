@@ -1351,6 +1351,17 @@ class Workspace:
                 schema,
             )
 
+    def export_file(self, project_id: str, fmt: str, tolerance: float = 0.05) -> Path:
+        """STL (triangles for 3D printing) or IGES (B-rep) of the whole project."""
+        with self._lock:
+            ext = {"stl": "stl", "iges": "igs"}[fmt]
+            return model_service.export_mesh_or_iges(
+                self._full_model(project_id),
+                self.data_dir / "exports" / f"{project_id}.{ext}",
+                fmt,
+                tolerance,
+            )
+
     def export_glb(self, project_id: str) -> Path:
         with self._lock:
             return model_service.export_glb(

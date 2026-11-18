@@ -211,3 +211,23 @@ def test_export_glb(client: TestClient, project: str) -> None:
     assert res.status_code == 200 and res.headers["content-type"] == "model/gltf-binary"
     doc, blob = gltf.read(res.content)
     assert len(doc["nodes"]) > 5 and len(blob) == doc["buffers"][0]["byteLength"]
+
+
+@pytest.mark.cad
+def test_export_stl_and_iges(client: TestClient) -> None:
+    import struct
+
+    pid = client.post("/api/projects", json={"name": "Block", "domain": "machinery"}).json()["id"]
+    doc = {"name": "Block", "features": [{"id": "b", "type": "box", "size": [40, 30, 20]}],
+           "at": {"x": 100}}  # fmt: skip
+    assert client.post(f"/api/projects/{pid}/parts", json=doc).status_code in (200, 201)
+    stl = client.get(f"/api/projects/{pid}/export.stl").content
+    (count,) = struct.unpack("<I", stl[80:84])
+    assert count == 12 and len(stl) == 84 + 50 * count  # a box: 6 faces, 2 triangles each
+    xs = [struct.unpack("<3f", stl[84 + 50 * i + 12 + 12 * j : 84 + 50 * i + 24 + 12 * j])[0]
+          for i in range(count) for j in range(3)]  # fmt: skip
+    assert min(xs) == pytest.approx(80) and max(xs) == pytest.approx(120)  # placed, mm
+    iges = client.get(f"/api/projects/{pid}/export.igs")
+    assert iges.status_code == 200 and b"2HMM" in iges.content[:800]
+    empty = client.post("/api/projects", json={"name": "Empty", "domain": "machinery"}).json()["id"]
+    assert client.get(f"/api/projects/{empty}/export.stl").status_code == 422

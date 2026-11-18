@@ -148,6 +148,13 @@ def export_step(model: VehicleModel, path: Path, schema: str = "AP214") -> Path:
     )
 
 
+def export_mesh_or_iges(model: VehicleModel, path: Path, fmt: str, tolerance: float = 0.05) -> Path:
+    parts = [kernel.Part(p.id, model.shapes[p.geometry], p.matrix, p.color) for p in model.parts]
+    if fmt == "iges":
+        return kernel.export_iges(parts, path)
+    return kernel.export_stl(parts, path, tolerance=tolerance)
+
+
 def export_glb(model: VehicleModel, path: Path, name: str = "model") -> Path:
     from autevra.cad import gltf
 

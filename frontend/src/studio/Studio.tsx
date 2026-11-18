@@ -440,6 +440,8 @@ function StudioView({ projectId, workspace, navigate }: {
             { label: "Export STEP (B-rep assembly)", disabled: !project, action: project ? downloadAction(api.stepUrl(project.id)) : undefined },
             { label: "Export STEP AP242", disabled: !project, action: project ? downloadAction(`${api.stepUrl(project.id)}?schema=AP242`) : undefined },
             { label: "Export glTF (.glb mesh for viewers and AR)", disabled: !project, action: project ? downloadAction(api.glbUrl(project.id)) : undefined },
+            { label: "Export STL (3D printing, binary, mm)", disabled: !project, action: project ? downloadAction(api.stlUrl(project.id)) : undefined },
+            { label: "Export IGES 5.3 (B-rep solids, mm)", disabled: !project, action: project ? downloadAction(api.igesUrl(project.id)) : undefined },
             { label: "Export bill of materials (CSV)", disabled: !project, action: project ? downloadAction(api.bomUrl(project.id)) : undefined },
             { label: "Export package drawing (SVG)", disabled: !project, action: project ? downloadAction(api.packageSvgUrl(project.id)) : undefined },
             { label: "Export requirements (ReqIF)", disabled: !project, action: project ? downloadAction(api.reqifUrl(project.id)) : undefined },

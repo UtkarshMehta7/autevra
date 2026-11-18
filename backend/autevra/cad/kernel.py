@@ -345,5 +345,37 @@ def export_step(parts: Iterable[Part], path: Path, name: str = "vehicle",
     return path
 
 
+def _placed(parts: Iterable[Part]) -> Shape:
+    shapes = [p.shape.moved(location(p.matrix)) for p in parts]
+    if not shapes:
+        raise ValueError("the project has no geometry to export")
+    return cq.Compound.makeCompound(shapes)
+
+
+def export_stl(parts: Iterable[Part], path: Path, tolerance: float = 0.05,
+               angular: float = 0.2, ascii: bool = False) -> Path:  # fmt: skip
+    """All parts, placed, as one triangulated STL in mm (binary by default) for 3D printing.
+    ``tolerance`` is the chordal deviation in mm, ``angular`` the angular deflection (rad)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _placed(parts).exportStl(str(path), tolerance, angular, ascii)
+    return path
+
+
+def export_iges(parts: Iterable[Part], path: Path) -> Path:
+    """All parts, placed, as IGES 5.3 B-rep solids (MSBO, entity 186) in mm."""
+    from OCP.IGESControl import IGESControl_Controller, IGESControl_Writer
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with _STEP_LOCK:
+        IGESControl_Controller.Init_s()
+        writer = IGESControl_Writer("MM", 1)  # 1: B-rep (faces) rather than trimmed surfaces
+        for p in parts:
+            writer.AddShape(p.shape.moved(location(p.matrix)).wrapped)
+        writer.ComputeModel()
+        if not writer.Write(str(path)):
+            raise ValueError("IGES writer failed")
+    return path
+
+
 def import_step(path: Path) -> Shape:
     return cq.importers.importStep(str(path)).val()

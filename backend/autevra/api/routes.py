@@ -264,6 +264,33 @@ def export_step(
     return FileResponse(path, media_type="application/step", filename=f"{safe}.step")
 
 
+@router.get("/projects/{project_id}/export.stl")
+def export_stl(
+    project_id: str, ws: WorkspaceDep, tolerance: Annotated[float, Query(gt=0.001, le=5.0)] = 0.05
+) -> FileResponse:
+    """The project's geometry as one binary STL (mm) for 3D printing; ``tolerance`` is the
+    chordal deviation in mm."""
+    try:
+        path = ws.export_file(project_id, "stl", tolerance)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    name = ws.project(project_id).name
+    safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in name).strip("-") or "model"
+    return FileResponse(path, media_type="model/stl", filename=f"{safe}.stl")
+
+
+@router.get("/projects/{project_id}/export.igs")
+def export_iges(project_id: str, ws: WorkspaceDep) -> FileResponse:
+    """The project's geometry as IGES 5.3 B-rep solids (mm) for suppliers' older CAD."""
+    try:
+        path = ws.export_file(project_id, "iges")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    name = ws.project(project_id).name
+    safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in name).strip("-") or "model"
+    return FileResponse(path, media_type="model/iges", filename=f"{safe}.igs")
+
+
 @router.get("/projects/{project_id}/export.glb")
 def export_glb(project_id: str, ws: WorkspaceDep) -> FileResponse:
     """The project's geometry as a glTF 2.0 binary mesh (metres, Y-up) for viewers and AR."""
