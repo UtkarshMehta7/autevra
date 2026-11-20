@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     max_projects_per_workspace: int = 0
     # Build the default geometry in the background at startup (hosted instances).
     warm_up: bool = False
+    # The styled freeform body surface: "on", "off", or "auto" (off on a host with under
+    # 1 GB of memory, such as the 512 MB free Render instance: building it peaks about
+    # 200 MB above the draft surface). When off, every body uses the draft surface.
+    styled_surface: str = "auto"
+
+    # The built studio (frontend/dist) served by the backend itself, so one local process is
+    # the whole application: used by the desktop build (autevra.desktop); unset in development.
+    static_dir: Path | None = None
 
     # Plugins: comma-separated module paths, e.g. "autevra.contrib.brake_discs", plus any
     # installed package that declares the "autevra.plugins" entry-point group.

@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { toCreasedNormals } from "three/addons/utils/BufferGeometryUtils.js";
+import { creasedAngleNormals } from "./normals";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { ModelPayload } from "../api/types";
 import { staleGeometry } from "../state/format";
 import { type Animation, frameIndex, framePoses, readout } from "./animation";
-import { baseEmissive, baseOpacity, curvatureMaterial, materialFor, rememberEmissive, zebraMaterial } from "./materials";
+import {
+  baseEmissive, baseOpacity, curvatureMaterial, draftMaterial, materialFor, rememberEmissive, zebraMaterial,
+} from "./materials";
 import {
   type DisplayMode, type SectionAxis, type StandardView, VIEWS, curvatureColors, curvatureEstimate,
   edgesOf, featureEdges, framing, measure, sectionPlane,
 } from "./tools";
+import { type Look, type Studio, createStudio } from "./render";
+import { type Overlay, currentOverlay, onOverlay } from "./overlay";
 
 interface Props {
   model: ModelPayload | null;
@@ -26,6 +30,7 @@ interface Scene {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
+  studio: Studio;
   perspective: THREE.PerspectiveCamera;
   orthographic: THREE.OrthographicCamera;
   controls: OrbitControls;
@@ -45,13 +50,10 @@ const FOV = 35;
 const CREASE = (30 * Math.PI) / 180; // facets meeting at less than this shade smoothly
 
 function toGeometry(vertices: number[], indices: number[]): THREE.BufferGeometry {
-  const indexed = new THREE.BufferGeometry();
-  indexed.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-  indexed.setIndex(indices);
   // Smooth shading across the facets of curved surfaces (and across B-rep face seams),
-  // crisp at real edges: the usual CAD display.
-  const g = toCreasedNormals(indexed, CREASE);
-  indexed.dispose();
+  // crisp at real edges: the usual CAD display. Angle-weighted, so thin ruled facets shade
+  // evenly whichever way their quads were split.
+  const g = creasedAngleNormals(vertices, indices, CREASE);
   g.computeBoundingSphere();
   return g;
 }
@@ -79,6 +81,9 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
   const restore = useRef(false);
   const markers = useRef<THREE.Group | null>(null);
   const [display, setDisplay] = useState<DisplayMode>("shaded");
+  const [look, setLook] = useState<Look>("outdoor");
+  const [pull, setPull] = useState<string>("+z");
+  const [minDraft, setMinDraft] = useState(1);
   const [ortho, setOrtho] = useState(false);
   const [section, setSection] = useState<{ axis: SectionAxis; share: number }>({ axis: "off", share: 0.5 });
   const [measuring, setMeasuring] = useState(false);
@@ -110,28 +115,31 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
     scene.environmentIntensity = 0.35;
     renderer.toneMappingExposure = 0.9;
     pmrem.dispose();
-    const perspective = new THREE.PerspectiveCamera(FOV, 1, 10, 200000);
+    const perspective = new THREE.PerspectiveCamera(FOV, 1, 10, 600000);
     const orthographic = new THREE.OrthographicCamera(-1, 1, 1, -1, -200000, 200000);
     for (const cam of [perspective, orthographic]) cam.up.set(0, 0, 1); // ISO 8855: Z up
     perspective.position.set(4500, -6500, 3200);
     const controls = new OrbitControls(perspective, renderer.domElement);
     controls.enableDamping = true;
 
-    scene.add(new THREE.HemisphereLight(0xdde6f0, 0x2a2a2a, 0.9));
+    const sky = new THREE.HemisphereLight(0xdde6f0, 0x2a2a2a, 0.9);
+    scene.add(sky);
     const sun = new THREE.DirectionalLight(0xffffff, 2.0);
     sun.position.set(3000, -4000, 6000);
     scene.add(sun);
 
     const grid = new THREE.GridHelper(12000, 24, 0x3a434d, 0x2a3138);
     grid.rotation.x = Math.PI / 2; // into the XY ground plane
+    grid.name = "ground-grid";
     scene.add(grid);
 
     const root = new THREE.Group();
     scene.add(root);
+    const studio = createStudio(renderer, scene, [grid, sky, sun]); // the studio has its own lights
     const marks = new THREE.Group();
     scene.add(marks);
     markers.current = marks;
-    ctx.current = { renderer, scene, camera: perspective, perspective, orthographic, controls, root,
+    ctx.current = { renderer, scene, camera: perspective, studio, perspective, orthographic, controls, root,
       geometries: geometryCache, meshes: new Map(), framed: false };
     if (import.meta.env.DEV) (window as unknown as { __autevra: unknown }).__autevra = ctx.current;
 
@@ -145,6 +153,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = el;
       renderer.setSize(w, h);
+      studio.resize(w, h, renderer.getPixelRatio());
       perspective.aspect = w / Math.max(h, 1);
       perspective.updateProjectionMatrix();
       setOrthoFrustum(orthographic, orthographic.top || 1, perspective.aspect);
@@ -205,7 +214,8 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       controls.update();
       const { clientWidth: w, clientHeight: h } = el;
       renderer.setViewport(0, 0, w, h);
-      renderer.render(scene, c.camera);
+      if (c.studio.on) c.studio.render(c.camera);
+      else renderer.render(scene, c.camera);
       // Triad: the view's orientation, drawn on top in a 90 px corner, never clipped.
       const size = 90;
       triadCamera.position.set(0, 0, 3).applyQuaternion(c.camera.quaternion);
@@ -226,6 +236,7 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       cancelAnimationFrame(frame);
       observer.disconnect();
       controls.dispose();
+      studio.dispose();
       renderer.dispose();
       el.removeChild(renderer.domElement);
       ctx.current = null;
@@ -273,7 +284,8 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
         const material = materialFor(part.finish, part.color);
         rememberEmissive(material);
         mesh.userData.baseMaterial = material;
-        if (mesh.material !== zebraMaterial() && mesh.material !== curvatureMaterial()) mesh.material = material;
+        const analysis = mesh.material === curvatureMaterial() || mesh.material instanceof THREE.ShaderMaterial;
+        if (!analysis) mesh.material = material; // zebra and draft are shader materials
       }
       mesh.userData.look = look;
       if (mesh.geometry !== geometry) { // rebuilt: its edge outline is stale
@@ -290,11 +302,31 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       c.geometries.get(key)!.dispose();
       c.geometries.delete(key);
     }
-    if (!c.framed) {
-      const box = new THREE.Box3().setFromObject(c.root);
+    // The ground grid sits under the model: at the origin plane for a car (wheels at z = 0),
+    // at the lowest point for a model drawn about its own axis (an aircraft's fuselage
+    // centreline, a hull's keel), and it grows with the model.
+    const ground = c.scene.getObjectByName("ground-grid");
+    if (ground && model.parts.length) {
+      const all = new THREE.Box3().setFromObject(c.root);
+      if (!all.isEmpty()) {
+        const span = Math.max(all.max.x - all.min.x, all.max.y - all.min.y);
+        const mid = all.getCenter(new THREE.Vector3());
+        const scale = Math.max(1, Math.ceil((span * 1.6) / 12000));
+        ground.scale.setScalar(scale);
+        ground.position.set(scale > 1 ? mid.x : 0, scale > 1 ? mid.y : 0, Math.min(0, all.min.z));
+      }
+    }
+    // Frame once there is geometry: an empty project (a new machine or aircraft) is framed
+    // when its first parts arrive, not left at a car-sized default.
+    const box = new THREE.Box3().setFromObject(c.root);
+    if (!c.framed && !box.isEmpty()) {
       const centre = box.getCenter(new THREE.Vector3());
       c.controls.target.copy(centre);
-      c.camera.position.set(centre.x + 4200, centre.y - 6000, centre.z + 3000);
+      // stand back in proportion to the model (an engine, a car and an aircraft all fill
+      // the view), on the same three-quarter direction as before
+      const size = box.getSize(new THREE.Vector3()).length() || 5100; // a car: about 5.1 m
+      const k = Math.min(Math.max(size / 5100, 0.12), 30);
+      c.camera.position.set(centre.x + 4200 * k, centre.y - 6000 * k, centre.z + 3000 * k);
       c.framed = true;
     }
   }, [model]);
@@ -311,8 +343,11 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
         mesh.geometry.setAttribute("color", new THREE.BufferAttribute(
           curvatureColors(curvatureEstimate(mesh.geometry)), 3));
       }
+      const axis = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }[pull[1] as "x" | "y" | "z"];
+      const sign = pull[0] === "-" ? -1 : 1;
       mesh.material = display === "zebra" ? zebraMaterial()
-        : display === "curvature" ? curvatureMaterial() : mat;
+        : display === "curvature" ? curvatureMaterial()
+        : display === "draft" ? draftMaterial(new THREE.Vector3(...axis).multiplyScalar(sign), minDraft) : mat;
       const isBody = mesh.userData.category === "body";
       const own = baseOpacity(mat);
       const opacity = xray && isBody ? Math.min(0.22, own) : own;
@@ -343,7 +378,38 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
           display === "wireframe" ? (id === selected ? 0x7fb2ff : 0xc9d4e0) : 0x0b0e12);
       }
     }
-  }, [model, selected, highlighted, xray, display, hidden, section.axis]);
+    c.studio.set(display === "render", modelBox(c.root, c.meshes), look);
+  }, [model, selected, highlighted, xray, display, hidden, section.axis, pull, minDraft, look]);
+
+  // Inspection overlay (e.g. a boolean's section curves), drawn over the part, on top.
+  const [overlay, setOverlayState] = useState<Overlay | null>(currentOverlay());
+  useEffect(() => onOverlay(setOverlayState), []);
+  useEffect(() => {
+    const c = ctx.current;
+    if (!c) return;
+    for (const mesh of c.meshes.values()) {
+      for (const child of [...mesh.children]) {
+        if (child.userData.overlay) {
+          mesh.remove(child);
+          (child as THREE.LineSegments).geometry.dispose();
+          ((child as THREE.LineSegments).material as THREE.Material).dispose();
+        }
+      }
+    }
+    const mesh = overlay ? c.meshes.get(overlay.partId) : undefined;
+    if (!overlay || !mesh) return;
+    const pts: number[] = [];
+    for (const line of overlay.polylines) {
+      for (let i = 1; i < line.length; i++) pts.push(...line[i - 1], ...line[i]);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+    const lines = new THREE.LineSegments(g, new THREE.LineBasicMaterial({
+      color: overlay.color ?? 0xffc94a, depthTest: false, toneMapped: false }));
+    lines.renderOrder = 20;
+    lines.userData.overlay = true;
+    mesh.add(lines);
+  }, [overlay, model]);
 
   // Section plane.
   useEffect(() => {
@@ -419,15 +485,40 @@ export function Viewport({ model, selected, highlighted, xray, animation, onStop
       <div className="viewport" ref={host} />
       <div className="cad-toolbar" role="toolbar" aria-label="View tools">
         <div className="seg" aria-label="Display mode">
-          {(["shaded", "edges", "wireframe", "zebra", "curvature"] as DisplayMode[]).map((d) => (
+          {(["render", "shaded", "edges", "wireframe", "zebra", "curvature", "draft"] as DisplayMode[]).map((d) => (
             <button key={d} className={display === d ? "on" : ""} onClick={() => setDisplay(d)}
-              title={{ shaded: "Shading", edges: "Shading with edges", wireframe: "Wireframe (edges only)",
+              title={{ render: "Render: studio look development (soft shadows, satin floor, backdrop, lamp glow)",
+                shaded: "Shading", edges: "Shading with edges", wireframe: "Wireframe (edges only)",
                 zebra: "Zebra: highlight lines for surface continuity",
-                curvature: "Curvature (mesh estimate): blue flat, red tight curves and creases" }[d]}>
-              {{ shaded: "Shaded", edges: "Edges", wireframe: "Wire", zebra: "Zebra", curvature: "Curvature" }[d]}
+                curvature: "Curvature (mesh estimate): blue flat, red tight curves and creases",
+                draft: "Draft analysis: green releases from the mould, yellow short of draft, red undercut" }[d]}>
+              {{ render: "Render", shaded: "Shaded", edges: "Edges", wireframe: "Wire", zebra: "Zebra", curvature: "Curvature", draft: "Draft" }[d]}
             </button>
           ))}
         </div>
+        {display === "render" && (
+          <div className="seg" aria-label="Render look">
+            {(["outdoor", "studio"] as Look[]).map((l) => (
+              <button key={l} className={look === l ? "on" : ""} onClick={() => setLook(l)}
+                title={l === "outdoor" ? "Daylight: sky reflections, low warm sun, stone ground" : "Photo studio: soft box, dark floor"}>
+                {l === "outdoor" ? "Outdoor" : "Studio"}
+              </button>
+            ))}
+          </div>
+        )}
+        {display === "draft" && (
+          <div className="seg" aria-label="Draft analysis">
+            <label title="Pull direction (mould opening)">pull
+              <select value={pull} onChange={(e) => setPull(e.target.value)}>
+                {["+z", "-z", "+x", "-x", "+y", "-y"].map((d) => <option key={d}>{d}</option>)}
+              </select>
+            </label>
+            <label title="Minimum draft angle, degrees">min°
+              <input type="number" min={0} max={15} step={0.5} value={minDraft} style={{ width: 52 }}
+                onChange={(e) => setMinDraft(Math.max(0, Number(e.target.value) || 0))} />
+            </label>
+          </div>
+        )}
         <div className="seg" aria-label="Standard views">
           {(Object.keys(VIEWS) as StandardView[]).map((v) => (
             <button key={v} onClick={() => viewFrom(v)} title={`${VIEWS[v].label} view`}>

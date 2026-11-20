@@ -1,3 +1,4 @@
+import cadquery as cq
 import pytest
 
 from autevra.ai.rule_parser import Kind, parse
@@ -50,10 +51,15 @@ def test_roof_openings_keep_the_extents_and_remove_roof_panel(template: str) -> 
     v = default_values() | spec.TEMPLATES[template]
     volume, bounds = {}, {}
     for i, kind in enumerate(e.ROOF_TYPES):
-        body = b.build_body(BY_ID["body"].resolve_inputs(v | {"roof_type": float(i)}))
+        p = BY_ID["body"].resolve_inputs(v | {"roof_type": float(i)})
+        body = b.build_body(p)
         assert k.is_valid(body) and k.solid_count(body) == 1
         volume[kind] = k.volume(body)
-        bounds[kind] = [c for corner in k.bounds(body) for c in corner]
+        glass = b.build_glass(p)
+        # the vehicle keeps its extents: on the styled skin the roof pane fills the
+        # opening flush (on the draft body the roof rim stays at full height)
+        whole = cq.Compound.makeCompound([body, glass]) if glass is not None else body
+        bounds[kind] = [c for corner in k.bounds(whole) for c in corner]
     assert volume["panoramic"] < volume["sunroof"] < volume["solid"]
     assert bounds["panoramic"] == pytest.approx(bounds["solid"], abs=0.01)
 

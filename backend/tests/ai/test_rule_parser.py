@@ -274,3 +274,19 @@ def test_pitch_and_shall_requirements(text: str, expected: dict) -> None:
     out = parse(text)
     assert out.kind is Kind.REQUIREMENT, out.question
     assert expected.items() <= out.requirement.items()
+
+
+@pytest.mark.parametrize(
+    ("text", "value"),
+    [
+        ("two tone seats with charcoal bolsters", 1.0),
+        ("tan bolsters", 3.0),
+        ("red bolsters", 4.0),
+        ("make the seats two tone", 1.0),
+        ("single tone seats", 0.0),
+    ],
+)
+def test_two_tone_seat_phrases_set_the_seat_accent(text: str, value: float) -> None:
+    i = parse(text)
+    assert i.command is not None
+    assert [(c.parameter, c.value) for c in i.command.changes] == [("seat_accent", value)]

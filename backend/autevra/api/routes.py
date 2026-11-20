@@ -1,9 +1,10 @@
 """HTTP routes. Thin: validation by Pydantic, logic in ``Workspace``."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
+from pydantic import BaseModel, Field
 
 from autevra import domains
 from autevra.api import access, schemas
@@ -17,6 +18,7 @@ from autevra.engineering import optimize as opt
 from autevra.engineering import testing as tst
 from autevra.engineering.diagnosis import Diagnosis
 from autevra.engineering.trace import ImpactPreview
+from autevra.part import sketch
 from autevra.part.features import FEATURE_TYPES, PartDoc
 from autevra.storage.parts import PartNotFoundError
 from autevra.storage.repository import ProjectNotFoundError
@@ -33,11 +35,65 @@ WorkspaceDep = Annotated[Workspace, Depends(workspace)]
 VisitorDep = Annotated[access.Visitor, Depends(access.visitor)]
 
 
+def land_vehicle_project(project_id: str, ws: WorkspaceDep) -> None:
+    """Land-vehicle tools (vehicle parameters, commands, rules, tests, specification,
+    styling, package) answer only for projects in the Land vehicles module: modules are kept
+    apart, so an aircraft project cannot be given a wheelbase or a suspension test."""
+    domain = ws.project(project_id).domain
+    if domain != "automotive":
+        raise HTTPException(
+            status_code=422,
+            detail=(f"this is a Land vehicles tool, and the project is in the '{domain}' module"),
+        )
+
+
+LAND = [Depends(land_vehicle_project)]
+
+
 @router.get("/parameters", response_model=schemas.Catalogue)
 def catalogue() -> schemas.Catalogue:
     return schemas.Catalogue(
         parameters=list(parameters.REGISTRY.values()), derived=_derived(parameters.default_values())
     )
+
+
+@router.get("/reference/land")
+def reference_land() -> dict:
+    """Reference land-vehicle designs: template, parameter values and a note on sources."""
+    from autevra import reference
+
+    return reference.LAND
+
+
+class FromReference(BaseModel):
+    name: str
+
+
+@router.post("/projects/from-reference", response_model=schemas.ProjectState, status_code=201)
+def project_from_reference(
+    body: FromReference, ws: WorkspaceDep, who: VisitorDep, request: Request
+) -> schemas.ProjectState:
+    """A new land-vehicle project from a reference design: its template, then its published
+    figures as one undoable change (so the history shows what was taken from the source)."""
+    from autevra import reference
+    from autevra.core.commands import Change, SetParameters
+
+    ref = reference.LAND.get(body.name)
+    if ref is None:
+        raise HTTPException(status_code=404, detail=f"no reference design '{body.name}'")
+    access.check_project_quota(request, who)
+    state = ws.create_project(body.name, "automotive", who.owner, ref["template"])
+    changes = tuple(
+        Change(parameter=k, operation="set", value=float(v)) for k, v in ref["values"].items()
+    )
+    try:
+        ws.apply(
+            state.id, SetParameters(changes=changes, instruction=f"reference design: {body.name}")
+        )
+    except CommandRejectedError as exc:
+        ws.delete(state.id)
+        raise HTTPException(status_code=422, detail=f"{body.name}: {exc}") from None
+    return ws.project(state.id)
 
 
 @router.get("/projects", response_model=list[schemas.ProjectSummary])
@@ -70,13 +126,15 @@ def duplicate_project(
     return ws.duplicate_project(project_id, body.name if body else None, who.owner)
 
 
-@router.get("/projects/{project_id}/system", response_model=schemas.SystemGraph)
+@router.get("/projects/{project_id}/system", dependencies=LAND, response_model=schemas.SystemGraph)
 def system_graph(project_id: str, ws: WorkspaceDep) -> schemas.SystemGraph:
     """Components, interfaces and typed relationships of the assembly."""
     return ws.system_graph(project_id)
 
 
-@router.get("/projects/{project_id}/rules", response_model=list[schemas.RuleStatus])
+@router.get(
+    "/projects/{project_id}/rules", dependencies=LAND, response_model=list[schemas.RuleStatus]
+)
 def rule_status(project_id: str, ws: WorkspaceDep) -> list[schemas.RuleStatus]:
     return ws.rule_status(project_id)
 
@@ -123,13 +181,16 @@ def delete_project(project_id: str, ws: WorkspaceDep) -> None:
     ws.delete(project_id)
 
 
-@router.get("/projects/{project_id}/parameters", response_model=schemas.ProjectState)
+@router.get(
+    "/projects/{project_id}/parameters", dependencies=LAND, response_model=schemas.ProjectState
+)
 def project_parameters(project_id: str, ws: WorkspaceDep) -> schemas.ProjectState:
     return ws.project(project_id)
 
 
 @router.post(
     "/projects/{project_id}/commands",
+    dependencies=LAND,
     response_model=schemas.CommandResult,
     responses={422: {"model": schemas.Rejection}},
 )
@@ -145,7 +206,11 @@ def apply_command(
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/instructions", response_model=schemas.InstructionResult)
+@router.post(
+    "/projects/{project_id}/instructions",
+    dependencies=LAND,
+    response_model=schemas.InstructionResult,
+)
 def instruct(
     project_id: str, body: schemas.InstructionRequest, ws: WorkspaceDep
 ) -> schemas.InstructionResult:
@@ -157,6 +222,7 @@ def instruct(
 
 @router.post(
     "/projects/{project_id}/proposals/{proposal_id}/confirm",
+    dependencies=LAND,
     response_model=schemas.CommandResult,
     responses={422: {"model": schemas.Rejection}},
 )
@@ -170,7 +236,9 @@ def confirm_proposal(
         return JSONResponse(status_code=422, content=rejection.model_dump(mode="json"))
 
 
-@router.post("/projects/{project_id}/proposals/{proposal_id}/reject", status_code=204)
+@router.post(
+    "/projects/{project_id}/proposals/{proposal_id}/reject", dependencies=LAND, status_code=204
+)
 def reject_proposal(project_id: str, proposal_id: str, ws: WorkspaceDep) -> None:
     ws.reject(project_id, proposal_id)
 
@@ -200,12 +268,12 @@ def llm_status(ws: WorkspaceDep) -> schemas.LLMStatusOut:
     return ws.llm_status()
 
 
-@router.post("/projects/{project_id}/undo", response_model=schemas.CommandResult)
+@router.post("/projects/{project_id}/undo", dependencies=LAND, response_model=schemas.CommandResult)
 def undo(project_id: str, ws: WorkspaceDep) -> schemas.CommandResult:
     return ws.undo(project_id)
 
 
-@router.post("/projects/{project_id}/redo", response_model=schemas.CommandResult)
+@router.post("/projects/{project_id}/redo", dependencies=LAND, response_model=schemas.CommandResult)
 def redo(project_id: str, ws: WorkspaceDep) -> schemas.CommandResult:
     return ws.redo(project_id)
 
@@ -225,11 +293,50 @@ def model(
 
 
 @router.get("/projects/{project_id}/export.step")
-def export_step(project_id: str, ws: WorkspaceDep) -> FileResponse:
-    path = ws.export_step(project_id)
+def export_step(
+    project_id: str, ws: WorkspaceDep, schema: Literal["AP214", "AP242"] = "AP214"
+) -> FileResponse:
+    """The project's geometry as a STEP assembly, in AP214 or AP242."""
+    path = ws.export_step(project_id, schema)
     name = ws.project(project_id).name
     safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in name).strip("-") or "vehicle"
     return FileResponse(path, media_type="application/step", filename=f"{safe}.step")
+
+
+@router.get("/projects/{project_id}/export.stl")
+def export_stl(
+    project_id: str, ws: WorkspaceDep, tolerance: Annotated[float, Query(gt=0.001, le=5.0)] = 0.05
+) -> FileResponse:
+    """The project's geometry as one binary STL (mm) for 3D printing; ``tolerance`` is the
+    chordal deviation in mm."""
+    try:
+        path = ws.export_file(project_id, "stl", tolerance)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    name = ws.project(project_id).name
+    safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in name).strip("-") or "model"
+    return FileResponse(path, media_type="model/stl", filename=f"{safe}.stl")
+
+
+@router.get("/projects/{project_id}/export.igs")
+def export_iges(project_id: str, ws: WorkspaceDep) -> FileResponse:
+    """The project's geometry as IGES 5.3 B-rep solids (mm) for suppliers' older CAD."""
+    try:
+        path = ws.export_file(project_id, "iges")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    name = ws.project(project_id).name
+    safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in name).strip("-") or "model"
+    return FileResponse(path, media_type="model/iges", filename=f"{safe}.igs")
+
+
+@router.get("/projects/{project_id}/export.glb")
+def export_glb(project_id: str, ws: WorkspaceDep) -> FileResponse:
+    """The project's geometry as a glTF 2.0 binary mesh (metres, Y-up) for viewers and AR."""
+    path = ws.export_glb(project_id)
+    name = ws.project(project_id).name
+    safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in name).strip("-") or "model"
+    return FileResponse(path, media_type="model/gltf-binary", filename=f"{safe}.glb")
 
 
 @router.get("/tests", response_model=list[schemas.TestDefinitionOut])
@@ -256,7 +363,9 @@ def test_catalogue() -> list[schemas.TestDefinitionOut]:
     ]
 
 
-@router.post("/projects/{project_id}/tests/run", response_model=schemas.TestRunResponse)
+@router.post(
+    "/projects/{project_id}/tests/run", dependencies=LAND, response_model=schemas.TestRunResponse
+)
 def run_tests(
     project_id: str, body: schemas.TestRunRequest, ws: WorkspaceDep
 ) -> schemas.TestRunResponse:
@@ -269,7 +378,9 @@ def run_tests(
     return ws.run_tests(project_id, body.test_id, targets, body.scenario_id)
 
 
-@router.post("/projects/{project_id}/tests/retest", response_model=schemas.TestRunResponse)
+@router.post(
+    "/projects/{project_id}/tests/retest", dependencies=LAND, response_model=schemas.TestRunResponse
+)
 def retest_stale(project_id: str, ws: WorkspaceDep) -> schemas.TestRunResponse:
     """Rerun every previously run test case whose result is out of date."""
     return ws.retest_stale(project_id)
@@ -380,7 +491,7 @@ async def import_reqif(
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/preview", response_model=ImpactPreview)
+@router.post("/projects/{project_id}/preview", dependencies=LAND, response_model=ImpactPreview)
 def preview_command(
     project_id: str, body: schemas.CommandRequest, ws: WorkspaceDep
 ) -> ImpactPreview:
@@ -390,12 +501,14 @@ def preview_command(
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.get("/projects/{project_id}/integration", response_model=schemas.IntegrationOut)
+@router.get(
+    "/projects/{project_id}/integration", dependencies=LAND, response_model=schemas.IntegrationOut
+)
 def integration_report(project_id: str, ws: WorkspaceDep) -> schemas.IntegrationOut:
     return ws.integration(project_id)
 
 
-@router.post("/projects/{project_id}/optimize", response_model=opt.StudyResult)
+@router.post("/projects/{project_id}/optimize", dependencies=LAND, response_model=opt.StudyResult)
 def optimize(project_id: str, body: opt.Study, ws: WorkspaceDep) -> opt.StudyResult:
     try:
         return ws.optimize(project_id, body)
@@ -403,7 +516,7 @@ def optimize(project_id: str, body: opt.Study, ws: WorkspaceDep) -> opt.StudyRes
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/loop", response_model=eloop.LoopResult)
+@router.post("/projects/{project_id}/loop", dependencies=LAND, response_model=eloop.LoopResult)
 def engineering_loop(project_id: str, body: eloop.Goal, ws: WorkspaceDep) -> eloop.LoopResult:
     try:
         return ws.engineering_loop(project_id, body)
@@ -429,6 +542,7 @@ def list_studies(project_id: str, ws: WorkspaceDep) -> list[opt.StudyResult]:
 
 @router.post(
     "/projects/{project_id}/studies/{study_id}/accept",
+    dependencies=LAND,
     response_model=schemas.CommandResult,
     responses={422: {"model": schemas.Rejection}},
 )
@@ -447,7 +561,9 @@ def accept_study(
 
 
 @router.post(
-    "/projects/{project_id}/studies/{study_id}/choose/{index}", response_model=opt.StudyResult
+    "/projects/{project_id}/studies/{study_id}/choose/{index}",
+    dependencies=LAND,
+    response_model=opt.StudyResult,
 )
 def choose_candidate(
     project_id: str, study_id: str, index: int, ws: WorkspaceDep
@@ -458,7 +574,7 @@ def choose_candidate(
         raise HTTPException(status_code=409, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/studies/{study_id}/reject", status_code=204)
+@router.post("/projects/{project_id}/studies/{study_id}/reject", dependencies=LAND, status_code=204)
 def reject_study(project_id: str, study_id: str, ws: WorkspaceDep) -> None:
     try:
         ws.decide_study(project_id, study_id, accept=False)
@@ -466,12 +582,14 @@ def reject_study(project_id: str, study_id: str, ws: WorkspaceDep) -> None:
         raise HTTPException(status_code=409, detail=str(exc)) from None
 
 
-@router.get("/projects/{project_id}/spec", response_model=schemas.SpecState)
+@router.get("/projects/{project_id}/spec", dependencies=LAND, response_model=schemas.SpecState)
 def get_spec(project_id: str, ws: WorkspaceDep) -> schemas.SpecState:
     return ws.spec(project_id)
 
 
-@router.post("/projects/{project_id}/spec/answers", response_model=schemas.SpecState)
+@router.post(
+    "/projects/{project_id}/spec/answers", dependencies=LAND, response_model=schemas.SpecState
+)
 def answer_spec(project_id: str, body: schemas.SpecAnswer, ws: WorkspaceDep) -> schemas.SpecState:
     try:
         return ws.spec_answer(project_id, body.question, body.value)
@@ -479,17 +597,21 @@ def answer_spec(project_id: str, body: schemas.SpecAnswer, ws: WorkspaceDep) -> 
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/spec/text", response_model=schemas.SpecState)
+@router.post(
+    "/projects/{project_id}/spec/text", dependencies=LAND, response_model=schemas.SpecState
+)
 def spec_from_text(project_id: str, body: schemas.SpecText, ws: WorkspaceDep) -> schemas.SpecState:
     return ws.spec_text(project_id, body.text)[0]
 
 
-@router.delete("/projects/{project_id}/spec", response_model=schemas.SpecState)
+@router.delete("/projects/{project_id}/spec", dependencies=LAND, response_model=schemas.SpecState)
 def reset_spec(project_id: str, ws: WorkspaceDep) -> schemas.SpecState:
     return ws.spec_reset(project_id)
 
 
-@router.post("/projects/{project_id}/spec/design", response_model=schemas.SpecDesign)
+@router.post(
+    "/projects/{project_id}/spec/design", dependencies=LAND, response_model=schemas.SpecDesign
+)
 def spec_design(project_id: str, ws: WorkspaceDep) -> schemas.SpecDesign:
     try:
         return ws.spec_design(project_id)
@@ -497,7 +619,9 @@ def spec_design(project_id: str, ws: WorkspaceDep) -> schemas.SpecDesign:
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.post("/projects/{project_id}/spec/apply", response_model=schemas.SpecApplied)
+@router.post(
+    "/projects/{project_id}/spec/apply", dependencies=LAND, response_model=schemas.SpecApplied
+)
 def spec_apply(project_id: str, ws: WorkspaceDep) -> schemas.SpecApplied:
     try:
         return ws.spec_apply(project_id)
@@ -507,13 +631,65 @@ def spec_apply(project_id: str, ws: WorkspaceDep) -> schemas.SpecApplied:
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-@router.get("/projects/{project_id}/package", response_model=list[schemas.PackageValueOut])
+@router.get(
+    "/projects/{project_id}/styling",
+    dependencies=LAND,
+)
+def get_styling(project_id: str, ws: WorkspaceDep) -> dict:
+    """The styled body's guide curves (the project's own or the style's) and reference
+    geometry for an editor."""
+    return ws.styling(project_id)
+
+
+@router.put(
+    "/projects/{project_id}/styling",
+    dependencies=LAND,
+)
+def put_styling(project_id: str, body: dict, ws: WorkspaceDep) -> dict:
+    """Set the project's styling curves (top, bottom, plan; omit a curve to use the
+    style's). An empty object resets to the style."""
+    try:
+        return ws.set_styling(project_id, body)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.post(
+    "/projects/{project_id}/styling/undo",
+    dependencies=LAND,
+)
+def undo_styling(project_id: str, ws: WorkspaceDep) -> dict:
+    try:
+        return ws.step_styling(project_id, back=True)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+@router.post(
+    "/projects/{project_id}/styling/redo",
+    dependencies=LAND,
+)
+def redo_styling(project_id: str, ws: WorkspaceDep) -> dict:
+    try:
+        return ws.step_styling(project_id, back=False)
+    except CommandError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+@router.get(
+    "/projects/{project_id}/package",
+    dependencies=LAND,
+    response_model=list[schemas.PackageValueOut],
+)
 def package_values(project_id: str, ws: WorkspaceDep) -> list[schemas.PackageValueOut]:
     """Package dimensions: overall size, overhangs, tracks, clearance angles, H-point."""
     return [schemas.PackageValueOut(**vars(v)) for v in ws.package(project_id)]
 
 
-@router.get("/projects/{project_id}/package.svg")
+@router.get(
+    "/projects/{project_id}/package.svg",
+    dependencies=LAND,
+)
 def package_drawing(project_id: str, ws: WorkspaceDep) -> Response:
     """Dimensioned side, top and front views (mm) as SVG."""
     disposition = f'inline; filename="{project_id}-package.svg"'
@@ -521,7 +697,9 @@ def package_drawing(project_id: str, ws: WorkspaceDep) -> Response:
                     headers={"Content-Disposition": disposition})  # fmt: skip
 
 
-@router.get("/projects/{project_id}/bom", response_model=list[schemas.BomLineOut])
+@router.get(
+    "/projects/{project_id}/bom", dependencies=LAND, response_model=list[schemas.BomLineOut]
+)
 def bill_of_materials(project_id: str, ws: WorkspaceDep) -> list[schemas.BomLineOut]:
     """Parts grouped into lines with quantities, sizes and volumes (no mass: several
     parts are solid envelopes)."""
@@ -529,7 +707,10 @@ def bill_of_materials(project_id: str, ws: WorkspaceDep) -> list[schemas.BomLine
             for line in ws.bom(project_id)]  # fmt: skip
 
 
-@router.get("/projects/{project_id}/bom.csv")
+@router.get(
+    "/projects/{project_id}/bom.csv",
+    dependencies=LAND,
+)
 def bill_of_materials_csv(project_id: str, ws: WorkspaceDep) -> Response:
     from autevra.api import bom
 
@@ -547,6 +728,25 @@ def part_features() -> dict:
     return {"types": list(FEATURE_TYPES), "schema": PartDoc.model_json_schema()}
 
 
+class _Drag(BaseModel):
+    point: str
+    x: float
+    y: float
+
+
+class _SolveIn(BaseModel):
+    sketch: sketch.Sketch
+    drag: _Drag | None = None
+
+
+@router.post("/sketch/solve", response_model=sketch.SolveResult)
+def solve_sketch(body: _SolveIn) -> sketch.SolveResult:
+    """Solve a sketch's constraints (optionally while dragging a point) and report its
+    degrees of freedom, conflicts and which geometry is fully constrained."""
+    drag = (body.drag.point, body.drag.x, body.drag.y) if body.drag else None
+    return sketch.solve(body.sketch, drag)
+
+
 @router.get("/part-presets")
 def part_presets() -> dict[str, PartDoc]:
     """Starting-point parts from several domains (aerospace, consumer products, tooling,
@@ -554,6 +754,47 @@ def part_presets() -> dict[str, PartDoc]:
     from autevra.part.presets import presets
 
     return presets()
+
+
+@router.get("/feature-templates")
+def list_feature_templates(ws: WorkspaceDep, who: VisitorDep) -> list[dict]:
+    """The workspace's feature templates (power copies)."""
+    return ws.feature_templates(who.owner, who.all_owners)
+
+
+@router.post("/feature-templates", status_code=201)
+def save_feature_template(body: dict, ws: WorkspaceDep, who: VisitorDep) -> dict:
+    """Save chosen features of a part as a template: ``{project_id, part_id, name,
+    feature_ids, description}``; the parameters they use become its published inputs."""
+    try:
+        return ws.save_feature_template(
+            who.owner, str(body.get("project_id", "")), str(body.get("part_id", "")),
+            str(body.get("name", "")).strip() or "Template", list(body.get("feature_ids", [])),
+            str(body.get("description", "")),
+        )  # fmt: skip
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.delete("/feature-templates/{template_id}", status_code=204)
+def delete_feature_template(template_id: str, ws: WorkspaceDep, who: VisitorDep) -> None:
+    try:
+        ws.delete_feature_template(who.owner, who.all_owners, template_id)
+    except CommandError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from None
+
+
+@router.post(
+    "/projects/{project_id}/parts/{part_id}/insert-template", response_model=schemas.PartOut
+)
+def insert_feature_template(
+    project_id: str, part_id: str, body: dict, ws: WorkspaceDep, who: VisitorDep
+) -> schemas.PartOut:
+    """Insert a template: ``{template, prefix, inputs: {name: value or expression}, offset}``."""
+    try:
+        return ws.insert_feature_template(who.owner, who.all_owners, project_id, part_id, body)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 @router.get("/projects/{project_id}/parts", response_model=list[schemas.PartOut])
@@ -588,6 +829,72 @@ def redo_part(project_id: str, part_id: str, ws: WorkspaceDep) -> schemas.PartOu
         return ws.step_part(project_id, part_id, back=False)
     except CommandError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+class ReorderIn(BaseModel):
+    order: list[str] = Field(min_length=1, max_length=200)
+
+
+@router.post("/projects/{project_id}/parts/{part_id}/reorder", response_model=schemas.PartOut)
+def reorder_part(project_id: str, part_id: str, body: ReorderIn,
+                 ws: WorkspaceDep) -> schemas.PartOut:  # fmt: skip
+    """Move features, refused when one would come before something it reads."""
+    try:
+        return ws.reorder_part(project_id, part_id, body.order)
+    except CommandError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.get("/projects/{project_id}/parts/{part_id}/drawing.svg")
+def part_drawing(project_id: str, part_id: str, ws: WorkspaceDep) -> Response:
+    """An A3 engineering drawing of the part: third-angle views with hidden lines,
+    overall dimensions, hole diameters and a title block."""
+    from autevra.api import model_service
+    from autevra.part import drawing
+
+    doc = dict(ws._part_docs(project_id)).get(part_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="no such part")
+    _, report = model_service.build_part(doc, ws.cache)
+    if report.shape is None:
+        raise HTTPException(status_code=422, detail="the part has no solid to draw")
+    from autevra.part import features as feats
+
+    notes = []
+    for ft in doc.features:
+        info = report.info.get(ft.id, {})
+        if isinstance(ft, feats.Hole) and not ft.suppressed and "callout" in info:
+            depth = " THRU" if ft.through else f" ↧{ft.depth:g}"
+            vertical = abs(ft.at.rx) < 1e-9 and abs(ft.at.ry) < 1e-9
+            text = f"{info['callout']}{depth}"
+            notes.append(drawing.HoleNote(ft.at.x, ft.at.y, ft.at.z, text, vertical))
+    svg = drawing.drawing_svg(report.shape, doc.name, holes=notes)
+    return Response(
+        svg,
+        media_type="image/svg+xml",
+        headers={"Content-Disposition": f'attachment; filename="{part_id}-drawing.svg"'},
+    )
+
+
+@router.get("/projects/{project_id}/drawing.svg")
+def assembly_drawing(project_id: str, ws: WorkspaceDep) -> Response:
+    """An A3 assembly drawing of the project's own parts (Part Design, Inventory, Machine
+    elements, imports): isometric view, balloons and the bill of materials."""
+    from autevra.cad import kernel as kern
+    from autevra.part import drawing
+
+    model = ws._full_model(project_id)
+    own = [p for p in model.parts if p.id.startswith("part_")] or model.parts
+    items = []
+    for p in own[:60]:
+        shape = model.shapes[p.geometry].moved(kern.location(p.matrix))
+        items.append((p.name, shape, p.finish, kern.volume(shape) / 1000.0))
+    try:
+        svg = drawing.assembly_svg(items, ws.project(project_id).name)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    disposition = 'attachment; filename="assembly-drawing.svg"'
+    return Response(svg, media_type="image/svg+xml", headers={"Content-Disposition": disposition})
 
 
 @router.get("/projects/{project_id}/parts/{part_id}/design-table.csv")
@@ -643,3 +950,45 @@ EXCEPTION_HANDLERS = {
     RunNotFoundError: run_not_found_handler,
     PartNotFoundError: part_not_found_handler,
 }
+
+
+class FreehandCleanIn(BaseModel):
+    strokes: list[list[tuple[float, float]]] = Field(min_length=1, max_length=200)
+    tolerance: float | None = Field(None, gt=0.0)
+    snap: float | None = Field(None, gt=0.0)
+
+
+@router.post("/freehand/clean")
+def freehand_clean(body: FreehandCleanIn) -> dict:
+    """Clean rough strokes into a constrained sketch (lines, arcs, circles, inferred
+    constraints) for preview."""
+    from autevra.part import freehand
+
+    try:
+        out = freehand.clean_view(body.strokes, body.tolerance, body.snap)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    return {**out, "sketch": out["sketch"].model_dump()}
+
+
+@router.post("/projects/{project_id}/freehand", response_model=schemas.PartOut, status_code=201)
+def freehand_part(project_id: str, body: dict, ws: WorkspaceDep) -> schemas.PartOut:
+    """A Part Design part from rough sketches: extruded, revolved, or the intersection of
+    the front, top and side views."""
+    from autevra.part import freehand
+
+    try:
+        doc, _ = freehand.part(freehand.FreehandIn.model_validate(body))
+        new = ws.create_part(project_id, PartDoc.model_validate(doc))
+        # set it beside the parts already in the project (+X), not inside them
+        others = [p for p in ws.parts(project_id) if p.id != new.id and p.bounds]
+        if others and new.bounds:
+            right = max(p.document.at.x + p.bounds[1][0] for p in others)
+            x = right + 20.0 - new.bounds[0][0]
+            moved = new.document.model_copy(
+                update={"at": new.document.at.model_copy(update={"x": round(x, 3)})}
+            )
+            new = ws.update_part(project_id, new.id, moved)
+        return new
+    except (ValueError, CommandError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None

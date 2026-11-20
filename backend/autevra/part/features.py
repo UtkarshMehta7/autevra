@@ -7,8 +7,11 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-Length = Annotated[float, Field(gt=0.0, le=50_000.0)]
-Coord = Annotated[float, Field(ge=-50_000.0, le=50_000.0)]
+from autevra.part.sketch import Sketch
+
+# up to 100 m: a transport aircraft's fuselage is a single loft
+Length = Annotated[float, Field(gt=0.0, le=100_000.0)]
+Coord = Annotated[float, Field(ge=-100_000.0, le=100_000.0)]
 Point2 = tuple[Coord, Coord]
 Point3 = tuple[Coord, Coord, Coord]
 
@@ -110,6 +113,29 @@ class Revolve(_Solid):
         return self
 
 
+class Pad(_Solid):
+    """A constrained sketch's closed profiles (with their holes) extruded along the plane
+    normal: a pad, or a pocket with ``op: cut``. The sketch is solved before the build, so
+    its dimensions can be bound to the part's parameters
+    (``sketch.constraints.<i>.value``)."""
+
+    type: Literal["pad"] = "pad"
+    plane: Plane = Plane.XY
+    sketch: Sketch
+    depth: Length = 50.0
+    symmetric: bool = False
+
+
+class Shaft(_Solid):
+    """A constrained sketch revolved about the sketch's vertical axis (u = 0): a shaft, or
+    a groove with ``op: cut``. The profile sits at u >= 0 in the plane."""
+
+    type: Literal["shaft"] = "shaft"
+    plane: Plane = Plane.XZ
+    sketch: Sketch
+    angle: float = Field(360.0, gt=0.0, le=360.0)
+
+
 class Section(BaseModel):
     """A rounded rectangle at a station along the loft axis (Z of the placement)."""
 
@@ -118,7 +144,10 @@ class Section(BaseModel):
     z: Coord
     width: Length
     height: Length
-    radius: float = Field(0.0, ge=0.0, le=25_000.0)  # corner radius (0 = sharp)
+    radius: float = Field(0.0, ge=0.0, le=50_000.0)  # corner radius (0 = sharp)
+    # offset of the section's centre from the loft axis (a swept-up tail cone, a duct bend)
+    dx: float = Field(0.0, ge=-50_000.0, le=50_000.0)
+    dy: float = Field(0.0, ge=-50_000.0, le=50_000.0)
 
 
 class Loft(_Solid):
@@ -173,6 +202,57 @@ class SheetMetal(_Solid):
             if math.hypot(u1 - u0, v1 - v0) < 1e-6:
                 raise ValueError("sheet profile has a zero-length flange")
         return self
+
+
+class Hole(_Solid):
+    """A drilled hole along -Z of its placement (the placement point sits on the entry face):
+    simple (``diameter``), clearance (ISO 273 for ``size``), tapped (ISO 2306 tap drill with
+    a cosmetic thread, reported), counterbored (DIN 974-1 for ISO 4762 screws) or
+    countersunk (90 deg, ISO 10642). Through all, or blind with a 118 deg drill point."""
+
+    type: Literal["hole"] = "hole"
+    op: Op = Op.CUT
+    kind: Literal["simple", "clearance", "tapped", "counterbore", "countersink"] = "simple"
+    size: str = Field("M6", pattern=r"^M\d+(\.\d+)?$")
+    fit: Literal["fine", "medium", "coarse"] = "medium"
+    diameter: Length = 6.0  # simple holes
+    depth: Length = 20.0
+    through: bool = False
+    bottom: Literal["drill", "flat"] = "drill"
+    thread_depth: float | None = Field(None, gt=0.0, le=10_000.0)  # tapped: default depth - 2P
+    cbore_diameter: float | None = Field(None, gt=0.0, le=10_000.0)  # overrides the table
+    cbore_depth: float | None = Field(None, gt=0.0, le=10_000.0)
+    csink_diameter: float | None = Field(None, gt=0.0, le=10_000.0)
+    csink_angle: float = Field(90.0, gt=30.0, lt=180.0)
+
+
+class Slot(_Solid):
+    """A straight slot with round ends, cut down -Z of its placement: overall ``length``
+    along X, ``width`` across, ``depth`` deep (a pocket by default)."""
+
+    type: Literal["slot"] = "slot"
+    op: Op = Op.CUT
+    length: Length = 40.0
+    width: Length = 10.0
+    depth: Length = 10.0
+
+    @model_validator(mode="after")
+    def _proportions(self) -> "Slot":
+        if self.length < self.width:
+            raise ValueError("slot length must be at least its width")
+        return self
+
+
+class Draft(_Feature):
+    """Taper the side faces of the result so far for moulding or casting: every face
+    parallel to the pull direction is drafted by ``angle`` about a neutral plane (the base
+    of the part along the pull, or ``neutral`` mm along the pull axis), so the part narrows
+    towards the pull."""
+
+    type: Literal["draft"] = "draft"
+    angle: float = Field(2.0, gt=0.0, le=30.0)
+    pull: Literal["+x", "-x", "+y", "-y", "+z", "-z"] = "+z"
+    neutral: float | None = Field(None, ge=-100_000.0, le=100_000.0)
 
 
 class Shell(_Feature):
@@ -263,28 +343,44 @@ class Wing(_Solid):
         return self
 
 
+class Imported(_Solid):
+    """A B-rep imported from a STEP file kept in the import store, referenced by the file's
+    SHA-256 (so the part stays reproducible); optionally scaled."""
+
+    type: Literal["imported"] = "imported"
+    file: str = Field(pattern=r"^[0-9a-f]{64}$")
+    scale: float = Field(1.0, gt=0.0, le=1000.0)
+
+
 Feature = Annotated[
     Box
     | Cylinder
     | Sphere
     | Extrude
     | Revolve
+    | Pad
+    | Shaft
     | Loft
     | Sweep
+    | Hole
+    | Slot
     | Wing
     | SheetMetal
+    | Imported
     | Shell
     | Fillet
     | Chamfer
+    | Draft
     | Mirror
     | LinearPattern
     | CircularPattern,
     Field(discriminator="type"),
 ]
 SOLID_TYPES = (
-    "box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep", "wing", "sheet_metal",
+    "box", "cylinder", "sphere", "extrude", "revolve", "pad", "shaft", "loft", "sweep", "wing",
+    "sheet_metal", "imported", "hole", "slot",
 )  # fmt: skip
-FEATURE_TYPES = (*SOLID_TYPES, "shell", "fillet", "chamfer", "mirror", "linear_pattern",
+FEATURE_TYPES = (*SOLID_TYPES, "shell", "fillet", "chamfer", "draft", "mirror", "linear_pattern",
                  "circular_pattern")  # fmt: skip
 
 

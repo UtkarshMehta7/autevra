@@ -65,16 +65,10 @@ _PLANNED: tuple[tuple[str, str, str, list[str]], ...] = (
      "Two-wheelers, scooters and micromobility.", ["frame and fork geometry", "rider model"]),
     ("commercial", "Commercial transportation", "Trucks, buses and trailers.",
      ["multi-axle templates", "payload and axle-load checks"]),
-    ("aerospace", "Aerospace and aviation", "Airframes, wings and aircraft systems.",
-     ["parametric wing and fuselage", "aerodynamic and structural estimates"]),
     ("space", "Space systems and propulsion", "Spacecraft structures and propulsion.",
      ["mass and delta-v budgets", "propulsion sizing"]),
-    ("marine", "Marine engineering", "Hulls and marine propulsion.",
-     ["hull form parameters", "hydrostatics"]),
     ("robotics", "Robotics", "Manipulators and mobile robots.",
      ["kinematic chains and joints", "reach and payload checks"]),
-    ("machinery", "Industrial machinery", "Machines, mechanisms and drives.",
-     ["mechanism templates", "drive sizing"]),
     ("manufacturing", "Advanced manufacturing", "Manufacturing processes and planning.",
      ["manufacturability checks", "process plans"]),
 )  # fmt: skip
@@ -91,13 +85,77 @@ def load_builtin() -> None:
         importlib.import_module(module)
 
 
+def _aerospace() -> DomainDef:
+    from autevra import __version__
+
+    return DomainDef(
+        id="aerospace", name="Aircraft",
+        description="Fixed-wing aircraft: a parametric light aircraft (fuselage, NACA wing and "
+        "tails, propeller, landing gear) with lifting-line aerodynamics, drag build-up, "
+        "stability and performance; Part Design, surfaces and structures for its parts.",
+        status="experimental", version=__version__,
+        component_library=["fuselage", "wing", "horizontal tail", "fin", "propeller",
+                           "landing gear"],
+        operations=["parametric aircraft", "build as a Part Design part", "Part Design",
+                    "structures (FEA, topology optimisation)", "drawings"],
+        simulations=["lifting-line theory (Glauert)", "component drag build-up (Raymer)",
+                     "static stability (neutral point)", "Breguet range and endurance"],
+        formats=["STEP AP214 export", "SVG drawings"],
+        dependencies=["cadquery 2.8 / OCCT 7.9"],
+        roadmap=["control surfaces and hinges", "engine nacelles and turbofans",
+                 "mass and balance build-up", "V-n diagram and structural loads"],
+        evidence="covered by tests/aero (closed-form lifting-line checks) and the workspace",
+    )  # fmt: skip
+
+
+def _machinery() -> DomainDef:
+    from autevra import __version__
+
+    return DomainDef(
+        id="machinery", name="Mechanical",
+        description="Engines designed category by category, starting with piston engines "
+        "(inline, V and opposed; petrol and diesel; natural and turbocharged): cycle, torque "
+        "and power, kinematics, balance, mass, the full part breakdown and concept geometry, "
+        "published to the shared inventory.",
+        status="experimental", version=__version__,
+        component_library=["piston engines"],
+        operations=["parametric engine", "build as parts", "publish to the inventory",
+                    "Part Design", "structures (FEA)"],
+        simulations=["air-standard Otto and Diesel cycles", "BMEP torque and power curves",
+                     "slider-crank kinematics", "primary and secondary balance"],
+        formats=["STEP AP214 export"],
+        dependencies=["cadquery 2.8 / OCCT 7.9"],
+        roadmap=["electric machines", "gas turbines", "gearboxes and mechanisms"],
+        evidence="covered by tests/mech (balance against textbook results) and the workspace",
+    )  # fmt: skip
+
+
+def _marine() -> DomainDef:
+    from autevra import __version__
+
+    return DomainDef(
+        id="marine", name="Marine",
+        description="Small displacement vessels: parametric hull form, hydrostatics, the GZ "
+        "curve against the IMO intact stability criteria, viscous resistance, the SFI-style "
+        "breakdown, architecture, loads and production.",
+        status="experimental", version=__version__, component_library=["displacement hulls"],
+        operations=["parametric hull", "build as parts", "Part Design"],
+        simulations=["hydrostatics", "large-angle stability (GZ) and IMO IS Code criteria",
+                     "ITTC-1957 friction with form factor"],
+        formats=["STEP AP214 export"], dependencies=["cadquery 2.8 / OCCT 7.9"],
+        roadmap=["wave-making resistance (Holtrop-Mennen)", "planing hulls (Savitsky)",
+                 "ISO 12215 scantlings", "weather criterion"],
+        evidence="covered by tests/marine (box-barge and GM checks) and the workspace",
+    )  # fmt: skip
+
+
 def registry() -> list[DomainDef]:
     planned = [
         DomainDef(id=i, name=n, description=d, status="unavailable", roadmap=r,
                   evidence="not implemented: roadmap only")
         for i, n, d, r in _PLANNED
     ]  # fmt: skip
-    return [_automotive(), *planned]
+    return [_automotive(), _aerospace(), _machinery(), _marine(), *planned]
 
 
 def get(domain_id: str) -> DomainDef | None:

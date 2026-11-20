@@ -26,6 +26,10 @@ an optimisation study or engineering loop can run for longer than a CDN rewrite 
   545 MB after one model build. In the linux/amd64 container it is much lower: 295 MiB at
   peak through a full session including an optimisation study (cgroup `memory.peak`, CI).
   CI runs that session under a 512 MB cap on every pull request.
+- **Styled body surface:** building the styled freeform body peaks about 200 MB above the
+  draft surface (Mac, default model: 743 MB against 528 MB), which a 512 MB instance cannot
+  absorb. `AUTEVRA_STYLED_SURFACE` is `auto` by default: under 1 GB of container memory
+  (cgroup limit) every body uses the draft surface. Set `on` or `off` to force it.
 - **Architecture:** `cadquery-ocp` 7.9.x has no Linux arm64 wheel, so the image is
   linux/amd64. ARM-only hosts (for example Oracle's free Ampere VMs) cannot run it yet.
 - **Disk:** only regenerable STEP exports are written to `AUTEVRA_DATA_DIR`, so an

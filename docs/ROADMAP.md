@@ -136,13 +136,65 @@ specification interview moves to Phase 5.
 
 ## Progress log
 
+### 2026-11-09: realism controls for the grand tourer
+
+Continuing the open GT from the photo, the styled body gained the details that make a
+sports car read as real:
+
+- **Nose rake** and a **bonnet dome** between two creases; a gloss-black **lower trim** band round the foot of the body; **door shut lines** with flush handle recesses; **smoked head lamp housings**.
+- **Wing crease** (`wing_crease`): a sharp character line from the head lamp back into the front of the door, with the flank drawn in beneath it. The body width is unchanged.
+- **Two-tone seats** (`seat_accent`): contrasting bolsters, or the head rest on plain seats, built as a separate *Seat accents* part. Changing only the accent colour never rebuilds geometry. "Charcoal bolsters" or "make the seats two tone" set it from the command bar.
+- **Exhaust tips** (`exhaust_tips`): hidden, twin, quad or centre tailpipes through the rear valance. **Swept tail lamps** that rise towards the outer corners.
+- Open cars get a slimmer windscreen surround and **teardrop mirrors** on a slim stalk. Saloons, coupes and supercars close the passenger space behind the last row (boot or engine bay behind).
+- **Front face** (`front_face`): a broad, upright fascia down to a low chin for a large grille, instead of a bullet nose; the sport grille is now wider at the top, as on most grand tourers.
+- Open cars no longer squash the seats under the deck: backrests and head rests stand above the doors. **Taupe** upholstery; tyres are near black.
+- **Render** display mode (look development, as in a 3D suite's real-time preview): **Outdoor** (a sky dome with a low warm sun for the reflections, stone paving, haze to the horizon) or **Studio** (soft box, dark floor), with soft shadows, lamp bloom, filmic tone mapping and multisampling.
+- **Reference** panel: paste, drop or load a photo beside the 3D view to compare the model with it; the **Hero** view matches a low front three-quarter press photograph.
+
+### 2026-11-06: an open grand tourer from a photo; resizable studio
+
+Rebuilding a photo of an open 2+2 grand tourer (matte green, black multi-spoke wheels,
+yellow calipers, large mesh grille, wing gills, tan seats) showed what the studio lacked.
+Added or fixed:
+
+- **Front grille** (`grille_style`): none, horizontal bars, diamond mesh, or a sport mesh (a large trapezoid down the chin with corner intakes). The grille sits in a recess that follows the nose profile, so it never changes the body extents. The mesh is one perforated extrusion: 0.7 s to build, where fusing crossing bars took 5.1 s.
+- **Fender vents** (`side_vents`): three gills or a single slot cut into each front wing, with dark inserts.
+- **Brakes**: a disc and a caliper inside every wheel, mated to the hubs like the rims and clear of the rim and tyre. `caliper_colour` (black, silver, red, yellow, blue, green) changes appearance only.
+- **Sage Green** paint (a muted green; "sage", "olive" and "matte green" select it).
+- **Sculpted wings** (styled surface): with a fender rise, the wing crowns now stand as ridges with the bonnet (and an open car's deck) sunk between them, and the wings swell up over each wheel by up to half the rise (the rear haunch at 70 %). The bonnet still clears the engine allowance by 25 mm. Every template keeps its overall height and builds as one solid.
+- **Open cars** keep thin A-pillars and a header rail; the solid wedge between the windscreen and the header is gone. The chassis is black e-coat, so the sills read as dark side skirts.
+- **Resizable studio**: drag the dividers to size the component tree, the parameters and the workspace tabs panel (double-click resets, arrow keys work). Sizes are remembered in the browser. Header buttons show or hide each panel, and **Focus view** (key F, Esc to leave) gives the 3D view the whole window.
+- The constrained sketcher no longer scrolls its panel when the canvas takes focus between clicks.
+
+### 2026-11-04: workbenches — styled body, draft analysis, power copies, sketch solver
+
+Build order for the requested workbench scope (see `INDUSTRY_FEATURES.md`): styled body
+and curve editor, draft analysis, power copies, sketcher constraints, reference
+geometry and surfaces, assemblies, drafting, sheet-metal flanges, FEA, PLM.
+
+- **Styled freeform body** (the new default; "Draft (fast)" stays as a choice under Body shaping). One skin through cross-sections driven by guide curves: silhouette, underbody and plan width. The cabin blends the bonnet into the glasshouse; a roof arc and a bonnet dip between raised wings shape it. It is built as dense faceted sections joined by a ruled loft (B-spline skins made the kernel's booleans fail), and the viewer shades across the facets.
+  - The extents stay exact: the roof crown and the highest point each get a station, and the sections are kept inside their own height.
+  - Body roundness softens the sill and shoulder.
+  - Glazing and lamp lenses are cut from the same skin, so they sit flush. A sunroof or panoramic roof gets a flush roof pane.
+  - If the kernel cannot build the styled body as one valid solid (for some unusual style mixes), the body, glazing and lamps all fall back to the draft surface together.
+- **Styling curves** (Styling workspace). Drag, insert or delete control points of the silhouette, underbody and plan curves, with per-project undo and redo. A side or top photo can be loaded as a blueprint and aligned by clicking the two wheel centres.
+- **Draft analysis** viewer mode. Choose the pull direction (±x/±y/±z) and a minimum angle: green releases, yellow is within the minimum, red is undercut.
+- **Power copies.** Save ticked features of a part as a template; its published parameters are the ones those features use. Insert it into any part with a prefix, input expressions and an offset. Inputs left at their defaults keep the template's own meaning.
+- **Sketch solver** (`autevra/part/sketch.py`, `POST /api/sketch/solve`).
+  - Geometry: points, lines, circles and arcs.
+  - Constraints: coincident, horizontal, vertical, parallel, perpendicular, equal, tangent, point on, midpoint, symmetric, plus distance, horizontal and vertical distance, length, radius, diameter and angle dimensions.
+  - Solving is a damped minimum-move Gauss-Newton: an under-constrained sketch keeps its drawn shape, and a dragged point stays under the cursor where the constraints allow.
+  - It reports the remaining degrees of freedom, redundant equations, conflicting constraints, and which points and entities are fully constrained.
+  - New **Pad / pocket** and **Shaft / groove** features build from solved sketches, with holes nested by containment. Sketch dimensions bind to part parameters (`sketch.constraints.<i>.value`).
+- **Constrained sketcher** in Part Design for Pad and Shaft features: draw lines (chains), rectangles, circles and arcs; nearly horizontal or vertical lines get that constraint as drawn. Select geometry to add a constraint or dimension; dimensions start at the measured value, so adding one never moves the sketch. Drag points while the solver holds the constraints. Fully constrained geometry turns green and conflicting constraints red. A dimension takes a number or a formula of the part's parameters. Checked: a 150 × 60 × 20 mm pad with its width bound to a parameter and a Ø20 hole builds to the expected volume.
+
 ### 2026-11-04: closing the car module — package
 
 Closing checklist for the automotive module (what a vehicle designer expects from a
 CATIA-class tool, beyond what is already in place):
 
 1. ✅ package dimensions and a package drawing;
-2. advanced allowances as parameters (every built-in allowance editable);
+2. ✅ seating allowances as parameters (seat height, recline, dashboard zone, row pitch);
 3. mass properties with materials (panels as area × thickness);
 4. clearance and interference matrix;
 5. wheel envelope at full bump and full steering lock;
@@ -157,6 +209,8 @@ optimiser, plain-English questions and impact analysis without further wiring.
 - These are derived values. "What is the approach angle?" is answered, and "the approach angle shall be at least 20 deg" is a design requirement.
 - **Package drawing** (`package.svg`): side, top and front views to scale, with dimension lines, the clearance-angle lines and the H-point. Shown in a new **Package** workspace in the studio.
 - Found by the new checks: the supercar template's seat allowance leaves −117 mm of front headroom. To be fixed with low sports seating in the ergonomics step.
+- **Seating allowances are parameters** (cabin group): seat height (cushion top above the floor), seat recline, dashboard zone and seat row pitch. They were fixed constants. The seated head height now follows the recline (cosine of the backrest angle about the hip). The seat-rows rule, headroom and H-point read them, and they are listed as controls of those derived values.
+- The sports car, roadster and supercar templates use low sports seating (150–190 mm cushion, 28–34° recline). Their front headroom goes from −45, −81 and −117 mm to +59, +42 and +41 mm; every template now clears the 25 mm check. The other templates are unchanged.
 
 ### 2026-10-15: curvature display; live performance measured
 

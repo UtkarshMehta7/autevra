@@ -55,7 +55,8 @@ def test_acceptance_increase_wheelbase_by_100_mm(
     rebuilt = set(reply["result"]["impact"]["rebuild"])
     assert {"body", "frame", "glass", "seats", "fuel_tank"} <= rebuilt  # cabin and equipment
     assert not {"wheel_fl", "front_axle"} & rebuilt
-    rear_group = {"rear_axle", "wheel_rl", "wheel_rr", "rim_rl", "rim_rr", "damper_rl", "damper_rr"}
+    rear_group = {"rear_axle", "wheel_rl", "wheel_rr", "rim_rl", "rim_rr", "damper_rl", "damper_rr",
+                  "rotor_rl", "rotor_rr", "caliper_rl", "caliper_rr"}  # fmt: skip
     assert set(reply["result"]["impact"]["move"]) == rear_group
 
     after = _model(client, project)
@@ -84,14 +85,14 @@ def test_acceptance_increase_wheelbase_by_100_mm(
 
 def test_model_deduplicates_and_skips_known_geometry(client: TestClient, project: str) -> None:
     model = _model(client, project)
-    assert len(model["parts"]) == 33
-    assert (
-        len(model["geometries"]) == 25
-    )  # body, glass, 2 lamps, mirrors, 5 interior, frame, axle, tyre, rim, 2 dampers, equipment
+    assert len(model["parts"]) == 41
+    # body, glass, 2 lamps, mirrors, 5 interior, frame, axle, tyre, rim, rotor, caliper,
+    # 2 dampers, equipment
+    assert len(model["geometries"]) == 27
     keys = ",".join(model["geometries"])
     partial = client.get(f"/api/projects/{project}/model", params={"known": keys}).json()
     assert partial["geometries"] == {}
-    assert len(partial["parts"]) == 33
+    assert len(partial["parts"]) == 41
 
 
 def test_typed_command_endpoint_and_rejection(client: TestClient, project: str) -> None:
@@ -164,7 +165,7 @@ def test_project_crud_and_404(client: TestClient) -> None:
 def test_catalogue(client: TestClient) -> None:
     body = client.get("/api/parameters").json()
     ids = [p["id"] for p in body["parameters"]]
-    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 78
+    assert "wheelbase" in ids and "rear_damping_rebound" in ids and len(ids) == 97
 
 
 def test_state_survives_app_restart(tmp_path: Path) -> None:
@@ -200,3 +201,33 @@ def test_warm_up_fills_the_geometry_cache(tmp_path: Path) -> None:
 def test_model_payload_is_compressed(client: TestClient, project: str) -> None:
     reply = client.get(f"/api/projects/{project}/model", headers={"Accept-Encoding": "gzip"})
     assert reply.status_code == 200 and reply.headers["content-encoding"] == "gzip"
+
+
+@pytest.mark.cad
+def test_export_glb(client: TestClient, project: str) -> None:
+    from autevra.cad import gltf
+
+    res = client.get(f"/api/projects/{project}/export.glb")
+    assert res.status_code == 200 and res.headers["content-type"] == "model/gltf-binary"
+    doc, blob = gltf.read(res.content)
+    assert len(doc["nodes"]) > 5 and len(blob) == doc["buffers"][0]["byteLength"]
+
+
+@pytest.mark.cad
+def test_export_stl_and_iges(client: TestClient) -> None:
+    import struct
+
+    pid = client.post("/api/projects", json={"name": "Block", "domain": "machinery"}).json()["id"]
+    doc = {"name": "Block", "features": [{"id": "b", "type": "box", "size": [40, 30, 20]}],
+           "at": {"x": 100}}  # fmt: skip
+    assert client.post(f"/api/projects/{pid}/parts", json=doc).status_code in (200, 201)
+    stl = client.get(f"/api/projects/{pid}/export.stl").content
+    (count,) = struct.unpack("<I", stl[80:84])
+    assert count == 12 and len(stl) == 84 + 50 * count  # a box: 6 faces, 2 triangles each
+    xs = [struct.unpack("<3f", stl[84 + 50 * i + 12 + 12 * j : 84 + 50 * i + 24 + 12 * j])[0]
+          for i in range(count) for j in range(3)]  # fmt: skip
+    assert min(xs) == pytest.approx(80) and max(xs) == pytest.approx(120)  # placed, mm
+    iges = client.get(f"/api/projects/{pid}/export.igs")
+    assert iges.status_code == 200 and b"2HMM" in iges.content[:800]
+    empty = client.post("/api/projects", json={"name": "Empty", "domain": "machinery"}).json()["id"]
+    assert client.get(f"/api/projects/{empty}/export.stl").status_code == 422

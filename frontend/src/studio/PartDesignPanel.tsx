@@ -1,8 +1,30 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
-import type { DesignTable, PartDoc, PartFeature, PartOut, Placement } from "../api/types";
+import type { DesignTable, FeatureTemplate, PartDoc, PartFeature, PartOut, Placement, Sketch } from "../api/types";
 import { DownloadLink } from "../DownloadLink";
+import { ConstraintSketcher } from "./ConstraintSketcher";
+import { DependencyGraph } from "./DependencyGraph";
+import { TopologyInspector } from "./TopologyInspector";
 import { Sketcher } from "./Sketcher";
+
+const NO_BINDINGS: Record<string, string> = {};
+
+/** A fully constrained w x h rectangle sketch anchored on the sketch origin (its left
+ * side lies on the vertical axis, which is the revolve axis of a shaft). */
+function rectSketch(w: number, h: number) {
+  return {
+    points: [{ id: "o", x: 0, y: 0, fixed: true }, { id: "p1", x: w, y: 0 }, { id: "p2", x: w, y: h }, { id: "p3", x: 0, y: h }],
+    entities: [
+      { type: "line", id: "l1", a: "o", b: "p1" }, { type: "line", id: "l2", a: "p1", b: "p2" },
+      { type: "line", id: "l3", a: "p2", b: "p3" }, { type: "line", id: "l4", a: "p3", b: "o" },
+    ],
+    constraints: [
+      { kind: "horizontal", refs: ["l1"] }, { kind: "vertical", refs: ["l2"] },
+      { kind: "horizontal", refs: ["l3"] }, { kind: "vertical", refs: ["l4"] },
+      { kind: "length", refs: ["l1"], value: w }, { kind: "length", refs: ["l2"], value: h },
+    ],
+  };
+}
 
 /** Defaults for a new feature of each type (mm, degrees). */
 const FEATURE_DEFAULTS: Record<string, Omit<PartFeature, "id" | "type">> = {
@@ -11,6 +33,8 @@ const FEATURE_DEFAULTS: Record<string, Omit<PartFeature, "id" | "type">> = {
   sphere: { radius: 50 },
   extrude: { plane: "xy", points: [[0, 0], [100, 0], [100, 60], [0, 60]], depth: 20, symmetric: false },
   revolve: { points: [[0, 0], [40, 0], [40, 100], [0, 100]], angle: 360 },
+  pad: { plane: "xy", sketch: rectSketch(100, 60), depth: 20, symmetric: false },
+  shaft: { plane: "xz", sketch: rectSketch(40, 100), angle: 360 },
   loft: { sections: [{ z: 0, width: 100, height: 100, radius: 20 }, { z: 200, width: 60, height: 60, radius: 20 }], ruled: false },
   sweep: { path: [[0, 0, 0], [300, 0, 0], [300, 200, 0]], radius: 15, wall: 2, bend_radius: 40 },
   sheet_metal: { points: [[0, 50], [0, 0], [120, 0], [120, 50]], thickness: 2, bend_radius: 2, width: 200, k_factor: 0.44 },
@@ -18,22 +42,31 @@ const FEATURE_DEFAULTS: Record<string, Omit<PartFeature, "id" | "type">> = {
   shell: { thickness: 3, open_towards: "+z" },
   fillet: { radius: 3, edges: "" },
   chamfer: { size: 2, edges: "" },
+  draft: { angle: 2, pull: "+z" },
+  hole: { kind: "counterbore", size: "M8", fit: "medium", diameter: 8, depth: 20, through: true, bottom: "drill", csink_angle: 90 },
+  slot: { length: 40, width: 10, depth: 8 },
   mirror: { plane: "xz" },
   linear_pattern: { count: 3, step: [150, 0, 0] },
   circular_pattern: { count: 6, axis: "z", angle: 360 },
 };
-const SOLIDS = ["box", "cylinder", "sphere", "extrude", "revolve", "loft", "sweep", "wing", "sheet_metal"];
+const SOLIDS = ["box", "cylinder", "sphere", "extrude", "revolve", "pad", "shaft", "loft", "sweep", "wing", "sheet_metal", "hole", "slot"];
 const LABELS: Record<string, string> = {
   box: "Box", cylinder: "Cylinder", sphere: "Sphere", extrude: "Extrude sketch",
-  revolve: "Revolve profile", loft: "Loft sections", sweep: "Sweep tube",
+  revolve: "Revolve profile", pad: "Pad / pocket (constrained sketch)",
+  shaft: "Shaft / groove (constrained sketch)", loft: "Loft sections", sweep: "Sweep tube",
   wing: "Wing (NACA aerofoil)", sheet_metal: "Sheet metal", shell: "Shell",
   fillet: "Fillet edges", chamfer: "Chamfer edges", mirror: "Mirror", linear_pattern: "Linear pattern",
-  circular_pattern: "Circular pattern",
+  circular_pattern: "Circular pattern", hole: "Hole (ISO metric)", slot: "Slot", draft: "Draft angle",
 };
 const CHOICES: Record<string, string[]> = {
   op: ["add", "cut", "intersect"], axis: ["x", "y", "z"], plane: ["xy", "xz", "yz"],
   open_towards: ["none", "+x", "-x", "+y", "-y", "+z", "-z"],
+  kind: ["simple", "clearance", "tapped", "counterbore", "countersink"], fit: ["fine", "medium", "coarse"],
+  bottom: ["drill", "flat"], pull: ["+x", "-x", "+y", "-y", "+z", "-z"],
+  size: ["M2", "M2.5", "M3", "M4", "M5", "M6", "M8", "M10", "M12", "M14", "M16", "M20", "M24"],
 };
+/** Hotkeys of the feature tree (CATIA-style): P pad, O pocket, H hole, C chamfer; Ctrl+U update. */
+const HOTKEYS: Record<string, string> = { p: "pad", o: "pocket", h: "hole", c: "chamfer" };
 
 
 
@@ -196,6 +229,73 @@ function DesignTableEditor({ table, params, onChange, csvUrl, onImport }: {
   );
 }
 
+/** Power copies: save chosen features as a template; insert a template into this part. */
+function Templates({ projectId, part, picked, onInserted, busy, run }: {
+  projectId: string; part: PartOut; picked: string[]; onInserted: () => void; busy: boolean;
+  run: (action: () => Promise<PartOut | void>) => Promise<void>;
+}) {
+  const [library, setLibrary] = useState<FeatureTemplate[]>([]);
+  const [name, setName] = useState("");
+  const [chosen, setChosen] = useState("");
+  const [prefix, setPrefix] = useState("t1");
+  const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [offset, setOffset] = useState<[number, number, number]>([0, 0, 0]);
+  const [message, setMessage] = useState<string | null>(null);
+  const reload = () => api.featureTemplates().then(setLibrary).catch(() => setLibrary([]));
+  useEffect(() => { reload(); }, []);
+  const template = library.find((t) => t.id === chosen);
+  useEffect(() => {
+    setInputs(Object.fromEntries(Object.entries(template?.parameters ?? {}).map(([k, v]) => [k, String(v)])));
+  }, [chosen, library]); // eslint-disable-line react-hooks/exhaustive-deps
+  const parse = (v: string): number | string => (v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : v);
+  return (
+    <div className="bindings templates">
+      <div className="binding">
+        <input placeholder="template name" value={name} onChange={(ev) => setName(ev.target.value)} />
+        <button disabled={busy || !name.trim() || picked.length === 0} onClick={async () => {
+          try {
+            await api.saveFeatureTemplate({ project_id: projectId, part_id: part.id, name: name.trim(), feature_ids: picked });
+            setName(""); setMessage(`Saved “${name.trim()}” (${picked.length} feature(s)).`); reload();
+          } catch (e) { setMessage(e instanceof Error ? e.message : String(e)); }
+        }}>Save ticked features as template</button>
+      </div>
+      <div className="binding">
+        <select value={chosen} onChange={(ev) => setChosen(ev.target.value)}>
+          <option value="">insert a template…</option>
+          {library.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.features.length})</option>)}
+        </select>
+        {template && <>
+          <label>prefix<input size={5} value={prefix} onChange={(ev) => setPrefix(ev.target.value.replace(/[^A-Za-z0-9_]/g, ""))} /></label>
+          {(["x", "y", "z"] as const).map((axis, i) => (
+            <label key={axis}>{axis}<Num value={offset[i]} onCommit={(v) => setOffset((o) => o.map((x, j) => (j === i ? v : x)) as [number, number, number])} /></label>
+          ))}
+          <button disabled={busy} onClick={() => run(async () => {
+            // Send only the inputs changed from the template's defaults: an input is read as an
+            // expression of this part's parameters, a default keeps the template's own meaning.
+            const changed = Object.entries(inputs).filter(([k, v]) => v !== String(template.parameters[k]));
+            const out = await api.insertFeatureTemplate(projectId, part.id, { template: template.id, prefix,
+              inputs: Object.fromEntries(changed.map(([k, v]) => [k, parse(v)])), offset });
+            onInserted();
+            return out;
+          })}>Insert</button>
+          <button disabled={busy} title="Delete this template from the library" onClick={async () => {
+            await api.deleteFeatureTemplate(template.id); setChosen(""); reload();
+          }}>✕</button>
+        </>}
+      </div>
+      {template && Object.keys(inputs).length > 0 && (
+        <div className="binding">
+          <span className="hint">Inputs (a value, or an expression of this part's parameters):</span>
+          {Object.entries(inputs).map(([k, v]) => (
+            <label key={k}><code>{k}</code><input size={10} value={v} onChange={(ev) => setInputs((all) => ({ ...all, [k]: ev.target.value }))} /></label>
+          ))}
+        </div>
+      )}
+      {message && <span className="hint">{message}</span>}
+    </div>
+  );
+}
+
 function PlacementFields({ at, onCommit }: { at: Placement | undefined; onCommit: (p: Placement) => void }) {
   const p = at ?? {};
   return (
@@ -211,14 +311,14 @@ function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: 
   const set = (key: string, value: unknown) => onChange({ ...feature, [key]: value });
   const keys = Object.keys({ ...FEATURE_DEFAULTS[feature.type], ...feature })
     .filter((k) => !["id", "type", "suppressed", "op", "at", "name", "bindings"].includes(k));
-  const bound = feature.bindings ?? {};
+  const bound = feature.bindings ?? NO_BINDINGS;
   return (
     <div className="feature-fields">
       <label>Name<input value={feature.name ?? ""} placeholder={feature.id}
         onChange={(e) => set("name", e.target.value)} /></label>
       {keys.map((key) => {
         const value = feature[key] ?? FEATURE_DEFAULTS[feature.type]?.[key];
-        if (CHOICES[key]) {
+        if (CHOICES[key] && typeof value === "string") {
           return <label key={key}>{key.replace("_", " ")}<select value={String(value)}
             onChange={(e) => set(key, e.target.value)}>{CHOICES[key].map((c) => <option key={c}>{c}</option>)}</select></label>;
         }
@@ -256,6 +356,17 @@ function FeatureFields({ feature, onChange }: { feature: PartFeature; onChange: 
             </label>
           );
         }
+        if (key === "sketch" && ["pad", "shaft"].includes(feature.type) && value && typeof value === "object") {
+          const plane = String(feature.plane ?? (feature.type === "shaft" ? "xz" : "xy"));
+          return (
+            <div key={key} className="wide">
+              <span className="hint">Constrained sketch on the {plane} plane{feature.type === "shaft" ? "; it revolves about the vertical axis" : ""}</span>
+              <ConstraintSketcher sketch={value as Sketch} bindings={bound} axis={feature.type === "shaft"}
+                labels={feature.type === "shaft" ? ["r", "z"] : [plane[0], plane[1]] as [string, string]}
+                onApply={(sk, b) => onChange({ ...feature, sketch: sk, bindings: b })} />
+            </div>
+          );
+        }
         return <label key={key} className="wide">{key}<JsonField value={value} onCommit={(v) => set(key, v)} /></label>;
       })}
       {"edges" in feature || ["fillet", "chamfer"].includes(feature.type) ? (
@@ -279,6 +390,10 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
   const [feature, setFeature] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  // Sketch support: a planar face of the part the next pad, pocket, hole or slot sits on.
+  const [planes, setPlanes] = useState<{ index: number; label: string; centre: number[]; normal: number[] }[]>([]);
+  const [onFace, setOnFace] = useState<number | null>(null);
   // Starting points from several domains, served by the backend (each one builds).
   const [presets, setPresets] = useState<Record<string, PartDoc>>({});
   useEffect(() => { api.partPresets().then(setPresets).catch(() => setPresets({})); }, []);
@@ -291,6 +406,13 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
   }, [projectId]);
 
   const part = parts.find((p) => p.id === selected) ?? null;
+  useEffect(() => {
+    setOnFace(null);
+    if (!part || part.volume == null) { setPlanes([]); return; }
+    api.mateFaces(projectId, part.id).then((list) => setPlanes((list as { index: number; kind: string; label: string; sig: { centre: number[]; direction: number[] } }[])
+      .filter((f) => f.kind === "plane").map((f) => ({ index: f.index, label: f.label, centre: f.sig.centre, normal: f.sig.direction }))))
+      .catch(() => setPlanes([]));
+  }, [projectId, part?.id, part?.volume]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = useCallback(async (action: () => Promise<PartOut | void>, removed?: string) => {
     setBusy(true);
@@ -323,18 +445,69 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
     save({ ...doc, features: list });
   };
   const move = (index: number, by: number) => {
-    if (!doc) return;
-    const list = [...features];
-    const [f] = list.splice(index, 1);
-    list.splice(Math.min(Math.max(index + by, 0), list.length), 0, f);
-    save({ ...doc, features: list });
+    if (!doc || !part) return;
+    const order = features.map((f) => f.id);
+    const [id] = order.splice(index, 1);
+    order.splice(Math.min(Math.max(index + by, 0), order.length), 0, id);
+    // the backend refuses a move that puts a feature before something it reads
+    run(() => api.reorderPart(projectId, part.id, order));
   };
   const addFeature = (type: string) => {
     if (!doc || !type) return;
-    const f: PartFeature = { id: newId(type, features), type, ...structuredClone(FEATURE_DEFAULTS[type]) };
+    const pocket = type === "pocket";
+    const base = pocket ? "pad" : type;
+    const f: PartFeature = { id: newId(pocket ? "pocket" : type, features), type: base, ...structuredClone(FEATURE_DEFAULTS[base]) };
+    const face = onFace != null ? planes.find((f) => f.index === onFace) : undefined;
+    if (face && ["pad", "hole", "slot"].includes(base)) {
+      // Sketch on the picked face: local +Z along the face's outward normal (R = Ry Rx), so
+      // a pad grows out of the face, a hole or slot cuts into it, and a pocket is a pad that
+      // starts inside the material and ends at the face.
+      const [nx, ny, nz] = face.normal;
+      const a = -Math.asin(Math.max(-1, Math.min(1, ny))), bb = Math.atan2(nx, nz);
+      const rot = (v: number[]) => { // Ry(bb) * Rx(a) * v
+        const y1 = v[1] * Math.cos(a) - v[2] * Math.sin(a), z1 = v[1] * Math.sin(a) + v[2] * Math.cos(a);
+        return [v[0] * Math.cos(bb) + z1 * Math.sin(bb), y1, -v[0] * Math.sin(bb) + z1 * Math.cos(bb)];
+      };
+      let origin = [...face.centre];
+      if (base === "pad") {
+        const local = pocket ? [-20, -15, -10] : [-20, -15, 0];
+        const off = rot(local);
+        origin = origin.map((c, i) => c + off[i]);
+        if (pocket) Object.assign(f, { name: "Pocket", op: "cut", sketch: rectSketch(40, 30), depth: 11 });
+        else Object.assign(f, { sketch: rectSketch(40, 30), depth: 20 });
+      }
+      const r3 = (v: number) => +v.toFixed(4);
+      f.at = { x: r3(origin[0]), y: r3(origin[1]), z: r3(origin[2]), rx: r3((a * 180) / Math.PI), ry: r3((bb * 180) / Math.PI), rz: 0 };
+      if (base === "pad") f.plane = "xy";
+    } else if (part?.bounds && features.length > 0 && (pocket || base === "hole" || base === "slot")) {
+      const b = part.bounds;
+      const cx = (b[0][0] + b[1][0]) / 2, cy = (b[0][1] + b[1][1]) / 2, top = b[1][2];  // bounds are in the part frame
+      if (pocket) {
+        Object.assign(f, { name: "Pocket", op: "cut", sketch: rectSketch(40, 30), depth: 11, at: { x: cx - 20, y: cy - 15, z: top - 10 } });
+      } else {
+        f.at = { x: +cx.toFixed(3), y: +cy.toFixed(3), z: +top.toFixed(3) };
+      }
+    }
     setFeature(f.id);
     save({ ...doc, features: [...features, f] });
   };
+  const addRef = useRef(addFeature);
+  addRef.current = addFeature;
+  const saveRef = useRef(() => { if (doc) save({ ...doc }); });
+  saveRef.current = () => { if (doc) save({ ...doc }); };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) || t.isContentEditable || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && key === "u") { e.preventDefault(); saveRef.current(); return; }
+      if (e.ctrlKey || e.metaKey || e.shiftKey || !HOTKEYS[key]) return;
+      e.preventDefault();
+      addRef.current(HOTKEYS[key]);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     <div className="bench wide part-design">
@@ -377,6 +550,9 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
               <button disabled={busy || !part.can_undo} onClick={() => run(() => api.undoPart(projectId, part.id))}>Undo</button>
               <button disabled={busy || !part.can_redo} onClick={() => run(() => api.redoPart(projectId, part.id))}>Redo</button>
               <button disabled={busy} onClick={() => run(() => api.deletePart(projectId, part.id), part.id)}>Delete part</button>
+              {part.volume != null && (
+                <DownloadLink className="button" href={api.partDrawingUrl(projectId, part.id)}>Drawing (A3 SVG)</DownloadLink>
+              )}
               <span className="hint">
                 {part.volume != null ? `${(part.volume / 1e3).toFixed(1)} cm³` : "nothing built"}
                 {part.bounds && ` · ${part.bounds[1].map((v, i) => (v - part.bounds![0][i]).toFixed(0)).join(" × ")} mm`}
@@ -393,10 +569,20 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
             <span className="hint">Part placement in the vehicle frame</span>
             <PlacementFields at={doc.at} onCommit={(at) => save({ ...doc, at })} />
             <strong>Feature tree</strong>
+            {part.built.length > 0 && (
+              <div className="hint rebuild">
+                Last build: {part.built.length - (part.reused?.length ?? 0)} of {part.built.length} features rebuilt,
+                {" "}{part.reused?.length ?? 0} reused from the cache
+                {Object.keys(part.feature_ms ?? {}).length > 0 && ` (${Object.entries(part.feature_ms ?? {})
+                  .map(([id, ms]) => `${id} ${ms.toFixed(0)} ms`).join(", ")})`}
+              </div>
+            )}
             <ol className="feature-tree">
               {features.map((f, i) => (
                 <li key={f.id} className={`${f.id === feature ? "open" : ""} ${f.suppressed ? "suppressed" : ""} ${f.id === failed ? "failed" : ""}`}>
                   <div className="row">
+                    <input type="checkbox" title="Tick to save in a template" checked={picked.includes(f.id)}
+                      onChange={(ev) => setPicked((p) => ev.target.checked ? [...p, f.id] : p.filter((x) => x !== f.id))} />
                     <button className="name" onClick={() => setFeature(f.id === feature ? null : f.id)}>
                       {LABELS[f.type] ?? f.type} <em>{f.name || f.id}</em>
                     </button>
@@ -414,19 +600,48 @@ export function PartDesignPanel({ projectId, onModelChanged }: { projectId: stri
                   </div>
                   {f.id === failed && <div className="bad-text">{part.errors[0].message}</div>}
                   {part.info?.[f.id]?.flat_length != null && (
-                    <div className="hint">Flat pattern: {part.info[f.id].flat_length.toFixed(1)} × {part.info[f.id].flat_width.toFixed(0)} mm,
+                    <div className="hint">Flat pattern: {Number(part.info[f.id].flat_length).toFixed(1)} × {Number(part.info[f.id].flat_width).toFixed(0)} mm,
                       {" "}{part.info[f.id].bends} bend(s) (K-factor allowance)</div>
                   )}
+                  {typeof part.info?.[f.id]?.callout === "string" && (
+                    <div className="hint">Hole: {String(part.info[f.id].callout)}{part.info[f.id].thread_depth != null
+                      ? `, thread ↧${Number(part.info[f.id].thread_depth).toFixed(1)} (cosmetic)` : ""}</div>
+                  )}
                   {f.id === feature && <FeatureFields feature={f} onChange={(next) => editFeature(i, next)} />}
+                  {f.id === feature && (
+                    <details className="inspect" open>
+                      <summary>Inspect topology</summary>
+                      <TopologyInspector part={part} featureId={f.id} />
+                    </details>
+                  )}
                 </li>
               ))}
             </ol>
+            {part.graph && (
+              <details className="inspect" open>
+                <summary>Dependencies (feature graph)</summary>
+                <DependencyGraph graph={part.graph} selected={feature} onSelect={(id) => setFeature(id === feature ? null : id)} />
+              </details>
+            )}
+            <strong>Templates (power copies)</strong>
+            <Templates projectId={projectId} part={part} picked={picked} busy={busy} run={run}
+              onInserted={() => setPicked([])} />
             <label>Add feature
               <select value="" disabled={busy} onChange={(e) => addFeature(e.target.value)}>
                 <option value="">choose…</option>
                 {Object.keys(FEATURE_DEFAULTS).map((t) => <option key={t} value={t}>{LABELS[t]}</option>)}
+                <option value="pocket">Pocket (sketch cut from the top face)</option>
               </select>
             </label>
+            <label>on face
+              <select value={onFace ?? ""} onChange={(e) => setOnFace(e.target.value === "" ? null : Number(e.target.value))}
+                title="Sketch support for the next pad, pocket, hole or slot">
+                <option value="">top face (default)</option>
+                {planes.map((f) => <option key={f.index} value={f.index}>#{f.index} {f.label} at ({f.centre.map((c) => c.toFixed(0)).join(", ")})</option>)}
+              </select>
+            </label>
+            <span className="hint">Keys: <kbd>P</kbd> pad · <kbd>O</kbd> pocket · <kbd>H</kbd> hole · <kbd>C</kbd> chamfer ·
+              {" "}<kbd>Ctrl</kbd>+<kbd>U</kbd> update · <kbd>F3</kbd> tree · <kbd>F</kbd> focus view</span>
           </>
         )}
       </div>

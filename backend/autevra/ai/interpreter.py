@@ -203,7 +203,9 @@ def from_llm_output(
         if len(changes) != len(out.changes):
             raise CommandError("the model referred to a parameter that does not exist")
         changes = tuple(ground(c, text) for c in changes)
-        command = SetParameters(changes=changes, source=Source.LLM, instruction=text)
+        command = SetParameters(
+            changes=changes, source=Source.LLM, instruction=text, model=model or None
+        )
         resolve(command, values)  # unit compatibility, positive scale factors, ...
     except (CommandError, ValidationError, _GroundingError) as exc:
         message = exc.errors()[0]["msg"] if isinstance(exc, ValidationError) else str(exc)

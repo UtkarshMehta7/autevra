@@ -1,4 +1,5 @@
-"""The only module that talks to the CAD kernel (CadQuery on Open CASCADE).
+"""The CAD kernel interface (CadQuery on Open CASCADE); with ``topology`` (B-rep inspection),
+the only code that talks to the kernel.
 
 Everything else in Autevra handles ``Shape`` values opaquely and calls the
 functions here, so swapping CadQuery for build123d or raw OCP stays local.
@@ -6,6 +7,7 @@ Units are millimetres; axes follow ISO 8855 (X forward, Y left, Z up).
 """
 
 import math
+import threading
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +18,8 @@ from OCP.BRepExtrema import BRepExtrema_DistShapeShape
 from OCP.BRepMesh import BRepMesh_IncrementalMesh
 from OCP.BRepTools import BRepTools
 from OCP.gp import gp_Trsf
+from OCP.Interface import Interface_Static
+from OCP.STEPControl import STEPControl_Controller
 from OCP.TopAbs import TopAbs_FACE, TopAbs_REVERSED
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopLoc import TopLoc_Location
@@ -143,6 +147,26 @@ def prism_y(profile: Sequence[tuple[float, float]], y: tuple[float, float]) -> S
     pts = [cq.Vector(x, y[0], z) for x, z in profile]
     face = cq.Face.makeFromWires(cq.Wire.makePolygon(pts, close=True))
     return cq.Solid.extrudeLinear(face, cq.Vector(0, y[1] - y[0], 0))
+
+
+def prism_x(outline: Sequence[tuple[float, float]], x: tuple[float, float]) -> Shape:
+    """Solid from a closed (y, z) outline in the YZ plane, extruded from x[0] to x[1]."""
+    pts = [cq.Vector(x[0], y, z) for y, z in outline]
+    face = cq.Face.makeFromWires(cq.Wire.makePolygon(pts, close=True))
+    return cq.Solid.extrudeLinear(face, cq.Vector(x[1] - x[0], 0, 0))
+
+
+def perforated_prism_x(outline: Sequence[tuple[float, float]],
+                       holes: Sequence[Sequence[tuple[float, float]]],
+                       x: tuple[float, float]) -> Shape:  # fmt: skip
+    """Like ``prism_x`` with holes through it (each hole a closed (y, z) outline inside the
+    outline): one extrusion, no booleans, so hundreds of holes stay cheap."""
+
+    def wire(points: Sequence[tuple[float, float]]) -> cq.Wire:
+        return cq.Wire.makePolygon([cq.Vector(x[0], y, z) for y, z in points], close=True)
+
+    face = cq.Face.makeFromWires(wire(outline), [wire(h) for h in holes])
+    return cq.Solid.extrudeLinear(face, cq.Vector(x[1] - x[0], 0, 0))
 
 
 def prism_z(outline: Sequence[tuple[float, float]], z: tuple[float, float]) -> Shape:
@@ -295,15 +319,61 @@ class Part:
     color: tuple[float, float, float]
 
 
-def export_step(parts: Iterable[Part], path: Path, name: str = "vehicle") -> Path:
-    """Write an assembly STEP file: one named, placed and coloured solid per part."""
+STEP_SCHEMAS = {"AP214": "AP214IS", "AP242": "AP242DIS"}
+_STEP_LOCK = threading.Lock()  # the schema is a process-wide OCCT setting
+
+
+def export_step(parts: Iterable[Part], path: Path, name: str = "vehicle",
+                schema: str = "AP214") -> Path:  # fmt: skip
+    """Write an assembly STEP file: one named, placed and coloured solid per part, in
+    AP214 (automotive design) or AP242 (managed model-based 3D engineering)."""
+    if schema not in STEP_SCHEMAS:
+        raise ValueError(f"unknown STEP schema '{schema}'")
     assembly = cq.Assembly(name=name)
     for part in parts:
         assembly.add(
             part.shape, name=part.name, loc=location(part.matrix), color=cq.Color(*part.color)
         )
     path.parent.mkdir(parents=True, exist_ok=True)
-    assembly.export(str(path), exportType="STEP")
+    with _STEP_LOCK:
+        STEPControl_Controller.Init_s()
+        Interface_Static.SetCVal_s("write.step.schema", STEP_SCHEMAS[schema])
+        try:
+            assembly.export(str(path), exportType="STEP")
+        finally:
+            Interface_Static.SetCVal_s("write.step.schema", STEP_SCHEMAS["AP214"])
+    return path
+
+
+def _placed(parts: Iterable[Part]) -> Shape:
+    shapes = [p.shape.moved(location(p.matrix)) for p in parts]
+    if not shapes:
+        raise ValueError("the project has no geometry to export")
+    return cq.Compound.makeCompound(shapes)
+
+
+def export_stl(parts: Iterable[Part], path: Path, tolerance: float = 0.05,
+               angular: float = 0.2, ascii: bool = False) -> Path:  # fmt: skip
+    """All parts, placed, as one triangulated STL in mm (binary by default) for 3D printing.
+    ``tolerance`` is the chordal deviation in mm, ``angular`` the angular deflection (rad)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _placed(parts).exportStl(str(path), tolerance, angular, ascii)
+    return path
+
+
+def export_iges(parts: Iterable[Part], path: Path) -> Path:
+    """All parts, placed, as IGES 5.3 B-rep solids (MSBO, entity 186) in mm."""
+    from OCP.IGESControl import IGESControl_Controller, IGESControl_Writer
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with _STEP_LOCK:
+        IGESControl_Controller.Init_s()
+        writer = IGESControl_Writer("MM", 1)  # 1: B-rep (faces) rather than trimmed surfaces
+        for p in parts:
+            writer.AddShape(p.shape.moved(location(p.matrix)).wrapped)
+        writer.ComputeModel()
+        if not writer.Write(str(path)):
+            raise ValueError("IGES writer failed")
     return path
 
 

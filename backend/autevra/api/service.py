@@ -4,6 +4,7 @@ All mutations and CAD builds run under one lock: the kernel is used from a
 single thread at a time and jobs stay sequential (8 GB memory budget).
 """
 
+import json
 import logging
 import threading
 import time
@@ -34,6 +35,7 @@ from autevra.engineering import optimize as opt
 from autevra.engineering import requirements as rqm
 from autevra.engineering import testing as tst
 from autevra.engineering import trace as tracing
+from autevra.part import graph as part_graph
 from autevra.part.features import PartDoc
 from autevra.storage.database import Database
 from autevra.storage.parts import PartRepository
@@ -207,27 +209,114 @@ class Workspace:
             info = repo.create(name, state, domain=domain, owner=owner)
             return _state(info, repo.load(info.id))
 
-    def duplicate_project(
-        self, project_id: str, name: str | None = None, owner: str | None = None
-    ) -> schemas.ProjectState:
-        """A new project whose initial design is this project's current design (history,
-        runs and studies stay with the original; requirements and the specification copy)."""
+    # Per-project design files of the modules (kept beside the database). History-like
+    # folders (baselines, change requests) and exports are not part of a design.
+    DESIGN_FILES = (
+        "aircraft",
+        "engines",
+        "motors",
+        "turbines",
+        "vessels",
+        "assembly",
+        "allocations",
+        "installs",
+    )
+    PACKAGE_FORMAT = "autevra-project/1"
+
+    def snapshot(self, project_id: str) -> dict:
+        """Everything that defines the project's design, in any module, as one JSON-able
+        package: parameters, the user's parts, the module design files, the styling curves,
+        the vehicle specification and the requirements."""
+        from autevra.storage.stylings import StylingRepository
+
         with self.db.session() as s:
             repo = ProjectRepository(s)
             info = repo.info(project_id)
-            values = repo.load(project_id).values
+            values = dict(repo.load(project_id).values)
+            styling_json, _, _ = StylingRepository(s).get(project_id)
+            spec_json = _load_spec(SpecRepository(s), project_id).model_dump_json()
+            requirements = [
+                r.model_dump(mode="json") for r in RunRepository(s).requirement_records(project_id)
+            ]
+        files = {}
+        for kind in self.DESIGN_FILES:
+            path = self.data_dir / kind / f"{project_id}.json"
+            if path.exists():
+                files[kind] = path.read_text()
+        parts = [
+            {"id": pid, "document": json.loads(doc.model_dump_json())}
+            for pid, doc in self._part_docs(project_id)
+        ]
+        return {
+            "format": self.PACKAGE_FORMAT,
+            "name": info.name,
+            "domain": info.domain,
+            "values": values,
+            "parts": parts,
+            "files": files,
+            "styling": styling_json,
+            "spec": spec_json,
+            "requirements": requirements,
+        }
+
+    def restore(
+        self, package: dict, name: str | None = None, owner: str | None = None
+    ) -> schemas.ProjectState:
+        """A new project from a package (snapshot): part ids are new and every reference to
+        them in the module files (assembly constraints, installs) is rewritten."""
+        from autevra.storage.stylings import StylingRepository
+
+        if package.get("format") != self.PACKAGE_FORMAT:
+            raise CommandError("not an Autevra project package")
+        domain = package.get("domain") or "automotive"
+        if not domains.can_host_projects(domain):
+            raise CommandError(f"unknown module '{domain}'")
+        values = {k: float(v) for k, v in (package.get("values") or {}).items()}
+        with self.db.session() as s:
+            repo = ProjectRepository(s)
             copy = repo.create(
-                name or f"{info.name} (copy)",
+                name or package.get("name") or "Imported design",
                 DesignState(values=values),
-                domain=info.domain,
+                domain=domain,
                 owner=owner,
             )
             runs = RunRepository(s)
-            for record in runs.requirement_records(project_id):
+            for raw in package.get("requirements") or []:
+                record = rqm.Requirement.model_validate(raw)
                 runs.add_requirement(copy.id, record.model_copy(update={"id": uuid4().hex[:12]}))
-            specs = SpecRepository(s)
-            specs.save_json(copy.id, _load_spec(specs, project_id).model_dump_json())
-            return _state(copy, repo.load(copy.id))
+            if package.get("spec"):
+                SpecRepository(s).save_json(copy.id, package["spec"])
+            if package.get("styling"):
+                StylingRepository(s).set(copy.id, package["styling"])
+            new_id = copy.id
+        mapping: dict[str, str] = {}
+        with self.db.session() as s:
+            parts = PartRepository(s)
+            for part in package.get("parts") or []:
+                doc = PartDoc.model_validate(part["document"])
+                mapping[part["id"]] = parts.create(new_id, doc.model_dump_json())
+        old_id = package.get("source_id")
+        for kind, text in (package.get("files") or {}).items():
+            if kind not in self.DESIGN_FILES:
+                continue
+            for old, fresh in mapping.items():
+                text = text.replace(old, fresh)
+            if old_id:
+                text = text.replace(old_id, new_id)
+            folder = self.data_dir / kind
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / f"{new_id}.json").write_text(text)
+        return self.project(new_id)
+
+    def duplicate_project(
+        self, project_id: str, name: str | None = None, owner: str | None = None
+    ) -> schemas.ProjectState:
+        """A new project whose initial design is this project's current design, in any
+        module: parameters, parts, module design files, styling and requirements (history,
+        runs and studies stay with the original)."""
+        package = self.snapshot(project_id)
+        package["source_id"] = project_id
+        return self.restore(package, name or f"{package['name']} (copy)", owner)
 
     def system_graph(self, project_id: str) -> schemas.SystemGraph:
         from autevra.assembly.model import BY_ID, COINCIDENCES, COMPONENTS, LOAD_PATHS
@@ -1317,20 +1406,55 @@ class Workspace:
         )
 
     # --- geometry ---
+    def _styling_doc(self, project_id: str):  # type: ignore[no-untyped-def]
+        from autevra.domains.automotive.styling_curves import StylingDoc
+        from autevra.storage.stylings import StylingRepository
+
+        with self.db.session() as s:
+            doc_json, can_undo, can_redo = StylingRepository(s).get(project_id)
+        return StylingDoc.model_validate_json(doc_json), can_undo, can_redo
+
     def _full_model(self, project_id: str) -> model_service.VehicleModel:
-        values = self.project(project_id).values
+        from autevra.domains.automotive import styling_curves as sc
+
+        project = self.project(project_id)
         parts = self._part_docs(project_id)
-        model = model_service.build_model(values, self.cache)
+        if project.domain != "automotive":  # other domains hold only their own parts
+            return model_service.add_parts(model_service.VehicleModel([], {}), parts, self.cache)
+        values = project.values
+        doc, _, _ = self._styling_doc(project_id)
+        model = model_service.build_model(values, self.cache, styling=sc.to_inputs(doc))
         return model_service.add_parts(model, parts, self.cache)
 
     def model(self, project_id: str, known: set[str]) -> dict:
         with self._lock:
             return model_service.mesh_payload(self._full_model(project_id), self.cache, skip=known)
 
-    def export_step(self, project_id: str) -> Path:
+    def export_step(self, project_id: str, schema: str = "AP214") -> Path:
         with self._lock:
             return model_service.export_step(
-                self._full_model(project_id), self.data_dir / "exports" / f"{project_id}.step"
+                self._full_model(project_id),
+                self.data_dir / "exports" / f"{project_id}-{schema.lower()}.step",
+                schema,
+            )
+
+    def export_file(self, project_id: str, fmt: str, tolerance: float = 0.05) -> Path:
+        """STL (triangles for 3D printing) or IGES (B-rep) of the whole project."""
+        with self._lock:
+            ext = {"stl": "stl", "iges": "igs"}[fmt]
+            return model_service.export_mesh_or_iges(
+                self._full_model(project_id),
+                self.data_dir / "exports" / f"{project_id}.{ext}",
+                fmt,
+                tolerance,
+            )
+
+    def export_glb(self, project_id: str) -> Path:
+        with self._lock:
+            return model_service.export_glb(
+                self._full_model(project_id),
+                self.data_dir / "exports" / f"{project_id}.glb",
+                self.project(project_id).name,
             )
 
     def package(self, project_id: str) -> list:
@@ -1350,6 +1474,104 @@ class Workspace:
         with self._lock:
             return bom.bill_of_materials(self._full_model(project_id))
 
+    # --- Styling curves ---
+    def styling(self, project_id: str) -> dict:
+        from autevra.assembly.model import BY_ID
+        from autevra.domains.automotive import styling_curves as sc
+
+        values = self.project(project_id).values
+        doc, can_undo, can_redo = self._styling_doc(project_id)
+        out = sc.effective(BY_ID["body"].resolve_inputs(values), doc)
+        return out | {"can_undo": can_undo, "can_redo": can_redo}
+
+    def set_styling(self, project_id: str, body: dict) -> dict:
+        from autevra.domains.automotive.styling_curves import StylingDoc
+        from autevra.storage.stylings import StylingRepository
+
+        self.project(project_id)
+        try:
+            doc = StylingDoc.model_validate(body)
+        except ValidationError as exc:
+            raise CommandError(exc.errors()[0]["msg"].removeprefix("Value error, ")) from None
+        with self.db.session() as s:
+            StylingRepository(s).set(project_id, doc.model_dump_json(exclude_none=True))
+        return self.styling(project_id)
+
+    def step_styling(self, project_id: str, back: bool) -> dict:
+        from autevra.storage.stylings import StylingRepository
+
+        with self.db.session() as s:
+            if not StylingRepository(s).step(project_id, back):
+                raise CommandError("nothing to undo" if back else "nothing to redo")
+        return self.styling(project_id)
+
+    # --- Feature templates (power copies) ---
+    def feature_templates(self, owner: str | None, all_owners: bool) -> list[dict]:
+        from sqlalchemy import select
+
+        from autevra.storage.models import FeatureTemplateRow
+
+        with self.db.session() as s:
+            query = select(FeatureTemplateRow).order_by(FeatureTemplateRow.created_at)
+            if not all_owners:
+                query = query.where(FeatureTemplateRow.owner == owner)
+            rows = list(s.scalars(query))
+            return [{"id": r.id, **json.loads(r.document_json)} for r in rows]
+
+    def save_feature_template(
+        self, owner: str | None, project_id: str, part_id: str, name: str,
+        feature_ids: list[str], description: str = "",
+    ) -> dict:  # fmt: skip
+        from uuid import uuid4
+
+        from autevra.part import templates as ft
+        from autevra.storage.models import FeatureTemplateRow
+
+        with self.db.session() as s:
+            doc_json, _, _ = PartRepository(s).get(project_id, part_id)
+        try:
+            template = ft.from_part(PartDoc.model_validate_json(doc_json), name, feature_ids,
+                                    description)  # fmt: skip
+        except ValueError as exc:
+            raise CommandError(str(exc)) from None
+        template_id = uuid4().hex
+        with self.db.session() as s:
+            s.add(FeatureTemplateRow(id=template_id, owner=owner,
+                                     document_json=template.model_dump_json()))  # fmt: skip
+        return {"id": template_id, **template.model_dump(mode="json")}
+
+    def delete_feature_template(
+        self, owner: str | None, all_owners: bool, template_id: str
+    ) -> None:
+        from autevra.storage.models import FeatureTemplateRow
+
+        with self.db.session() as s:
+            row = s.get(FeatureTemplateRow, template_id)
+            if row is None or (not all_owners and row.owner != owner):
+                raise CommandError("no such template")
+            s.delete(row)
+
+    def insert_feature_template(self, owner: str | None, all_owners: bool, project_id: str,
+                                part_id: str, body: dict) -> schemas.PartOut:  # fmt: skip
+        from autevra.part import templates as ft
+        from autevra.storage.models import FeatureTemplateRow
+
+        try:
+            how = ft.Insertion.model_validate(body)
+        except ValidationError as exc:
+            raise CommandError(exc.errors()[0]["msg"]) from None
+        with self.db.session() as s:
+            row = s.get(FeatureTemplateRow, how.template)
+            if row is None or (not all_owners and row.owner != owner):
+                raise CommandError("no such template")
+            template = ft.FeatureTemplate.model_validate_json(row.document_json)
+            doc_json, _, _ = PartRepository(s).get(project_id, part_id)
+        try:
+            doc = ft.insert(PartDoc.model_validate_json(doc_json), template, how)
+        except (ValueError, ValidationError) as exc:
+            raise CommandError(str(exc).split("\n")[0]) from None
+        return self.update_part(project_id, part_id, doc)
+
     # --- Part Design ---
     MAX_PARTS = 50  # per project
 
@@ -1367,7 +1589,9 @@ class Workspace:
         shape = report.shape
         return schemas.PartOut(
             id=part_id, document=doc, can_undo=can_undo, can_redo=can_redo,
-            built=report.built, info=report.info,
+            built=report.built, info=report.info, topology=report.topology,
+            sections=report.sections, reused=report.reused, feature_ms=report.feature_ms,
+            graph=part_graph.dependency_graph(doc),
             errors=[schemas.FeatureErrorOut(feature=e.feature, message=e.message)
                     for e in report.errors],
             volume=kernel.volume(shape) if shape is not None else None,
@@ -1393,6 +1617,18 @@ class Workspace:
         with self.db.session() as s:
             PartRepository(s).update(project_id, part_id, doc.model_dump_json())
         return self._part_out(project_id, part_id)
+
+    def reorder_part(self, project_id: str, part_id: str, order: list[str]) -> schemas.PartOut:
+        """Rebuild the features in a new order, unless a feature would then come before
+        something it reads (see ``autevra.part.graph``)."""
+        with self.db.session() as s:
+            doc_json, _, _ = PartRepository(s).get(project_id, part_id)
+        doc = PartDoc.model_validate_json(doc_json)
+        if (problem := part_graph.reorder_problem(doc, order)) is not None:
+            raise CommandError(problem)
+        by_id = {feat.id: feat for feat in doc.features}
+        moved = doc.model_copy(update={"features": [by_id[i] for i in order]})
+        return self.update_part(project_id, part_id, moved)
 
     def step_part(self, project_id: str, part_id: str, back: bool) -> schemas.PartOut:
         with self.db.session() as s:

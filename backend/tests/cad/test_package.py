@@ -80,3 +80,36 @@ def test_package_endpoints(client: TestClient, project: str) -> None:
     svg = client.get(f"/api/projects/{project}/package.svg")
     assert svg.headers["content-type"].startswith("image/svg+xml")
     ET.fromstring(svg.text)
+
+
+def _seating(cls: str, **changes: float) -> dict[str, float]:
+    return pk.seating(default_values() | spec.TEMPLATES[cls] | changes)
+
+
+@pytest.mark.parametrize("cls", sorted(spec.TEMPLATES))
+def test_every_template_seats_a_large_adult_under_the_roof(cls: str) -> None:
+    # The integration check warns below 25 mm; low cars use low, reclined sports seats.
+    assert _seating(cls)["headroom"] >= 25.0
+
+
+def test_seating_allowances_are_parameters() -> None:
+    base = _seating("sedan")
+    lower = _seating("sedan", seat_height=200)
+    assert lower["h_point_z"] == pytest.approx(base["h_point_z"] - 80.0)
+    assert lower["headroom"] == pytest.approx(base["headroom"] + 80.0)
+    # A steeper recline lowers the head: the gain follows the cosine of the backrest angle.
+    reclined = _seating("sedan", seat_recline=32)
+    gain = 715.0 * (1 - math.cos(math.radians(32)) / math.cos(math.radians(22)))
+    assert reclined["headroom"] == pytest.approx(base["headroom"] + gain)
+    # The dashboard zone moves the front seats rearward.
+    deeper = _seating("sedan", dash_zone=450)
+    assert deeper["h_point_x"] == pytest.approx(base["h_point_x"] - 100.0)
+
+
+def test_row_pitch_drives_the_seat_rows_rule() -> None:
+    from autevra.domains.automotive import rules
+
+    p = default_values() | spec.TEMPLATES["city_car"]
+    assert rules._seat_rows_fit(p) is None
+    tight = rules._seat_rows_fit(p | {"row_pitch": 1100, "dash_zone": 700})
+    assert tight is not None and "2 seat rows need" in tight

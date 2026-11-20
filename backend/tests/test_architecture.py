@@ -67,3 +67,21 @@ def test_parser_alone_knows_no_vehicle_vocabulary() -> None:
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
     assert out.stdout.split() == ["clarification", "make", "the", "car", "longer", "on", "18s",
                                   "undo"]  # fmt: skip
+
+
+@pytest.mark.parametrize("package", ["product", "inventory"])
+def test_platform_services_know_no_module_or_domain(package: str) -> None:
+    for f in (PACKAGE / package).rglob("*.py"):
+        bad = [i for i in _imports(f) if i.startswith(("autevra.modules", "autevra.domains",
+                                                       "autevra.aero"))]  # fmt: skip
+        assert bad == [], f
+
+
+def test_modules_never_import_each_other() -> None:
+    root = PACKAGE / "modules"
+    names = [d.name for d in root.iterdir() if d.is_dir() and (d / "__init__.py").exists()]
+    for name in names:
+        others = tuple(f"autevra.modules.{o}" for o in names if o != name)
+        for f in (root / name).rglob("*.py"):
+            bad = [i for i in _imports(f) if i.startswith(others)]
+            assert bad == [], f

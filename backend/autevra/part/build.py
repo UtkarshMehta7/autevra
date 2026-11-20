@@ -6,14 +6,19 @@ earlier work and the user sees which feature to fix.
 """
 
 import math
+import time
 from dataclasses import dataclass, field
 
 import cadquery as cq
 
 from autevra.assembly.transforms import Matrix
 from autevra.cad import kernel as k
+from autevra.cad import topology as topo
 from autevra.part import expressions as ex
 from autevra.part import features as f
+from autevra.part import holes as hole_table
+from autevra.part import imports
+from autevra.part import sketch as sk
 
 _AXIS = {f.Axis.X: cq.Vector(1, 0, 0), f.Axis.Y: cq.Vector(0, 1, 0), f.Axis.Z: cq.Vector(0, 0, 1)}
 
@@ -29,7 +34,35 @@ class BuildResult:
     shape: k.Shape | None
     errors: list[FeatureError] = field(default_factory=list)
     built: list[str] = field(default_factory=list)  # ids of features applied
-    info: dict[str, dict[str, float]] = field(default_factory=dict)  # per feature (flat size)
+    info: dict[str, dict[str, float | str]] = field(default_factory=dict)  # flat size, holes
+    # Per feature: the topology after it, and for a boolean on an existing body the section
+    # curves along which the kernel joined, cut or intersected the tool (inspection).
+    topology: dict[str, dict] = field(default_factory=dict)
+    sections: dict[str, dict] = field(default_factory=dict)
+    # Incremental rebuild: features whose result came from the prefix cache, and the
+    # milliseconds each rebuilt feature took.
+    reused: list[str] = field(default_factory=list)
+    feature_ms: dict[str, float] = field(default_factory=dict)
+
+
+# Prefix cache: the body after each feature, keyed by the tree up to and including that
+# feature and the values of the parameters those features read. An edit to feature i
+# changes the keys from i on, so the features before it are reused and only the
+# downstream ones rebuild.
+_PREFIX: dict[str, tuple] = {}
+_PREFIX_LIMIT = 256
+
+
+def _prefix_key(values: dict[str, float], features: list[f.Feature]) -> str:
+    import hashlib
+    import json
+
+    # only the parameters these features read (resolved values, so a parameter computed from
+    # others changes the key exactly when its value changes)
+    read = set().union(*(ex.names(e) for x in features for e in x.bindings.values()))
+    used = {name: v for name, v in values.items() if name in read}
+    blob = json.dumps([used, [x.model_dump(mode="json") for x in features]], sort_keys=True)
+    return hashlib.sha1(blob.encode()).hexdigest()
 
 
 def placement_matrix(at: f.Placement) -> Matrix:
@@ -82,19 +115,68 @@ def _solid(feat: f.Box | f.Cylinder | f.Sphere | f.Extrude | f.Revolve | f.Loft 
             pts = [cq.Vector(r, 0, z) for r, z in feat.points]
             face = cq.Face.makeFromWires(cq.Wire.makePolygon(pts, close=True))
             return cq.Solid.revolve(face, feat.angle, cq.Vector(0, 0, 0), cq.Vector(0, 0, 1))
+        case f.Pad():
+            n = _normal(feat.plane)
+            solids = [cq.Solid.extrudeLinear(face, n * feat.depth) for face in sketch_faces(feat)]
+            solid = k.fuse(*solids) if len(solids) > 1 else solids[0]
+            return solid.translate(n * (-feat.depth / 2)) if feat.symmetric else solid
+        case f.Shaft():
+            axis = _plane_point(feat.plane, 0, 1)
+            solids = [cq.Solid.revolve(face, feat.angle, cq.Vector(0, 0, 0), axis)
+                      for face in sketch_faces(feat)]  # fmt: skip
+            return k.fuse(*solids) if len(solids) > 1 else solids[0]
         case f.Loft():
             wires = []
             for s in feat.sections:
                 r = min(s.radius, 0.499 * min(s.width, s.height))
-                wires.append(k.rounded_rect((-s.width / 2, s.width / 2), s.height / 2, r, r, s.z))
+                wire = k.rounded_rect((-s.width / 2, s.width / 2), s.height / 2, r, r, s.z)
+                if s.dx or s.dy:
+                    wire = wire.moved(cq.Location(cq.Vector(s.dx, s.dy, 0.0)))
+                wires.append(wire)
             return cq.Solid.makeLoft(wires, ruled=feat.ruled)
         case f.Sweep():
             return _sweep(feat)
+        case f.Slot():
+            return _slot(feat)
         case f.Wing():
             return _wing(feat)
         case f.SheetMetal():
             return _sheet(feat)[0]
+        case f.Imported():
+            shape = imports.shape(feat.file)
+            return shape.scale(feat.scale) if feat.scale != 1.0 else shape
     raise ValueError(f"unknown feature type {feat.type}")
+
+
+def _wire(plane: f.Plane, chain) -> cq.Wire:
+    edges = []
+    for _, s, e, m in chain:
+        a, b = _plane_point(plane, *s), _plane_point(plane, *e)
+        if m is None:
+            edges.append(cq.Edge.makeLine(a, b))
+        elif s == e:  # a full circle: two half arcs through the opposite point
+            mid = _plane_point(plane, *m)
+            c = (a + mid) * 0.5
+            r = (a - c).Length
+            n = _normal(plane)
+            edges.append(cq.Edge.makeCircle(r, c, n))
+        else:
+            edges.append(cq.Edge.makeThreePointArc(a, _plane_point(plane, *m), b))
+    return cq.Wire.assembleEdges(edges)
+
+
+def sketch_faces(feat: f.Pad | f.Shaft) -> list[cq.Face]:
+    """The solved sketch's profile faces in the feature's plane (holes cut out)."""
+    solved = sk.solve(feat.sketch)
+    if not solved.ok:
+        kinds = ", ".join(f"{i} ({feat.sketch.constraints[i].kind})" for i in solved.conflicting)
+        raise ValueError(f"the sketch constraints conflict: {kinds or 'arc ends'}")
+    faces = []
+    for outer, holes in sk.regions(solved.sketch):
+        face = cq.Face.makeFromWires(_wire(feat.plane, outer),
+                                     [_wire(feat.plane, h) for h in holes])  # fmt: skip
+        faces.append(face)
+    return faces
 
 
 def naca4(code: str, n: int = 40) -> list[tuple[float, float]]:
@@ -207,6 +289,113 @@ def _sweep(feat: f.Sweep) -> k.Shape:
     return cq.Solid.sweep(outer, inner, path, makeSolid=True, transitionMode="round")
 
 
+def hole_geometry(feat: f.Hole) -> dict[str, float | str]:
+    """Drill, counterbore and countersink sizes of a hole and its drawing callout."""
+    if feat.kind == "simple":
+        return {"drill": feat.diameter, "callout": f"⌀{feat.diameter:g}"}
+    hs = hole_table.size(feat.size)
+    if feat.kind == "tapped":
+        out: dict[str, float | str] = {"drill": hs.tap_drill, "thread": f"{feat.size}×{hs.pitch:g}",
+                                       "pitch": hs.pitch}  # fmt: skip
+        out["callout"] = f"{feat.size}×{hs.pitch:g} tap drill ⌀{hs.tap_drill:g}"
+        return out
+    drill = hs.clearance[hole_table.FITS[feat.fit]]
+    out = {"drill": drill, "callout": f"⌀{drill:g} ({feat.size} {feat.fit} clearance)"}
+    if feat.kind == "counterbore":
+        cd, ct = feat.cbore_diameter or hs.cbore_d, feat.cbore_depth or hs.cbore_depth
+        out |= {"cbore_diameter": cd, "cbore_depth": ct}
+        out["callout"] = f"⌀{drill:g} ⌴⌀{cd:g} ↧{ct:g} ({feat.size})"
+    elif feat.kind == "countersink":
+        sd = feat.csink_diameter or hs.csink_d
+        out |= {"csink_diameter": sd, "csink_angle": feat.csink_angle}
+        out["callout"] = f"⌀{drill:g} ⌵⌀{sd:g}×{feat.csink_angle:g}° ({feat.size})"
+    return out
+
+
+def _hole(feat: f.Hole, result: k.Shape | None) -> tuple[k.Shape, dict[str, float | str]]:
+    """The hole's tool (revolved profile, axis down -Z from the entry point) and its info."""
+    g = hole_geometry(feat)
+    r = float(g["drill"]) / 2.0
+    if feat.through:
+        if result is None:
+            raise ValueError("a through hole needs a solid before it")
+        bb = result.BoundingBox()
+        depth = 2.0 * bb.DiagonalLength + 1.0
+    else:
+        depth = feat.depth
+    up = max(0.5, r) if feat.op is f.Op.CUT else 0.0  # clear the entry face cleanly
+    pts: list[tuple[float, float]] = [(0.0, up)]
+    if "cbore_diameter" in g:
+        rc, tc = float(g["cbore_diameter"]) / 2.0, float(g["cbore_depth"])
+        if rc <= r or tc >= depth:
+            raise ValueError("counterbore must be wider than the drill and shallower than the hole")
+        pts += [(rc, up), (rc, -tc), (r, -tc)]
+    elif "csink_diameter" in g:
+        rs = float(g["csink_diameter"]) / 2.0
+        if rs <= r:
+            raise ValueError("countersink must be wider than the drill")
+        cone = (rs - r) / math.tan(math.radians(feat.csink_angle / 2.0))
+        pts += [(rs, up), (rs, 0.0), (r, -cone)]
+    else:
+        pts.append((r, up))
+    pts.append((r, -depth))
+    if feat.bottom == "drill" and not feat.through:
+        pts.append((0.0, -depth - r / math.tan(math.radians(59.0))))
+    else:
+        pts.append((0.0, -depth))
+    wire = cq.Wire.makePolygon([cq.Vector(a, 0, b) for a, b in pts], close=True)
+    face = cq.Face.makeFromWires(wire)
+    tool = cq.Solid.revolve(face, 360.0, cq.Vector(0, 0, 0), cq.Vector(0, 0, 1))
+    info: dict[str, float | str] = {**g, "depth": depth if not feat.through else -1.0}
+    if feat.kind == "tapped":
+        pitch = float(g["pitch"])
+        default = depth if feat.through else max(depth - 2 * pitch, pitch)
+        info["thread_depth"] = feat.thread_depth or default
+    return tool, info
+
+
+def _slot(feat: f.Slot) -> k.Shape:
+    up = 0.5 if feat.op is f.Op.CUT else 0.0
+    wp = cq.Workplane("XY", origin=(0, 0, up)).slot2D(feat.length, feat.width)
+    return wp.extrude(-(feat.depth + up)).val()
+
+
+def _draft(shape: k.Shape, feat: f.Draft) -> k.Shape:
+    from OCP.BRepOffsetAPI import BRepOffsetAPI_DraftAngle
+    from OCP.gp import gp_Dir, gp_Pln, gp_Pnt
+
+    sign = 1.0 if feat.pull[0] == "+" else -1.0
+    d = _AXIS[f.Axis(feat.pull[1])] * sign
+
+    def side(fc: cq.Face) -> bool:  # planes parallel to the pull, cylinders along it
+        kind = fc.geomType()
+        if kind == "PLANE":
+            return abs(fc.normalAt().dot(d)) < 1e-6
+        if kind == "CYLINDER":
+            ax = fc._geomAdaptor().Cylinder().Axis().Direction()
+            return abs(abs(ax.X() * d.x + ax.Y() * d.y + ax.Z() * d.z) - 1.0) < 1e-6
+        return False
+
+    faces = [fc for fc in shape.Faces() if side(fc)]
+    if not faces:
+        raise ValueError(f"no face runs parallel to the pull direction {feat.pull}")
+    bb = shape.BoundingBox()
+    lo = {"x": bb.xmin, "y": bb.ymin, "z": bb.zmin}[feat.pull[1]]
+    hi = {"x": bb.xmax, "y": bb.ymax, "z": bb.zmax}[feat.pull[1]]
+    base = (lo if sign > 0 else -hi) if feat.neutral is None else feat.neutral
+    origin = d * base
+    plane = gp_Pln(gp_Pnt(origin.x, origin.y, origin.z), gp_Dir(d.x, d.y, d.z))
+    algo = BRepOffsetAPI_DraftAngle(shape.wrapped)
+    for fc in faces:
+        algo.Add(fc.wrapped, gp_Dir(d.x, d.y, d.z), math.radians(feat.angle), plane, True)
+        if not algo.AddDone():
+            raise ValueError("the kernel cannot draft one of the side faces (try a smaller angle)")
+    algo.Build()
+    if not algo.IsDone():
+        raise ValueError("draft failed")
+    return cq.Shape.cast(algo.Shape())
+
+
 def _edges(shape: k.Shape, selector: str) -> list[cq.Edge]:
     """Edges picked by a CadQuery selector string (all edges when empty)."""
     edges = shape.Edges()
@@ -221,8 +410,10 @@ def _edges(shape: k.Shape, selector: str) -> list[cq.Edge]:
     return picked
 
 
-def _modify(shape: k.Shape, feat: f.Shell | f.Fillet | f.Chamfer | f.Mirror) -> k.Shape:
+def _modify(shape: k.Shape, feat: f.Shell | f.Fillet | f.Chamfer | f.Mirror | f.Draft) -> k.Shape:
     match feat:
+        case f.Draft():
+            return _draft(shape, feat)
         case f.Fillet():
             return shape.fillet(feat.radius, _edges(shape, feat.edges))
         case f.Chamfer():
@@ -271,6 +462,29 @@ def _apply(result: k.Shape | None, op: f.Op, tools: list[k.Shape]) -> k.Shape:
     for tool in tools:
         out = k.intersect(out, tool)
     return out
+
+
+def _topology(shape: k.Shape) -> dict:
+    try:
+        return topo.topology(shape).as_dict()
+    except Exception as exc:  # inspection never stops a build
+        return {"error": _message(exc)}
+
+
+def _boolean_section(body: k.Shape | None, tools: list[k.Shape], op: f.Op) -> dict:
+    """The curves where the tools meet the body (what the boolean is computed along); for
+    a pattern, those of its first copies."""
+    if body is None:
+        return {}
+    try:
+        parts = [topo.section(body, tool) for tool in tools[:4]]
+    except Exception as exc:
+        return {"error": _message(exc)}
+    return {
+        "op": op.value, "tools": len(tools), "curves": sum(p.curves for p in parts),
+        "length": sum(p.length for p in parts),
+        "polylines": [line for p in parts for line in p.polylines][:400],
+    }  # fmt: skip
 
 
 def _message(exc: Exception) -> str:
@@ -327,23 +541,48 @@ def build_part(doc: f.PartDoc) -> BuildResult:
     except ex.ExpressionError as exc:
         out.errors.append(FeatureError("parameters", str(exc)))
         return out
-    for feat in doc.features:
+    for index, feat in enumerate(doc.features):
         if feat.suppressed:
             continue
+        key = _prefix_key(values, doc.features[: index + 1])
+        if (hit := _PREFIX.get(key)) is not None:
+            result, last, info, topology, section = hit
+            if info is not None:
+                out.info[feat.id] = info
+            if section is not None:
+                out.sections[feat.id] = section
+            out.built.append(feat.id)
+            out.reused.append(feat.id)
+            out.shape = result
+            out.topology[feat.id] = topology
+            continue
+        started = time.perf_counter()
         try:
             feat = _bind(feat, values)
             if isinstance(feat, f.SheetMetal):
                 out.info[feat.id] = _sheet(feat)[1]
-            if feat.type in f.SOLID_TYPES:
+            if isinstance(feat, f.Hole):
+                raw, out.info[feat.id] = _hole(feat, result)
+                tool = _place(raw, feat.at)
+                op = feat.op
+                if result is not None:
+                    out.sections[feat.id] = _boolean_section(result, [tool], op)
+                result = _apply(result, op, [tool])
+                last = (tool, op)
+            elif feat.type in f.SOLID_TYPES:
                 tool = _place(_solid(feat), feat.at)  # type: ignore[arg-type]
                 op = feat.op  # type: ignore[union-attr]
+                if result is not None:
+                    out.sections[feat.id] = _boolean_section(result, [tool], op)
                 result = _apply(result, op, [tool])
                 last = (tool, op)
             elif feat.type in ("linear_pattern", "circular_pattern"):
                 if last is None:
                     raise ValueError("a pattern repeats the solid feature before it; add one")
                 tool, op = last
-                result = _apply(result, op, _copies(tool, feat))  # type: ignore[arg-type]
+                copies = _copies(tool, feat)  # type: ignore[arg-type]
+                out.sections[feat.id] = _boolean_section(result, copies, op)
+                result = _apply(result, op, copies)
             else:
                 if result is None:
                     raise ValueError("add a solid before this modifier")
@@ -355,4 +594,10 @@ def build_part(doc: f.PartDoc) -> BuildResult:
             break
         out.built.append(feat.id)
         out.shape = result
+        out.topology[feat.id] = _topology(result)
+        out.feature_ms[feat.id] = 1000.0 * (time.perf_counter() - started)
+        _PREFIX[key] = (result, last, out.info.get(feat.id), out.topology[feat.id],
+                        out.sections.get(feat.id))  # fmt: skip
+        while len(_PREFIX) > _PREFIX_LIMIT:
+            _PREFIX.pop(next(iter(_PREFIX)))
     return out

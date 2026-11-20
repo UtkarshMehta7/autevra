@@ -54,8 +54,9 @@ export interface Change {
 export interface Command {
   type?: "set_parameters";
   changes: Change[];
-  source?: "ui" | "api" | "rules" | "llm";
+  source?: "ui" | "api" | "rules" | "llm" | "optimizer" | "spec";
   instruction?: string | null;
+  model?: string | null; // the language model behind an AI-originated change
 }
 
 export interface HistoryEntry {
@@ -542,6 +543,23 @@ export type PartFeature = { id: string; type: string; name?: string; suppressed?
 
 export interface Placement { x?: number; y?: number; z?: number; rx?: number; ry?: number; rz?: number }
 
+export interface FeatureTemplate {
+  id: string;
+  name: string;
+  description: string;
+  parameters: Record<string, number | string>;
+  features: PartFeature[];
+}
+
+export interface Styling {
+  curves: { top: [number, number][]; bottom: [number, number][]; plan: [number, number][] };
+  custom: { top: boolean; bottom: boolean; plan: boolean };
+  reference: { rear: number; front: number; wheelbase: number; tyre_radius: number;
+    overall_height: number; half_width: number; beltline: number; glass: number[]; roof: number[] };
+  can_undo: boolean;
+  can_redo: boolean;
+}
+
 export interface PackageValue { id: string; label: string; value: number; unit: string; note: string }
 
 export interface BomLine {
@@ -570,6 +588,22 @@ export interface PartDoc {
   finish?: string;
 }
 
+/** B-rep topology after a feature (backend cad/topology.py). */
+export interface Topology {
+  vertices: number; edges: number; loops: number; faces: number; shells: number; solids: number;
+  rings: number; euler: number; genus: number; balanced: boolean;
+  free_edges: number; nonmanifold_edges: number; degenerate_edges: number; seam_edges: number;
+  watertight: boolean; valid: boolean;
+  surfaces: Record<string, number>; curves: Record<string, number>;
+  area: number; volume: number;
+}
+
+/** Where a boolean's tool met the body (the curves the boolean is computed along). */
+export interface BooleanSection {
+  op: "add" | "cut" | "intersect"; tools: number; curves: number; length: number;
+  polylines: [number, number, number][][];
+}
+
 export interface PartOut {
   id: string;
   document: PartDoc;
@@ -577,7 +611,234 @@ export interface PartOut {
   can_redo: boolean;
   built: string[];
   errors: { feature: string; message: string }[];
-  info?: Record<string, Record<string, number>>;
+  info?: Record<string, Record<string, number | string>>;
+  topology?: Record<string, Topology | { error: string }>; // per feature, after it
+  sections?: Record<string, BooleanSection>; // per boolean feature on an existing body
+  reused?: string[]; // features taken from the prefix cache in the last build
+  feature_ms?: Record<string, number>; // ms per rebuilt feature
+  graph?: PartGraph;
   volume: number | null;
   bounds: [[number, number, number], [number, number, number]] | null;
+}
+
+/** A constrained 2D sketch (see backend autevra/part/sketch.py). */
+export interface SketchPoint { id: string; x: number; y: number; fixed?: boolean }
+export type SketchEntity =
+  | { type: "line"; id: string; a: string; b: string; construction?: boolean }
+  | { type: "circle"; id: string; center: string; radius: number; construction?: boolean }
+  | { type: "arc"; id: string; center: string; start: string; end: string; construction?: boolean };
+export interface SketchConstraint { kind: string; refs: string[]; value?: number | null }
+export interface Sketch { points: SketchPoint[]; entities: SketchEntity[]; constraints: SketchConstraint[] }
+export interface SketchSolve {
+  sketch: Sketch;
+  ok: boolean;
+  dof: number;
+  redundant: number;
+  conflicting: number[];
+  fixed_points: string[];
+  fixed_entities: string[];
+  residual: number;
+  // Inspection (backend part/sketch.py): the system F(x) = 0 and the convergence history.
+  method?: string;
+  unknowns?: number;
+  equations?: { index: number | null; kind: string; text: string; rows: number; residual: number }[];
+  rank?: number;
+  iterations?: { step: number; cost: number; max_residual: number; damping: number; step_norm: number; accepted: boolean }[];
+  converged?: boolean;
+}
+
+/** A NURBS surface (backend geometry/nurbs.py): control grid [u][v] of (x, y, z), weights. */
+export interface NurbsSurface {
+  degree_u: number;
+  degree_v: number;
+  control: [number, number, number][][];
+  weights?: number[][];
+  knots_u?: number[];
+  knots_v?: number[];
+}
+
+export interface NurbsEvaluation {
+  surface: Required<NurbsSurface>;
+  grid: { u: number[]; v: number[]; points: [number, number, number][]; normals: [number, number, number][];
+    gaussian: number[]; mean: number[]; triangles: number[] };
+  basis_u: { t: number[]; functions: number[][] };
+  basis_v: { t: number[]; functions: number[][] };
+  domain: [[number, number], [number, number]];
+  support: { u: [number, number]; v: [number, number]; point: [number, number, number]; weight: number } | null;
+}
+
+export interface ContinuityReport {
+  report: { samples: number; gap: number; angle: number; curvature_a: number[]; curvature_b: number[];
+    curvature_jump: number; rate_jump: number; level: "none" | "G0" | "G1" | "G2" | "G3"; explanation: string };
+  tolerances: { g0: number; g1_deg: number; g2_rel: number; g3_rel: number };
+  combs: { points: [number, number, number][]; tips: [number, number, number][]; curvature: number[] }[];
+}
+
+/** Linear static FEA run (backend api/structures.py, fea/). */
+export interface FeaRequest {
+  demo?: string;
+  element: "tet4" | "tet10" | "hex8";
+  size: number;
+  material: { name: string; youngs?: number; poisson?: number; density?: number; yield_strength?: number };
+  supports: string[];
+  loads: { region: string; force: [number, number, number]; pressure: number }[];
+}
+
+export interface FeaFace { id: number; type: string; area: number; centre: [number, number, number]; normal: [number, number, number] }
+
+export interface FeaMesh {
+  kind: "tet4" | "tet10" | "hex8"; nodes: [number, number, number][]; boundary: [number, number, number][];
+  boundary_face: number[]; faces: FeaFace[];
+  stats: { nodes: number; elements: number; size: number; volume_ratio: number; quality_min: number;
+    quality_mean: number; slivers: number; method: string };
+  cad_volume: number;
+}
+
+export interface FeaResult {
+  mesh: FeaMesh;
+  fields: { displacement: [number, number, number][]; magnitude: number[]; von_mises: number[];
+    principal_1: number[]; strain_eq: number[] };
+  supports: number[];
+  loaded: Record<string, number[]>;
+  material: { name: string; youngs: number; poisson: number; density: number; yield_strength: number };
+  stats: { dofs: number; free_dofs: number; fixed_dofs: number; k_shape: [number, number]; k_nnz: number;
+    k_density: number; k_memory_mb: number; element_matrix: [number, number]; cg_iterations: number;
+    cg_converged: boolean; cg_residuals: number[]; cg_final_residual: number; direct_difference: number | null;
+    time_assemble: number; time_solve: number; applied_force: [number, number, number];
+    reaction_force: [number, number, number]; equilibrium_error: number; compliance: number;
+    max_displacement: number; max_von_mises: number; max_principal: number; min_principal: number;
+    factor_of_safety: number | null; mass_kg: number; method: string };
+  assumptions: string[];
+}
+
+export interface FeaCatalogue {
+  demos: Record<string, string>;
+  materials: Record<string, { name: string; youngs: number; poisson: number; density: number; yield_strength: number }>;
+  regions: string[];
+}
+
+/** SIMP topology optimisation (backend fea/simp.py). */
+export interface TopologyRequest {
+  case: "mbb" | "cantilever" | "bridge" | "bracket";
+  nx: number; ny: number; nz: number; volfrac: number; penal: number; rmin: number; max_iter: number;
+}
+
+export interface TopologyResult {
+  shape: number[];
+  description: string;
+  density: number[];
+  snapshots: number[][];
+  snapshot_iters: number[];
+  history: { iter: number; compliance: number; volume: number; change: number; grey: number; lambda: number }[];
+  stats: { elements: number; dofs: number; free_dofs: number; k_nnz_per_element: number; iterations: number;
+    converged: boolean; final_change: number; final_compliance: number; initial_compliance: number;
+    volume_fraction: number; grey_fraction: number; filter_neighbours: number; time_solve: number;
+    time_total: number; solver: string };
+  equations: string[];
+}
+
+/** A part's dependency graph (backend part/graph.py). */
+export interface PartGraph {
+  nodes: { id: string; kind: "parameter" | "feature"; label: string; type?: string; suppressed?: boolean; value?: number | string }[];
+  edges: { from: string; to: string; kind: "expression" | "binding" | "body" | "repeats"; field?: string }[];
+  levels: Record<string, number>;
+}
+
+/** Parametric aircraft (backend aero/aircraft.py). */
+export interface AircraftSpec {
+  name: string;
+  wing_span: number; wing_root_chord: number; wing_tip_chord: number; wing_sweep: number; wing_dihedral: number;
+  wing_twist: number; wing_naca: string; wing_x: number; high_wing: boolean; cl_max_section: number;
+  fuselage_length: number; fuselage_width: number; fuselage_height: number;
+  htail_span: number; htail_root_chord: number; htail_tip_chord: number; htail_x: number; t_tail: boolean;
+  fin_height: number; fin_root_chord: number; fin_tip_chord: number; fin_sweep: number; fin_x: number;
+  power_kw: number; prop_diameter: number; prop_efficiency: number; bsfc: number; mtow: number; fuel_mass: number;
+  x_cg: number; fixed_gear: boolean; tricycle: boolean; cruise_speed: number; cruise_altitude: number;
+  propulsion: "piston" | "turbofan"; engines: number; thrust_kn: number; bypass_ratio: number; tsfc: number;
+  nacelle_diameter: number; nacelle_length: number; engine_span_fraction: number; korn_factor: number;
+}
+
+export interface AircraftAnalysis {
+  atmosphere: { T: number; p: number; rho: number; mu: number; a: number; sigma: number; altitude: number; mach: number; q: number };
+  geometry: { wing_area: number; aspect_ratio: number; taper: number; mac: number; mac_x: number; mac_y: number;
+    htail_area: number; fin_area: number; tail_arm: number; fin_arm: number; wetted_area: number };
+  aero: { wing_lift_slope: number; tail_lift_slope: number; downwash_gradient: number; oswald_e: number; span_efficiency: number;
+    cl_cruise: number; alpha_cruise: number; cd0: number; cd_cruise: number; l_over_d: number; ld_max: number; v_ld_max: number;
+    zero_lift_angle: number; gear_cd0: number; span_y: number[]; span_cl: number[]; polar: { cl: number; cd: number }[];
+    components: { name: string; re: number; cf: number; ff: number; q: number; s_wet: number; cd0: number }[] };
+  stability: { x_ac_wing: number; x_ac_tail: number; x_np: number; x_cg: number; static_margin: number; v_h: number; v_v: number; eta: number };
+  performance: { wing_loading: number; power_loading: number; drag: number; power_required: number; power_available: number;
+    v_stall: number; cl_max: number; range_km: number; endurance_h: number; propulsion: "piston" | "turbofan";
+    thrust_required_kn?: number; thrust_available_kn?: number; thrust_to_weight?: number; cd_wave?: number; m_dd?: number; m_crit?: number };
+  climb: { roc_sea_level: number; v_best_climb: number; climb_gradient_sea_level: number; roc_cruise_altitude: number;
+    service_ceiling: number; absolute_ceiling: number; curve: { altitude: number; v: number; roc: number }[] };
+  sizing: { htail_area_for_vh_0_7: number | null; fin_area_for_vv_0_04: number | null; cg_aft_limit: number; cg_forward_limit: number };
+  checks: { name: string; value: number; range: [number, number]; unit: string; status: "pass" | "warn" | "fail"; why: string }[];
+  assumptions: string[];
+}
+
+/** Product structure (backend product/ and modules/): one module's breakdown with
+ * maturity, mass and CG roll-ups for one configuration. */
+export interface Rollup {
+  mass: number; cg: [number, number, number]; parts: number; instances: number;
+  maturity: number[]; min_maturity: number; over_budget: string[];
+}
+export interface BreakdownNode {
+  id: string; name: string; kind: "product" | "system" | "subsystem" | "part"; code: string;
+  template: string; process: string; functions: string[]; applicability: string; instances: number;
+  maturity: number; mass: number; mass_source: "allocated" | "estimated" | "computed"; basis: string;
+  budget: number | null; cg: [number, number, number]; envelope: [number, number, number];
+  geometry: string; rollup: Rollup; children: BreakdownNode[];
+}
+export interface OptionFamily { id: string; label: string; choices: string[]; applies: string; affects_mass: boolean; description: string }
+export interface OptionRule { id: string; when: string; then: string; message: string }
+export interface ProductCheck { id: string; label: string; status: "pass" | "warn" | "fail"; message: string }
+export interface ProductOut {
+  module: string; module_name: string; frame: string; levels: string[];
+  families: OptionFamily[]; rules: OptionRule[];
+  design_configuration: Record<string, string>; configuration: Record<string, string>;
+  violations: string[]; breakdown: BreakdownNode; checks: ProductCheck[]; templates: number;
+}
+export interface ProductEnvelope {
+  configurations: number; mass_min: number; mass_max: number;
+  lightest: Record<string, string>; heaviest: Record<string, string>; cg_x_min: number; cg_x_max: number;
+}
+
+/** Systems layer (backend product/systems.py): functions → logical blocks → parts. */
+export type FlowKind = "mechanical" | "electrical_power" | "signal" | "fluid" | "thermal";
+export interface SysFunction { id: string; name: string; parent: string; requirements: string[] }
+export interface SysBlock { id: string; name: string; functions: string[]; templates: string[]; applicability: string; external: boolean }
+export interface SysFlow { id: string; kind: FlowKind; source: string; target: string; item: string; attributes: Record<string, string>; applicability: string }
+export interface IcdRow { flow: string; kind: FlowKind; source: string; target: string; item: string; attributes: Record<string, string> }
+export interface FailureRow { id: string; function: string; block: string; mode: string; effect: string; severity: number; occurrence: number; detection: number; rpn: number; priority: "high" | "medium" | "low"; action: string }
+export interface TraceIssue { kind: string; subject: string; message: string; severity: "fail" | "warn" }
+export interface SystemsOut {
+  module: string; configuration: Record<string, string>; functions: SysFunction[]; blocks: SysBlock[];
+  flows: SysFlow[]; icd: IcdRow[]; failure_modes: FailureRow[]; issues: TraceIssue[];
+  requirements: { key: string; text: string; function: string }[]; allocations: Record<string, string>;
+}
+export interface ChainStep { block: string; name: string; external: boolean; parts: { id: string; name: string; mass: number; maturity: number; instances: number }[]; flows_out: SysFlow[] }
+
+/** Shared inventory (backend inventory/). */
+export interface ItemSummary { id: string; version: string; kind: string; family: string; category: string; name: string; standard: string; mass_kg: number | null }
+export interface ItemPort { name: string; kind: string; at: Record<string, number>; attributes: Record<string, number | string> }
+export interface InventoryItem extends ItemSummary {
+  status: string; parameters: Record<string, number | string>; properties: Record<string, number | string>;
+  performance: Record<string, number>; ports: ItemPort[]; notes: string[]; provenance: string;
+}
+
+/** Mechanical module: piston engines (backend mech/piston.py). */
+export interface EngineSpec {
+  name: string; fuel: "petrol" | "diesel"; layout: "inline" | "V" | "boxer"; cylinders: number;
+  bank_angle: number; flat_plane: boolean; bore: number; stroke: number; rod_ratio: number;
+  compression_ratio: number; turbo: boolean; bmep_max: number; rpm_peak_torque: number;
+  rpm_max: number; rpm_idle: number;
+}
+export interface EngineAnalysis {
+  displacement_l: number; firing_order: string; peak_torque_nm: number; peak_torque_rpm: number; torque_band_rpm: [number, number];
+  peak_power_kw: number; peak_power_rpm: number; specific_power_kw_per_l: number;
+  mean_piston_speed_ms: number; efficiency: { air_standard: number; fuel_air_approx: number };
+  kinematics: Record<string, number>; balance: Record<string, number>; balance_n: Record<string, number>;
+  mass_kg: number; curve: { rpm: number; torque_nm: number; power_kw: number; bmep_bar: number }[];
+  checks: { id: string; label: string; status: "pass" | "warn" | "fail"; message: string }[];
 }

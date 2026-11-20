@@ -23,12 +23,33 @@ import { AiEngineeringPanel } from "./AiEngineeringPanel";
 import { DigitalPanel } from "./DigitalPanel";
 import { ManufacturingPanel } from "./ManufacturingPanel";
 import { PackagePanel } from "./PackagePanel";
+import { StylingPanel } from "./StylingPanel";
 import { PartDesignPanel } from "./PartDesignPanel";
+import { AircraftPanel } from "./AircraftPanel";
+import { BreakdownPanel } from "./BreakdownPanel";
+import { FunctionsPanel } from "./FunctionsPanel";
+import { ElementsPanel } from "./ElementsPanel";
+import { MachiningPanel } from "./MachiningPanel";
+import { MatesPanel } from "./MatesPanel";
+import { LibraryPanel } from "./LibraryPanel";
+import { SketchTo3DPanel } from "./SketchTo3DPanel";
+import { InventoryPanel } from "./InventoryPanel";
+import { MachinePanel } from "./MachinePanel";
+import { VesselPanel } from "./VesselPanel";
+import { LoadsPanel } from "./LoadsPanel";
+import { ProductionPanel } from "./ProductionPanel";
+import { ReviewsPanel } from "./ReviewsPanel";
+import { RoutingPanel } from "./RoutingPanel";
+import { StructuresWorkspace } from "./StructuresPanel";
+import { SurfacesPanel } from "./SurfacesPanel";
 import { SystemsPanel } from "./SystemsPanel";
-import { WORKSPACES, type WorkspaceId } from "./workspaces";
+import { MODULES, moduleOf, WORKSPACES, type WorkspaceId } from "./workspaces";
+import { clampDock, clampSide, DEFAULT_LAYOUT, type Layout, useLayout } from "./layout";
+import { Splitter } from "./Splitter";
+import { ReferencePanel } from "./Reference";
 
 import { remember } from "./lastProject";
-import { DownloadLink } from "../DownloadLink";
+import { downloadAction, MenuBar } from "./MenuBar";
 
 // Startup runs once per page load (React StrictMode runs effects twice in development).
 let startup: Promise<{
@@ -66,6 +87,7 @@ function StudioView({ projectId, workspace, navigate }: {
   const [selected, setSelected] = useState<string | null>(null);
   const [highlighted, setHighlighted] = useState<string[]>([]);
   const [xray, setXray] = useState(false);
+  const [help, setHelp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Connecting…");
@@ -76,11 +98,41 @@ function StudioView({ projectId, workspace, navigate }: {
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<ComponentTestStatus[]>([]);
   const [collapsed, setCollapsed] = useState(false);
+  const [reference, setReference] = useState(() => {
+    try { return localStorage.getItem("autevra.reference.open") === "1"; } catch { return false; }
+  });
+  const showReference = (open: boolean) => {
+    setReference(open);
+    try { localStorage.setItem("autevra.reference.open", open ? "1" : "0"); } catch { /* blocked */ }
+  };
+  // Resizable panels: side panel widths, dock height and a focus mode for the viewport.
+  const { layout, set: setLayout, toggleSide } = useLayout();
+  const dragStart = useRef<Layout>(layout);
+  const beginDrag = () => { dragStart.current = layout; };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) || t.isContentEditable) return;
+      if (e.key === "Escape" && layout.focus) setLayout({ focus: false });
+      if (e.key === "F3") { e.preventDefault(); toggleSide("left"); }  // specification tree, as in CATIA
+      if (e.key.toLowerCase() === "f" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        setLayout({ focus: !layout.focus });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [layout.focus, setLayout, toggleSide]);
   const [missing, setMissing] = useState(false);
   const go = useCallback((ws: WorkspaceId) => {
     setCollapsed(false);
     navigate(`/studio/${projectId}/${ws}`);
   }, [navigate, projectId]);
+  // stay inside the project's module: a tab of another module redirects to this one's first
+  useEffect(() => {
+    if (!project || project.id !== projectId) return;
+    const m = moduleOf(project.domain);
+    if (!m.workspaces.includes(workspace)) navigate(`/studio/${projectId}/${m.workspaces[0]}`, { replace: true });
+  }, [project, projectId, workspace, navigate]);
   const [specState, setSpecState] = useState<SpecState | null>(null);
   const [specDesign, setSpecDesign] = useState<SpecDesign | null>(null);
   const [requirements, setRequirements] = useState<RequirementRow[]>([]);
@@ -97,14 +149,19 @@ function StudioView({ projectId, workspace, navigate }: {
   const queue = useRef<Promise<void>>(Promise.resolve());
   const pending = useRef(0);
 
+  // The project the studio is showing: a slow load of a project the user has since left
+  // must not overwrite the newer one when it finally arrives.
+  const current = useRef<string | null>(null);
   const refresh = useCallback(async (id: string) => {
+    current.current = id;
     const started = performance.now();
     const [state, hist, mdl, runList, status, studyList, loopList] = await Promise.all([
       api.project(id), api.history(id), api.model(id, geometryCache.keys()), api.runs(id),
       api.componentStatus(id), api.studies(id), api.loops(id),
     ]);
-    api.requirements(id).then(setRequirements).catch(() => setRequirements([]));
-    api.spec(id).then(setSpecState).catch(() => setSpecState(null));
+    if (current.current !== id) return; // superseded by another project
+    api.requirements(id).then((r) => current.current === id && setRequirements(r)).catch(() => setRequirements([]));
+    api.spec(id).then((s) => current.current === id && setSpecState(s)).catch(() => setSpecState(null));
     setStudies(studyList);
     setLoops(loopList);
     setProject(state);
@@ -272,6 +329,22 @@ function StudioView({ projectId, workspace, navigate }: {
     });
   const specAction = (action: () => Promise<SpecState>) =>
     run(async () => { setSpecState(await action()); setSpecDesign(null); return null; });
+  // Reference designs (land): published dimensions applied as one undoable change.
+  const [landRefs, setLandRefs] = useState<Record<string, { template: string; note: string; values: Record<string, number> }>>({});
+  useEffect(() => { api.landReferences().then(setLandRefs).catch(() => setLandRefs({})); }, []);
+  const [refNote, setRefNote] = useState<string | null>(null);
+  const applyReference = async (name: string) => {
+    const ref = landRefs[name];
+    if (!ref) return;
+    setRefNote(`Building “${name}”: ${ref.note}`);
+    setBusy(true);
+    try {
+      const created = await api.projectFromReference(name);
+      setProjects(await api.listProjects());
+      navigate(`/studio/${created.id}/design`);
+      setRefNote(ref.note);
+    } catch (e) { setRefNote(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  };
   const generateDesign = () =>
     run(async () => { setSpecDesign(await api.specDesign(project!.id)); return null; });
   const applyDesign = () =>
@@ -326,8 +399,9 @@ function StudioView({ projectId, workspace, navigate }: {
   };
 
   const newProject = async () => {
-    const name = `Vehicle ${projects.length + 1}`;
-    const created = await api.createProject(name);
+    const m = moduleOf(project?.domain);
+    const count = projects.filter((p) => moduleOf(p.domain).id === m.id).length;
+    const created = await api.createProject(`${m.noun} ${count + 1}`, m.id);
     setProjects(await api.listProjects());
     startup = null;
     navigate(`/studio/${created.id}/${workspace}`);
@@ -354,48 +428,152 @@ function StudioView({ projectId, workspace, navigate }: {
     );
   }
 
+  // Engineering module of this project: only its workspaces and its projects are shown.
+  const mod = moduleOf(project?.domain);
+  const tabs = mod.workspaces.map((id) => WORKSPACES.find((w) => w.id === id)!).filter(Boolean);
+  const siblings = projects.filter((p) => moduleOf(p.domain).id === mod.id);
+  const land = mod.id === "automotive";
+  const openModule = async (id: string) => {
+    const target = MODULES.find((m) => m.id === id);
+    if (!target || target.planned || target.id === mod.id) return;
+    const existing = projects.filter((p) => moduleOf(p.domain).id === id)
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+    const dest = existing ?? await api.createProject(`${target.noun} 1`, target.id);
+    if (!existing) { setProjects(await api.listProjects()); startup = null; }
+    navigate(`/studio/${dest.id}/${target.workspaces[0]}`);
+  };
   return (
-    <div className="app">
+    <div className={`app${layout.focus ? " focus" : ""}`} style={layout.focus ? undefined : {
+      gridTemplateColumns: `${layout.left}px 5px minmax(0, 1fr) 5px ${land ? layout.right : 0}px`,
+      gridTemplateRows: `auto minmax(0, 1fr) 5px ${collapsed ? "auto" : `${layout.dock}px`}`,
+    }}>
       <header>
         <Link to="/" className="brand" title="AUTEVRA website">Autevra</Link>
-        <Link to="/app" className="button subtle" title="Projects, models and runs">Workspace</Link>
+        <MenuBar menus={[
+          { label: "File", items: [
+            { label: "New project", action: newProject },
+            { label: "Projects, models and runs…", action: () => navigate("/app") },
+            { label: "", separator: true },
+            ...siblings.slice(0, 12).map((p) => ({ label: `Open: ${p.name}`, checked: p.id === project?.id,
+              action: () => navigate(`/studio/${p.id}/${workspace}`) })),
+            { label: "", separator: true },
+            { label: "Export STEP (B-rep assembly)", disabled: !project, action: project ? downloadAction(api.stepUrl(project.id)) : undefined },
+            { label: "Export STEP AP242", disabled: !project, action: project ? downloadAction(`${api.stepUrl(project.id)}?schema=AP242`) : undefined },
+            { label: "Export glTF (.glb mesh for viewers and AR)", disabled: !project, action: project ? downloadAction(api.glbUrl(project.id)) : undefined },
+            { label: "Duplicate project (everything: parts, module specs, constraints)", disabled: !project, action: project ? async () => { const d = await api.duplicateProject(project.id); setProjects(await api.listProjects()); navigate(`/studio/${d.id}/${workspace}`); } : undefined },
+            { label: "Export design (.json, any module)", disabled: !project, action: project ? downloadAction(api.snapshotUrl(project.id)) : undefined },
+            { label: "Import design (.json)…", action: () => {
+              const input = document.createElement("input");
+              input.type = "file"; input.accept = ".json,application/json";
+              input.onchange = async () => {
+                const file = input.files?.[0];
+                if (!file) return;
+                try {
+                  const created = await api.importDesign(JSON.parse(await file.text()));
+                  setProjects(await api.listProjects());
+                  navigate(`/studio/${created.id}/${moduleOf(created.domain).workspaces[0]}`);
+                } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+              };
+              input.click();
+            } },
+            { label: "Assembly drawing (A3 SVG: isometric, balloons, bill of materials)", disabled: !project, action: project ? downloadAction(api.assemblyDrawingUrl(project.id)) : undefined },
+            { label: "Export STL (3D printing, binary, mm)", disabled: !project, action: project ? downloadAction(api.stlUrl(project.id)) : undefined },
+            { label: "Export IGES 5.3 (B-rep solids, mm)", disabled: !project, action: project ? downloadAction(api.igesUrl(project.id)) : undefined },
+            { label: "Export bill of materials (CSV)", disabled: !project, action: project ? downloadAction(api.bomUrl(project.id)) : undefined },
+            { label: "Export package drawing (SVG)", disabled: !project, action: project ? downloadAction(api.packageSvgUrl(project.id)) : undefined },
+            { label: "Export requirements (ReqIF)", disabled: !project, action: project ? downloadAction(api.reqifUrl(project.id)) : undefined },
+          ] },
+          { label: "Edit", items: [
+            { label: "Undo", shortcut: "⌘Z", disabled: !project?.can_undo || busy, action: undo },
+            { label: "Redo", shortcut: "⇧⌘Z", disabled: !project?.can_redo || busy, action: redo },
+          ] },
+          { label: "View", items: [
+            { label: "Component tree", checked: layout.left > 0 && !layout.focus, disabled: layout.focus, action: () => toggleSide("left") },
+            { label: "Workspace tabs", checked: !collapsed && !layout.focus, disabled: layout.focus, action: () => setCollapsed(!collapsed) },
+            { label: "Parameters", checked: layout.right > 0 && !layout.focus, disabled: layout.focus, action: () => toggleSide("right") },
+            { label: "Reference photo", checked: reference, action: () => showReference(!reference) },
+            { label: "", separator: true },
+            { label: "Focus view", shortcut: "F", checked: layout.focus, action: () => setLayout({ focus: !layout.focus }) },
+            { label: "X-ray body", checked: xray, action: () => setXray(!xray) },
+          ] },
+          { label: "Workspace", items: tabs.map((w) => ({ label: w.label, checked: w.id === workspace, action: () => go(w.id) })) },
+          { label: "Help", items: [{ label: "Keyboard shortcuts", action: () => setHelp(true) }] },
+        ]} />
+        <nav className="modules" aria-label="Engineering modules">
+          {MODULES.map((m) => (
+            <button key={m.id} className={m.id === mod.id ? "on" : ""} disabled={m.planned}
+              title={m.planned ? `${m.description}: coming as its own module` : m.description}
+              onClick={() => openModule(m.id)}>{m.label}{m.planned ? " ·" : ""}</button>
+          ))}
+        </nav>
         <select value={project?.id ?? ""} onChange={(e) => navigate(`/studio/${e.target.value}/${workspace}`)}>
-          {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {siblings.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        <button onClick={newProject}>New</button>
-        <CommandBar turns={turns} busy={busy} llm={llm} onSend={send} onDecide={decide} />
+        {land && <CommandBar turns={turns} busy={busy} llm={llm} onSend={send} onDecide={decide} />}
         <button onClick={undo} disabled={!project?.can_undo || busy} title="Undo (⌘Z)">Undo</button>
         <button onClick={redo} disabled={!project?.can_redo || busy} title="Redo (⇧⌘Z)">Redo</button>
-        <label className="toggle">
-          <input type="checkbox" checked={xray} onChange={(e) => setXray(e.target.checked)} />
-          X-ray body
-        </label>
-        {project && <DownloadLink className="button" href={api.stepUrl(project.id)}>Export STEP</DownloadLink>}
+        <span className="layout-buttons" role="group" aria-label="Panels">
+          <button className={layout.left > 0 && !layout.focus ? "on" : ""} onClick={() => toggleSide("left")}
+            disabled={layout.focus} title="Show or hide the component tree (F3)">Tree</button>
+          <button className={!collapsed && !layout.focus ? "on" : ""} onClick={() => setCollapsed(!collapsed)}
+            disabled={layout.focus} title="Show or hide the workspace tabs panel">Tabs</button>
+          <button className={layout.right > 0 && !layout.focus && land ? "on" : ""} onClick={() => toggleSide("right")}
+            disabled={layout.focus || !land} title="Show or hide the parameters">Parameters</button>
+          <button className={reference ? "on" : ""} onClick={() => showReference(!reference)}
+            title="Show a reference photo beside the 3D view (paste, drop or load)">Reference</button>
+          <button className={layout.focus ? "on" : ""} onClick={() => setLayout({ focus: !layout.focus })}
+            title="Give the 3D view the whole window (F; Esc to leave)">Focus view</button>
+        </span>
       </header>
+      {help && (
+        <div className="shortcuts" role="dialog" aria-label="Keyboard shortcuts">
+          <strong>Keyboard shortcuts</strong>
+          <dl>
+            <dt>⌘Z / ⇧⌘Z</dt><dd>Undo / redo the last design change</dd>
+            <dt>F</dt><dd>Focus view (the 3D view takes the window)</dd>
+            <dt>Esc</dt><dd>Leave focus view, close a menu</dd>
+            <dt>⌘V</dt><dd>Paste a reference photo (Reference panel open)</dd>
+            <dt>Drag / right-drag / wheel</dt><dd>Orbit / pan / zoom the 3D view</dd>
+          </dl>
+          <button onClick={() => setHelp(false)}>Close</button>
+        </div>
+      )}
+      <Splitter orientation="vertical" area="lsplit" label="Component tree width" onStart={beginDrag}
+        onDrag={(dx) => setLayout({ left: clampSide(dragStart.current.left + dx, "left") })}
+        onReset={() => setLayout({ left: DEFAULT_LAYOUT.left })} />
+      <Splitter orientation="vertical" area="rsplit" label="Parameters width" onStart={beginDrag}
+        onDrag={(dx) => setLayout({ right: clampSide(dragStart.current.right - dx, "right") })}
+        onReset={() => setLayout({ right: DEFAULT_LAYOUT.right })} />
+      <Splitter orientation="horizontal" area="hsplit" label="Workspace panel height"
+        onStart={() => { beginDrag(); if (collapsed) setCollapsed(false); }}
+        onDrag={(dy) => setLayout({ dock: clampDock(dragStart.current.dock - dy, window.innerHeight) })}
+        onReset={() => setLayout({ dock: DEFAULT_LAYOUT.dock })} />
       <aside className="left">
         <ComponentTree parts={model?.parts ?? []} selected={selected} highlighted={highlighted}
           statuses={statuses} onSelect={setSelected} />
         <HistoryPanel entries={history.entries} cursor={history.cursor} />
       </aside>
-      <main>
+      <main className={reference && project ? "with-ref" : undefined}>
+        {reference && project && <ReferencePanel project={project.id} onClose={() => showReference(false)} />}
         <Viewport model={model} selected={selected} highlighted={highlighted} xray={xray}
           animation={animation} onStop={() => setAnimation(null)} onSelect={setSelected} />
         <div className="status">{busy ? "Working…" : status}</div>
       </main>
       <section className={`dock${collapsed ? " closed" : ""}`}>
         <nav className="tabs" aria-label="Studio workspaces">
-          {WORKSPACES.map((w) => (
+          {tabs.map((w) => (
             <button key={w.id} className={workspace === w.id ? "active" : ""} onClick={() => go(w.id)}
               title={w.description}>
               {w.label}{w.id === "requirements" ? ` (${requirements.length})` : ""}
             </button>
           ))}
           <span className="spacer" />
-          <label className="toggle" title="Rerun tests already run on this project after every change">
+          {land && <label className="toggle" title="Rerun tests already run on this project after every change">
             <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
             Live simulation
-          </label>
+          </label>}
           <button onClick={() => setCollapsed(!collapsed)}>{collapsed ? "Show" : "Hide"}</button>
+          <button onClick={() => setLayout({ focus: true })} title="Give the 3D view the whole window (F)">Focus view</button>
         </nav>
         {project && !collapsed && workspace === "simulation" && (
           <TestBench projectId={project.id} definitions={tests} runs={runs}
@@ -408,6 +586,15 @@ function StudioView({ projectId, workspace, navigate }: {
             values={project.values} studies={studies} loops={loops} busy={busy}
             onOptimize={optimize} onLoop={engineeringLoop} onDecide={decideStudy}
             onChoose={chooseCandidate} />
+        )}
+        {project && !collapsed && workspace === "design" && Object.keys(landRefs).length > 0 && (
+          <div className="reference-picker">
+            <label>New project from a reference design <select value="" disabled={busy} onChange={(e) => e.target.value && applyReference(e.target.value)}>
+              <option value="">choose a well-known car…</option>
+              {Object.keys(landRefs).map((k) => <option key={k} value={k}>{k}</option>)}
+            </select></label>
+            <span className="hint">{refNote ?? "A new project on the car's template with its published dimensions, mass, power and drag as one change in the history; figures not published are estimated. Studies, not manufacturers' data."}</span>
+          </div>
         )}
         {project && !collapsed && workspace === "design" && (
           <SpecPanel state={specState} design={specDesign} parameters={parameters}
@@ -427,8 +614,59 @@ function StudioView({ projectId, workspace, navigate }: {
             onVerify={() => requirementAction(() => api.verifyRequirements(project.id))}
             onImport={(xml) => requirementAction(() => api.importReqif(project.id, xml))} />
         )}
+        {!collapsed && workspace === "surfaces" && <SurfacesPanel />}
+        {!collapsed && workspace === "structures" && <StructuresWorkspace projectId={project?.id} />}
+        {!collapsed && workspace === "aircraft" && project && (
+          <AircraftPanel key={project.id} projectId={project.id} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "breakdown" && (
+          <BreakdownPanel key={project.id} projectId={project.id} version={history.cursor} />
+        )}
+        {project && !collapsed && workspace === "functions" && (
+          <FunctionsPanel key={project.id} projectId={project.id} version={history.cursor} />
+        )}
+        {project && !collapsed && workspace === "inventory" && (
+          <InventoryPanel projectId={project.id} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "sketch3d" && (
+          <SketchTo3DPanel projectId={project.id} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "library" && (
+          <LibraryPanel projectId={project.id} projectName={project.name}
+            onOpen={async (id, domain) => { setProjects(await api.listProjects()); navigate(`/studio/${id}/${moduleOf(domain).workspaces[0]}`); }} />
+        )}
+        {project && !collapsed && workspace === "mates" && (
+          <MatesPanel key={project.id} projectId={project.id} version={history.cursor} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "machining" && (
+          <MachiningPanel key={project.id} projectId={project.id} version={history.cursor} />
+        )}
+        {project && !collapsed && workspace === "elements" && (
+          <ElementsPanel projectId={project.id} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "engine" && (
+          <MachinePanel key={project.id} projectId={project.id} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "loads" && (
+          <LoadsPanel key={project.id} projectId={project.id} version={history.cursor} />
+        )}
+        {project && !collapsed && workspace === "production" && (
+          <ProductionPanel key={project.id} projectId={project.id} version={history.cursor} />
+        )}
+        {project && !collapsed && workspace === "reviews" && (
+          <ReviewsPanel key={project.id} projectId={project.id} version={history.cursor} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "vessel" && (
+          <VesselPanel key={project.id} projectId={project.id} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "routing" && (
+          <RoutingPanel key={project.id} projectId={project.id} onModelChanged={() => refresh(project.id)} />
+        )}
         {project && !collapsed && workspace === "part-design" && (
           <PartDesignPanel projectId={project.id} onModelChanged={() => refresh(project.id)} />
+        )}
+        {project && !collapsed && workspace === "styling" && (
+          <StylingPanel projectId={project.id} version={history.cursor} onModelChanged={() => refresh(project.id)} />
         )}
         {project && !collapsed && workspace === "package" && (
           <PackagePanel projectId={project.id} version={history.cursor} />
@@ -456,7 +694,7 @@ function StudioView({ projectId, workspace, navigate }: {
         )}
       </section>
       <aside className="right">
-        {project && (
+        {project && land && (
           <PropertyEditor parameters={parameters} values={project.values} derived={project.derived}
             error={error} onSet={setParameter} />
         )}

@@ -113,7 +113,8 @@ def seating(values: Values) -> dict[str, float]:
 
 
 def interior_inputs() -> tuple[str, ...]:
-    return ("seat_rows", "interior_trim", "driving_side")
+    return ("seat_rows", "interior_trim", "driving_side", "seat_height", "seat_recline",
+            "dash_zone", "row_pitch")  # fmt: skip
 
 
 def package(values: Values) -> list[PackageValue]:

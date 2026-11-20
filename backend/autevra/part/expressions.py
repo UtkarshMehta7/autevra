@@ -84,3 +84,14 @@ def resolve_parameters(params: Mapping[str, str | float]) -> dict[str, float]:
     for name, value in params.items():
         out[name] = float(value) if isinstance(value, int | float) else evaluate(value, out)
     return out
+
+
+def names(text: str) -> set[str]:
+    """The parameter names an expression reads (empty when it cannot be parsed)."""
+    try:
+        tree = ast.parse(str(text).strip().removeprefix("="), mode="eval")
+    except SyntaxError:
+        return set()
+    called = {n.func.id for n in ast.walk(tree) if isinstance(n, ast.Call)
+              and isinstance(n.func, ast.Name)}  # fmt: skip
+    return {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)} - called - {"pi"}

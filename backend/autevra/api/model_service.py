@@ -10,6 +10,7 @@ from autevra.assembly import transforms as tf
 from autevra.assembly.model import COMPONENTS
 from autevra.cad import kernel
 from autevra.cad.cache import GeometryCache
+from autevra.domains.automotive.styling_curves import STYLED_BUILDERS
 from autevra.part import build as part_build
 from autevra.part.features import PartDoc
 
@@ -31,13 +32,19 @@ class VehicleModel:
     shapes: dict[str, kernel.Shape]
 
 
-def build_model(values: Mapping[str, float], cache: GeometryCache) -> VehicleModel:
+def build_model(values: Mapping[str, float], cache: GeometryCache,
+                styling: Mapping[str, float] | None = None) -> VehicleModel:  # fmt: skip
+    """The placed parts of the design; ``styling`` adds the project's styling curves (flat
+    inputs) to the builders that follow the styled skin."""
     world = graph.place_all(values)
     parts, shapes = [], {}
     for c in COMPONENTS:
         if c.builder is None:
             continue
-        key, shape = cache.shape(c.builder, c.resolve_inputs(values))
+        inputs = c.resolve_inputs(values)
+        if styling and c.builder in STYLED_BUILDERS:
+            inputs = inputs | dict(styling)
+        key, shape = cache.shape(c.builder, inputs)
         if shape is None:  # not fitted in this configuration
             continue
         shapes[key] = shape
@@ -133,8 +140,25 @@ def mesh_payload(model: VehicleModel, cache: GeometryCache, skip: Iterable[str] 
     }
 
 
-def export_step(model: VehicleModel, path: Path) -> Path:
+def export_step(model: VehicleModel, path: Path, schema: str = "AP214") -> Path:
     return kernel.export_step(
         [kernel.Part(p.id, model.shapes[p.geometry], p.matrix, p.color) for p in model.parts],
         path,
+        schema=schema,
     )
+
+
+def export_mesh_or_iges(model: VehicleModel, path: Path, fmt: str, tolerance: float = 0.05) -> Path:
+    parts = [kernel.Part(p.id, model.shapes[p.geometry], p.matrix, p.color) for p in model.parts]
+    if fmt == "iges":
+        return kernel.export_iges(parts, path)
+    return kernel.export_stl(parts, path, tolerance=tolerance)
+
+
+def export_glb(model: VehicleModel, path: Path, name: str = "model") -> Path:
+    from autevra.cad import gltf
+
+    parts = [kernel.Part(p.id, model.shapes[p.geometry], p.matrix, p.color) for p in model.parts]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(gltf.glb(parts, name=name))
+    return path

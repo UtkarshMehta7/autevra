@@ -12,6 +12,7 @@ def test_every_parameter_without_geometry_feeds_a_test() -> None:
         "paint_finish",
         "interior_colour",
         "rim_finish",
+        "caliper_colour",
     }
 
 
